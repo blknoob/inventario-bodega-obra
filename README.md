@@ -27,6 +27,7 @@ public/
     auth.js             Login / logout / guardia de sesión
     ui.js               Barra superior y avisos
     materiales.js       Capa de datos de materiales (Firestore en tiempo real)
+    demo.js             Modo demo con datos de muestra (?demo)
 firestore.rules       Reglas de seguridad (lectura pública, escritura autenticada)
 firebase.json         Config de Hosting + Firestore
 .firebaserc           ID del proyecto Firebase  ← EDITAR
@@ -70,12 +71,40 @@ firebase deploy --only firestore:rules,hosting
 
 Al terminar, la CLI muestra la URL pública (`https://TU_PROYECTO.web.app`).
 
-### Probar en local
+## Ver los avances
+
+Tres formas, de menos a más fiel:
+
+### 1. Modo demo (sin nada instalado)
+
+Sirve la carpeta y abre con `?demo`:
 
 ```bash
-firebase emulators:start        # requiere haber configurado el proyecto
-# o simplemente servir la carpeta:
-npx serve public
+cd public && python3 -m http.server 8000
+#  → http://localhost:8000/index.html?demo
+```
+
+Carga datos de muestra y muestra la interfaz completa (incluidos los botones de
+bodega). **No guarda nada.** Se apaga abriendo cualquier página con `?nodemo`.
+
+### 2. Emuladores de Firebase (datos reales, local)
+
+Requiere Node y **Java** (para el emulador de Firestore):
+
+```bash
+npx firebase-tools emulators:start
+#  → sirve el sitio en http://localhost:5000
+#  → abre las páginas con ?emu para conectarlas a los emuladores
+```
+
+Crea la cuenta de bodega en la UI del emulador de Auth (http://localhost:4000).
+
+### 3. Publicado en Firebase Hosting (lo real)
+
+Configura el proyecto (sección de arriba) y luego, después de cada tramo:
+
+```bash
+npx firebase-tools deploy --only hosting,firestore:rules
 ```
 
 ## Control de versiones

@@ -12,6 +12,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { usuarioActual } from "./auth.js";
+import { MODO_DEMO, MATERIALES_DEMO, bloquearEnDemo } from "./demo.js";
 
 const materialesRef = collection(db, "materiales");
 const movimientosRef = collection(db, "movimientos_materiales");
@@ -32,6 +33,11 @@ export function etiquetaCategoria(valor) {
  * Entrega un array ordenado por nombre. Devuelve la función para desuscribirse.
  */
 export function escucharMateriales(onCambio, onError) {
+  if (MODO_DEMO) {
+    onCambio([...MATERIALES_DEMO].sort((a, b) =>
+      a.nombre.localeCompare(b.nombre, "es", { sensitivity: "base" })));
+    return () => {};
+  }
   return onSnapshot(
     materialesRef,
     (snap) => {
@@ -47,6 +53,7 @@ export function escucharMateriales(onCambio, onError) {
 
 /** Crea un material nuevo (sin stock inicial: eso se hace con "registrar llegada"). */
 export async function crearMaterial({ nombre, categoria, unidad, stockMinimo, ubicacion, descripcion }) {
+  if (MODO_DEMO) bloquearEnDemo();
   const email = usuarioActual()?.email ?? null;
   return addDoc(materialesRef, {
     nombre: nombre.trim(),
@@ -67,6 +74,7 @@ export async function crearMaterial({ nombre, categoria, unidad, stockMinimo, ub
  * suma al stock del material y deja un movimiento en el historial.
  */
 export async function registrarLlegada(materialId, { cantidad, proveedor, documento, motivo }) {
+  if (MODO_DEMO) bloquearEnDemo();
   const cant = Number(cantidad);
   if (!(cant > 0)) throw new Error("La cantidad debe ser mayor que cero.");
 

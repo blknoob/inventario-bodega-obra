@@ -9,9 +9,13 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js";
-import { getAuth } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
+import {
+  getAuth,
+  connectAuthEmulator,
+} from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
 import {
   initializeFirestore,
+  connectFirestoreEmulator,
   persistentLocalCache,
   persistentMultipleTabManager,
 } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
@@ -25,12 +29,39 @@ const firebaseConfig = {
   appId: "TU_APP_ID",
 };
 
-const app = initializeApp(firebaseConfig);
+// Modo emulador local: abre cualquier página con ?emu (queda recordado).
+// Requiere `firebase emulators:start`. Sirve para probar sin tocar datos reales.
+const USAR_EMULADOR = (() => {
+  try {
+    const url = new URL(location.href);
+    if (url.searchParams.has("emu")) localStorage.setItem("usarEmulador", "1");
+    if (url.searchParams.has("noemu")) localStorage.removeItem("usarEmulador");
+    return localStorage.getItem("usarEmulador") === "1" &&
+      ["localhost", "127.0.0.1"].includes(location.hostname);
+  } catch {
+    return false;
+  }
+})();
+
+const app = initializeApp(
+  USAR_EMULADOR ? { ...firebaseConfig, projectId: "demo-inventario", apiKey: "demo" } : firebaseConfig,
+);
 
 export const auth = getAuth(app);
 
-// Cache local: el inventario sigue visible sin conexión (bodega en obra) y se
-// sincroniza al recuperar señal. persistentMultipleTabManager permite varias pestañas.
-export const db = initializeFirestore(app, {
-  localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
-});
+export const db = initializeFirestore(
+  app,
+  USAR_EMULADOR
+    ? {}
+    : {
+        // Cache local: el inventario sigue visible sin conexión (bodega en obra)
+        // y se sincroniza al recuperar señal.
+        localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
+      },
+);
+
+if (USAR_EMULADOR) {
+  connectAuthEmulator(auth, "http://localhost:9099", { disableWarnings: true });
+  connectFirestoreEmulator(db, "localhost", 8080);
+  console.info("[firebase] Conectado a los emuladores locales (proyecto demo-inventario).");
+}

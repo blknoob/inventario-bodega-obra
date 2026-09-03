@@ -3,6 +3,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { observarSesion, cerrarSesion } from "./auth.js";
+import { MODO_DEMO } from "./demo.js";
 
 /**
  * Monta la barra superior en <header id="topbar"> y refleja el estado de sesión.
@@ -23,12 +24,19 @@ export function montarTopbar(activo = "") {
       ${link("materiales.html", "materiales", "Materiales")}
       ${link("herramientas.html", "herramientas", "Herramientas")}
       <span id="nav-session"></span>
+      ${MODO_DEMO ? '<span class="badge badge-warn" title="Datos de muestra; no se guarda nada">DEMO</span>' : ""}
     </nav>
   `;
 
+  if (MODO_DEMO) {
+    // En demo mostramos los controles de bodega para ver la interfaz completa.
+    document.body.classList.add("es-bodega");
+  }
+
   const slot = header.querySelector("#nav-session");
+  slot.innerHTML = `<a href="login.html">Ingreso bodega</a>`; // hasta que resuelva la sesión
   observarSesion((user) => {
-    document.body.classList.toggle("es-bodega", !!user);
+    if (!MODO_DEMO) document.body.classList.toggle("es-bodega", !!user);
     if (user) {
       slot.innerHTML = `
         <a href="bodega.html" class="${activo === "bodega" ? "active" : ""}">Panel bodega</a>
