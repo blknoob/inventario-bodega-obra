@@ -1,0 +1,56 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// UI compartida — barra superior y estado de sesión
+// ─────────────────────────────────────────────────────────────────────────────
+
+import { observarSesion, cerrarSesion } from "./auth.js";
+
+/**
+ * Monta la barra superior en <header id="topbar"> y refleja el estado de sesión.
+ * @param {string} activo  clave de la sección activa: 'inicio' | 'materiales' | 'herramientas' | 'bodega'
+ */
+export function montarTopbar(activo = "") {
+  const header = document.getElementById("topbar");
+  if (!header) return;
+
+  const link = (href, key, label) =>
+    `<a href="${href}" class="${key === activo ? "active" : ""}">${label}</a>`;
+
+  header.className = "topbar";
+  header.innerHTML = `
+    <a class="brand" href="index.html">Bodega <b>Obra</b></a>
+    <nav>
+      ${link("index.html", "inicio", "Inicio")}
+      ${link("materiales.html", "materiales", "Materiales")}
+      ${link("herramientas.html", "herramientas", "Herramientas")}
+      <span id="nav-session"></span>
+    </nav>
+  `;
+
+  const slot = header.querySelector("#nav-session");
+  observarSesion((user) => {
+    if (user) {
+      slot.innerHTML = `
+        <a href="bodega.html" class="${activo === "bodega" ? "active" : ""}">Panel bodega</a>
+        <a href="#" id="btn-logout">Salir</a>
+      `;
+      slot.querySelector("#btn-logout").addEventListener("click", async (e) => {
+        e.preventDefault();
+        await cerrarSesion();
+        location.href = "index.html";
+      });
+    } else {
+      slot.innerHTML = `<a href="login.html">Ingreso bodega</a>`;
+    }
+  });
+}
+
+/** Muestra un mensaje temporal en el contenedor #flash. */
+export function flash(mensaje, tipo = "ok") {
+  const box = document.getElementById("flash");
+  if (!box) return;
+  box.className = `alert alert-${tipo}`;
+  box.textContent = mensaje;
+  box.classList.remove("hidden");
+  clearTimeout(flash._t);
+  flash._t = setTimeout(() => box.classList.add("hidden"), 4000);
+}

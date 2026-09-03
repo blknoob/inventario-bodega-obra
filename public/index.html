@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Inventario de Bodega | Obra</title>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <header id="topbar"></header>
+
+  <div class="wrap">
+    <div class="page-head">
+      <h1>Inventario de bodega — Obra</h1>
+      <p>Control de materiales y herramientas en tiempo real. Bodega carga la información; el resto del equipo la consulta aquí.</p>
+    </div>
+
+    <div class="grid">
+      <div class="stat">
+        <div class="label">Materiales</div>
+        <div class="value" id="stat-materiales">—</div>
+      </div>
+      <div class="stat">
+        <div class="label">Herramientas</div>
+        <div class="value" id="stat-herramientas">—</div>
+      </div>
+      <div class="stat">
+        <div class="label">Alertas de stock</div>
+        <div class="value" id="stat-alertas">—</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Estado</h2>
+      <p class="text-sm muted" id="estado-conexion">Conectando con la base de datos…</p>
+      <p class="text-sm mt">
+        Las secciones <a href="materiales.html">Materiales</a> y
+        <a href="herramientas.html">Herramientas</a> se activan en los próximos tramos.
+      </p>
+    </div>
+  </div>
+
+  <script type="module">
+    import { montarTopbar } from "./js/ui.js";
+    import { db } from "./js/firebase-config.js";
+
+    montarTopbar("inicio");
+
+    // Prueba mínima de conexión (Tramo 1). Los contadores reales llegan en el Tramo 2+.
+    document.getElementById("estado-conexion").textContent =
+      db ? "Base de datos inicializada correctamente." : "No se pudo inicializar la base de datos.";
+  </script>
+</body>
+</html>

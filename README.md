@@ -1,0 +1,95 @@
+# Inventario de Bodega — Obra
+
+Control en tiempo real de **materiales** (consumibles, EPP, equipos) y **herramientas**
+(manuales, eléctricas, inalámbricas) de la bodega de una obra.
+
+- **Bodega** inicia sesión y carga ingresos/salidas.
+- **Todo el equipo** (supervisores, jefes de terreno, administración) consulta el
+  inventario sin necesidad de cuenta.
+- Base de datos en **Firebase / Firestore**: los cambios se ven al instante en
+  todas las pantallas abiertas.
+
+## Arquitectura
+
+Sitio estático (`public/`) servido por **Firebase Hosting**, que habla directamente
+con **Firestore** usando listeners en tiempo real. No hay servidor propio.
+
+```
+public/
+  index.html          Panel de consulta (lectura pública)
+  login.html          Ingreso de bodega
+  bodega.html         Panel de carga (requiere sesión)
+  css/styles.css
+  js/
+    firebase-config.js  Configuración del proyecto Firebase  ← EDITAR
+    auth.js             Login / logout / guardia de sesión
+    ui.js               Barra superior y avisos
+firestore.rules       Reglas de seguridad (lectura pública, escritura autenticada)
+firebase.json         Config de Hosting + Firestore
+.firebaserc           ID del proyecto Firebase  ← EDITAR
+```
+
+## Puesta en marcha (una sola vez)
+
+### 1. Crear el proyecto Firebase
+
+1. Entra a <https://console.firebase.google.com> → **Agregar proyecto**.
+2. Nombre: p. ej. `inventario-bodega-obra`. Puedes desactivar Google Analytics.
+3. Dentro del proyecto: **Compilación → Firestore Database → Crear base de datos**
+   → modo **producción** → ubicación `southamerica-east1` (o la más cercana).
+4. **Compilación → Authentication → Comenzar → Habilitar "Correo electrónico/contraseña"**.
+5. En Authentication → pestaña **Users → Agregar usuario**: crea la cuenta de bodega
+   (ej. `bodega@obra.cl` + una contraseña). Esa es la única cuenta que carga datos.
+
+### 2. Conectar la app web
+
+1. En **⚙ Configuración del proyecto → Tus apps → `</>` (Web)** → registra una app.
+2. Copia el objeto `firebaseConfig` y pégalo en
+   [`public/js/firebase-config.js`](public/js/firebase-config.js).
+3. Pon el ID del proyecto en [`.firebaserc`](.firebaserc) (reemplaza `TU_PROYECTO`).
+
+### 3. Instalar la CLI de Firebase y publicar
+
+```bash
+npm install -g firebase-tools
+firebase login
+firebase deploy --only firestore:rules,hosting
+```
+
+Al terminar, la CLI muestra la URL pública (`https://TU_PROYECTO.web.app`).
+
+### Probar en local
+
+```bash
+firebase emulators:start        # requiere haber configurado el proyecto
+# o simplemente servir la carpeta:
+npx serve public
+```
+
+## Control de versiones
+
+Repositorio Git local (rama `main`). Aún sin remoto en GitHub.
+
+Para conectarlo a GitHub más adelante:
+
+```bash
+# crea un repo vacío y privado en github.com, luego:
+git remote add origin https://github.com/<usuario>/<repo>.git
+git push -u origin main
+```
+
+## Exportar a Excel
+
+En el **Tramo 6** se agrega un botón **«Exportar a Excel»** en el panel que genera
+un archivo `.xlsx` (hojas de inventario y de movimientos) directamente en el
+navegador, sin servidor ni costo adicional.
+
+## Estado por tramos
+
+- [x] **Tramo 1** — Base: estructura, config, reglas, login/logout de bodega, shell.
+- [ ] **Tramo 2** — Materiales: alta + registro de llegada, listado en tiempo real.
+- [ ] **Tramo 3** — Materiales: salidas + historial + alertas de stock mínimo.
+- [ ] **Tramo 4** — Herramientas: inventario (manual/eléctrica/inalámbrica) + estados.
+- [ ] **Tramo 5** — Herramientas: préstamo y devolución + historial.
+- [ ] **Tramo 6** — Dashboard: totales, alertas, filtros y botón **Exportar a Excel (.xlsx)** (inventario + movimientos).
+- [ ] **Tramo 7** — Pulido: offline/PWA, reportes, roles reales.

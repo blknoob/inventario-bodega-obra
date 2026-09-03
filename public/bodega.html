@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Panel de bodega | Inventario</title>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <header id="topbar"></header>
+
+  <div class="wrap">
+    <div id="flash" class="alert hidden"></div>
+
+    <div class="page-head">
+      <h1>Panel de bodega</h1>
+      <p>Sesión activa como <strong id="quien">…</strong>. Desde aquí se cargan los ingresos y salidas de materiales y herramientas.</p>
+    </div>
+
+    <div class="card">
+      <h2>Próximos tramos</h2>
+      <ul class="text-sm" style="padding-left: 18px;">
+        <li><strong>Tramo 2:</strong> alta de materiales y registro de llegada (entrada de stock).</li>
+        <li><strong>Tramo 3:</strong> salidas de material e historial de movimientos.</li>
+        <li><strong>Tramo 4–5:</strong> inventario y préstamo de herramientas.</li>
+      </ul>
+      <button class="btn btn-ghost mt" id="btn-salir">Cerrar sesión</button>
+    </div>
+  </div>
+
+  <script type="module">
+    import { montarTopbar } from "./js/ui.js";
+    import { requerirBodega, cerrarSesion } from "./js/auth.js";
+
+    montarTopbar("bodega");
+
+    requerirBodega((user) => {
+      document.getElementById("quien").textContent = user.email;
+    });
+
+    document.getElementById("btn-salir").addEventListener("click", async () => {
+      await cerrarSesion();
+      location.href = "index.html";
+    });
+  </script>
+</body>
+</html>

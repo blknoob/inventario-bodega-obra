@@ -1,0 +1,51 @@
+rules_version = '2';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Reglas de seguridad de Firestore — Inventario de bodega
+//
+// Modelo de acceso (Tramo 1):
+//   - Lectura PÚBLICA: cualquiera puede consultar el inventario sin cuenta
+//     (supervisores, jefes de terreno, administración).
+//   - Escritura solo con sesión iniciada (cuenta única de bodega).
+//
+// En un tramo posterior se puede endurecer con roles reales (custom claims).
+// ─────────────────────────────────────────────────────────────────────────────
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function bodega() {
+      return request.auth != null;
+    }
+
+    // Colecciones del inventario. Se irán poblando por tramos:
+    //   materiales, movimientos_materiales, herramientas, movimientos_herramientas
+    match /materiales/{id} {
+      allow read: if true;
+      allow write: if bodega();
+    }
+
+    match /movimientos_materiales/{id} {
+      allow read: if true;
+      // Los movimientos son un registro histórico: se crean, no se editan ni borran.
+      allow create: if bodega();
+      allow update, delete: if false;
+    }
+
+    match /herramientas/{id} {
+      allow read: if true;
+      allow write: if bodega();
+    }
+
+    match /movimientos_herramientas/{id} {
+      allow read: if true;
+      allow create: if bodega();
+      allow update, delete: if false;
+    }
+
+    // Todo lo demás queda cerrado por defecto.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
