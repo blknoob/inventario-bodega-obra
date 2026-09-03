@@ -16,18 +16,30 @@ con **Firestore** usando listeners en tiempo real. No hay servidor propio.
 
 ```
 public/
-  index.html          Panel de consulta (lectura pública)
+  index.html          Panel de consulta (lectura pública, contadores en vivo)
   login.html          Ingreso de bodega
   bodega.html         Panel de carga (requiere sesión)
+  materiales.html     Inventario de materiales + alta + registrar llegada
+  herramientas.html   Placeholder → Tramo 4
   css/styles.css
   js/
     firebase-config.js  Configuración del proyecto Firebase  ← EDITAR
     auth.js             Login / logout / guardia de sesión
     ui.js               Barra superior y avisos
+    materiales.js       Capa de datos de materiales (Firestore en tiempo real)
 firestore.rules       Reglas de seguridad (lectura pública, escritura autenticada)
 firebase.json         Config de Hosting + Firestore
 .firebaserc           ID del proyecto Firebase  ← EDITAR
 ```
+
+### Modelo de datos (Firestore)
+
+| Colección | Contenido |
+|---|---|
+| `materiales` | Un doc por tipo de material: `nombre, categoria, unidad, stock, stockMinimo, ubicacion, descripcion`. `stock` se actualiza solo al registrar movimientos. |
+| `movimientos_materiales` | Registro histórico inmutable: `materialId, materialNombre, tipo (entrada), cantidad, stockResultante, proveedor, documento, motivo, responsable, fecha`. |
+
+Registrar una llegada suma al `stock` y crea el movimiento en una sola transacción atómica.
 
 ## Puesta en marcha (una sola vez)
 
@@ -87,8 +99,8 @@ navegador, sin servidor ni costo adicional.
 ## Estado por tramos
 
 - [x] **Tramo 1** — Base: estructura, config, reglas, login/logout de bodega, shell.
-- [ ] **Tramo 2** — Materiales: alta + registro de llegada, listado en tiempo real.
-- [ ] **Tramo 3** — Materiales: salidas + historial + alertas de stock mínimo.
+- [x] **Tramo 2** — Materiales: alta + registro de llegada (entrada), listado y stock en tiempo real, alertas de stock mínimo.
+- [ ] **Tramo 3** — Materiales: foto de la guía con cámara (comprimida en Firestore, descargable) + salidas + historial de movimientos.
 - [ ] **Tramo 4** — Herramientas: inventario (manual/eléctrica/inalámbrica) + estados.
 - [ ] **Tramo 5** — Herramientas: préstamo y devolución + historial.
 - [ ] **Tramo 6** — Dashboard: totales, alertas, filtros y botón **Exportar a Excel (.xlsx)** (inventario + movimientos).

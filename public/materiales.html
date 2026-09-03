@@ -8,18 +8,319 @@
 </head>
 <body>
   <header id="topbar"></header>
+
   <div class="wrap">
+    <div id="flash" class="alert hidden"></div>
+
     <div class="page-head">
       <h1>Materiales</h1>
-      <p>Consumibles, EPP y equipos. Esta sección se activa en el Tramo 2.</p>
+      <p>Consumibles, EPP y equipos. Bodega registra la llegada; el equipo consulta el stock en tiempo real.</p>
     </div>
+
+    <div class="grid" style="margin-bottom: 18px;">
+      <div class="stat">
+        <div class="label">Tipos de material</div>
+        <div class="value" id="stat-total">—</div>
+      </div>
+      <div class="stat">
+        <div class="label">Con stock bajo</div>
+        <div class="value stock-bajo" id="stat-bajo">—</div>
+      </div>
+      <div class="stat">
+        <div class="label">Sin stock</div>
+        <div class="value stock-cero" id="stat-cero">—</div>
+      </div>
+    </div>
+
+    <div id="alerta-stock" class="alert alert-info hidden"></div>
+
     <div class="card">
-      <p class="text-sm muted">Aún no hay datos. Próximamente: listado en tiempo real con stock y alertas.</p>
+      <div class="toolbar">
+        <div class="filters">
+          <input type="search" id="buscar" placeholder="Buscar material…" autocomplete="off" />
+          <select id="filtro-categoria">
+            <option value="">Todas las categorías</option>
+          </select>
+        </div>
+        <button class="btn btn-primary only-bodega" id="btn-nuevo">+ Nuevo material</button>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Material</th>
+              <th>Categoría</th>
+              <th class="text-right">Stock</th>
+              <th>Ubicación</th>
+              <th>Actualizado</th>
+              <th class="only-bodega"></th>
+            </tr>
+          </thead>
+          <tbody id="tbody">
+            <tr><td colspan="6" class="empty">Cargando…</td></tr>
+          </tbody>
+        </table>
+      </div>
     </div>
   </div>
+
+  <!-- ── Modal: nuevo material ─────────────────────────────────────────── -->
+  <dialog id="dlg-nuevo">
+    <div class="modal-head">
+      <h3>Nuevo material</h3>
+      <button type="button" class="modal-close" data-close>&times;</button>
+    </div>
+    <form id="form-nuevo">
+      <div id="err-nuevo" class="alert alert-error hidden"></div>
+      <div class="field">
+        <label for="n-nombre">Nombre</label>
+        <input type="text" id="n-nombre" required maxlength="120" placeholder="Ej: Cemento Portland 25 kg" />
+      </div>
+      <div class="row">
+        <div class="field">
+          <label for="n-categoria">Categoría</label>
+          <select id="n-categoria" required></select>
+        </div>
+        <div class="field">
+          <label for="n-unidad">Unidad</label>
+          <input type="text" id="n-unidad" required maxlength="20" placeholder="sacos, unidades, m, kg…" />
+        </div>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label for="n-minimo">Stock mínimo (alerta)</label>
+          <input type="number" id="n-minimo" min="0" step="any" value="0" />
+        </div>
+        <div class="field">
+          <label for="n-ubicacion">Ubicación <span class="muted">(opcional)</span></label>
+          <input type="text" id="n-ubicacion" maxlength="60" placeholder="Rack A-3, Patio…" />
+        </div>
+      </div>
+      <div class="field">
+        <label for="n-descripcion">Descripción <span class="muted">(opcional)</span></label>
+        <textarea id="n-descripcion" rows="2" maxlength="300"></textarea>
+      </div>
+      <div class="modal-foot">
+        <button type="button" class="btn btn-ghost" data-close>Cancelar</button>
+        <button type="submit" class="btn btn-primary" id="btn-guardar-nuevo">Guardar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- ── Modal: registrar llegada ──────────────────────────────────────── -->
+  <dialog id="dlg-llegada">
+    <div class="modal-head">
+      <h3>Registrar llegada</h3>
+      <button type="button" class="modal-close" data-close>&times;</button>
+    </div>
+    <form id="form-llegada">
+      <div id="err-llegada" class="alert alert-error hidden"></div>
+      <p class="text-sm mt" style="margin-top:0;margin-bottom:14px;">
+        <strong id="l-material-nombre">—</strong>
+        <span class="muted" id="l-stock-actual"></span>
+      </p>
+      <input type="hidden" id="l-material-id" />
+      <div class="row">
+        <div class="field">
+          <label for="l-cantidad">Cantidad recibida</label>
+          <input type="number" id="l-cantidad" required min="0" step="any" />
+        </div>
+        <div class="field">
+          <label for="l-documento">N.º guía / factura <span class="muted">(opcional)</span></label>
+          <input type="text" id="l-documento" maxlength="40" />
+        </div>
+      </div>
+      <div class="field">
+        <label for="l-proveedor">Proveedor <span class="muted">(opcional)</span></label>
+        <input type="text" id="l-proveedor" maxlength="80" />
+      </div>
+      <div class="field">
+        <label for="l-motivo">Observación <span class="muted">(opcional)</span></label>
+        <input type="text" id="l-motivo" maxlength="120" placeholder="Llegada de material" />
+      </div>
+      <p class="text-sm muted">La foto de la guía se agrega en el Tramo 3.</p>
+      <div class="modal-foot">
+        <button type="button" class="btn btn-ghost" data-close>Cancelar</button>
+        <button type="submit" class="btn btn-primary" id="btn-guardar-llegada">Registrar</button>
+      </div>
+    </form>
+  </dialog>
+
   <script type="module">
-    import { montarTopbar } from "./js/ui.js";
+    import { montarTopbar, flash } from "./js/ui.js";
+    import {
+      CATEGORIAS, etiquetaCategoria, nivelStock,
+      escucharMateriales, crearMaterial, registrarLlegada,
+    } from "./js/materiales.js";
+
     montarTopbar("materiales");
+
+    // ── Poblar selects de categoría ───────────────────────────────────────
+    const optsCat = CATEGORIAS.map((c) => `<option value="${c.valor}">${c.etiqueta}</option>`).join("");
+    document.getElementById("filtro-categoria").insertAdjacentHTML("beforeend", optsCat);
+    document.getElementById("n-categoria").innerHTML = optsCat;
+
+    // ── Estado y render ───────────────────────────────────────────────────
+    let materiales = [];
+    const tbody = document.getElementById("tbody");
+    const buscar = document.getElementById("buscar");
+    const filtroCat = document.getElementById("filtro-categoria");
+
+    const fmtNum = (n) => (Number(n) || 0).toLocaleString("es-CL", { maximumFractionDigits: 3 });
+    const fmtFecha = (ts) => {
+      const d = ts?.toDate?.();
+      if (!d) return "—";
+      return d.toLocaleDateString("es-CL") + " " +
+        d.toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" });
+    };
+    const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) =>
+      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+    function render() {
+      const q = buscar.value.trim().toLowerCase();
+      const cat = filtroCat.value;
+      const vista = materiales.filter((m) =>
+        (!cat || m.categoria === cat) &&
+        (!q || (m.nombre || "").toLowerCase().includes(q)));
+
+      // Estadísticas (sobre todo el inventario, no la vista filtrada)
+      const bajos = materiales.filter((m) => nivelStock(m) === "bajo");
+      const ceros = materiales.filter((m) => nivelStock(m) === "cero");
+      document.getElementById("stat-total").textContent = materiales.length;
+      document.getElementById("stat-bajo").textContent = bajos.length;
+      document.getElementById("stat-cero").textContent = ceros.length;
+
+      const alerta = document.getElementById("alerta-stock");
+      const enAlerta = [...ceros, ...bajos];
+      if (enAlerta.length) {
+        alerta.classList.remove("hidden");
+        alerta.textContent = "Atención: " + enAlerta
+          .map((m) => `${m.nombre} (${fmtNum(m.stock)} ${m.unidad})`)
+          .join(" · ");
+      } else {
+        alerta.classList.add("hidden");
+      }
+
+      if (!vista.length) {
+        tbody.innerHTML = `<tr><td colspan="6" class="empty">${
+          materiales.length ? "Sin resultados para el filtro." : "Aún no hay materiales cargados."
+        }</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = vista.map((m) => {
+        const nivel = nivelStock(m);
+        const clase = { ok: "stock-ok", bajo: "stock-bajo", cero: "stock-cero" }[nivel];
+        return `
+          <tr>
+            <td>
+              <div>${esc(m.nombre)}</div>
+              ${m.descripcion ? `<div class="text-sm muted">${esc(m.descripcion)}</div>` : ""}
+            </td>
+            <td><span class="badge badge-muted">${esc(etiquetaCategoria(m.categoria))}</span></td>
+            <td class="text-right nowrap">
+              <span class="stock-num ${clase}">${fmtNum(m.stock)}</span>
+              <span class="muted text-sm">${esc(m.unidad)}</span>
+              ${m.stockMinimo ? `<div class="text-sm muted">mín. ${fmtNum(m.stockMinimo)}</div>` : ""}
+            </td>
+            <td>${esc(m.ubicacion) || "<span class='muted'>—</span>"}</td>
+            <td class="nowrap text-sm muted">${fmtFecha(m.actualizadoEn)}</td>
+            <td class="only-bodega row-actions">
+              <button class="btn btn-ghost btn-xs" data-llegada="${m.id}">Registrar llegada</button>
+            </td>
+          </tr>`;
+      }).join("");
+    }
+
+    buscar.addEventListener("input", render);
+    filtroCat.addEventListener("change", render);
+
+    escucharMateriales(
+      (items) => { materiales = items; render(); },
+      (err) => {
+        tbody.innerHTML = `<tr><td colspan="6" class="empty">Error al cargar: ${esc(err.message)}</td></tr>`;
+      },
+    );
+
+    // ── Modales ──────────────────────────────────────────────────────────
+    document.querySelectorAll("dialog [data-close]").forEach((b) =>
+      b.addEventListener("click", () => b.closest("dialog").close()));
+
+    const dlgNuevo = document.getElementById("dlg-nuevo");
+    const formNuevo = document.getElementById("form-nuevo");
+    const errNuevo = document.getElementById("err-nuevo");
+
+    document.getElementById("btn-nuevo").addEventListener("click", () => {
+      formNuevo.reset();
+      document.getElementById("n-categoria").innerHTML = optsCat;
+      errNuevo.classList.add("hidden");
+      dlgNuevo.showModal();
+    });
+
+    formNuevo.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      errNuevo.classList.add("hidden");
+      const btn = document.getElementById("btn-guardar-nuevo");
+      btn.disabled = true; btn.textContent = "Guardando…";
+      try {
+        await crearMaterial({
+          nombre: document.getElementById("n-nombre").value,
+          categoria: document.getElementById("n-categoria").value,
+          unidad: document.getElementById("n-unidad").value,
+          stockMinimo: document.getElementById("n-minimo").value,
+          ubicacion: document.getElementById("n-ubicacion").value,
+          descripcion: document.getElementById("n-descripcion").value,
+        });
+        dlgNuevo.close();
+        flash("Material creado.");
+      } catch (err) {
+        errNuevo.textContent = err.message;
+        errNuevo.classList.remove("hidden");
+      } finally {
+        btn.disabled = false; btn.textContent = "Guardar";
+      }
+    });
+
+    const dlgLlegada = document.getElementById("dlg-llegada");
+    const formLlegada = document.getElementById("form-llegada");
+    const errLlegada = document.getElementById("err-llegada");
+
+    tbody.addEventListener("click", (e) => {
+      const id = e.target.getAttribute?.("data-llegada");
+      if (!id) return;
+      const m = materiales.find((x) => x.id === id);
+      if (!m) return;
+      formLlegada.reset();
+      errLlegada.classList.add("hidden");
+      document.getElementById("l-material-id").value = m.id;
+      document.getElementById("l-material-nombre").textContent = m.nombre;
+      document.getElementById("l-stock-actual").textContent =
+        ` — stock actual: ${fmtNum(m.stock)} ${m.unidad}`;
+      dlgLlegada.showModal();
+    });
+
+    formLlegada.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      errLlegada.classList.add("hidden");
+      const btn = document.getElementById("btn-guardar-llegada");
+      btn.disabled = true; btn.textContent = "Registrando…";
+      try {
+        await registrarLlegada(document.getElementById("l-material-id").value, {
+          cantidad: document.getElementById("l-cantidad").value,
+          proveedor: document.getElementById("l-proveedor").value,
+          documento: document.getElementById("l-documento").value,
+          motivo: document.getElementById("l-motivo").value,
+        });
+        dlgLlegada.close();
+        flash("Llegada registrada.");
+      } catch (err) {
+        errLlegada.textContent = err.message;
+        errLlegada.classList.remove("hidden");
+      } finally {
+        btn.disabled = false; btn.textContent = "Registrar";
+      }
+    });
   </script>
 </body>
 </html>

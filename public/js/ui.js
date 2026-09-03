@@ -28,6 +28,7 @@ export function montarTopbar(activo = "") {
 
   const slot = header.querySelector("#nav-session");
   observarSesion((user) => {
+    document.body.classList.toggle("es-bodega", !!user);
     if (user) {
       slot.innerHTML = `
         <a href="bodega.html" class="${activo === "bodega" ? "active" : ""}">Panel bodega</a>
