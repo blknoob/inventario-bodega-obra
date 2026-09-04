@@ -109,15 +109,7 @@ npx firebase-tools deploy --only hosting,firestore:rules
 
 ## Control de versiones
 
-Repositorio Git local (rama `main`). Aún sin remoto en GitHub.
-
-Para conectarlo a GitHub más adelante:
-
-```bash
-# crea un repo vacío y privado en github.com, luego:
-git remote add origin https://github.com/<usuario>/<repo>.git
-git push -u origin main
-```
+Repositorio en GitHub: <https://github.com/blknoob/inventario-bodega-obra> (rama `main`).
 
 ## Exportar a Excel
 
