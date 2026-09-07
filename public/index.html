@@ -12,7 +12,7 @@
   <div class="wrap">
     <div class="page-head">
       <h1>Inventario de bodega — Obra</h1>
-      <p>Control de materiales y herramientas. Bodega carga la información; el resto del equipo la consulta aquí.</p>
+      <p>Control de materiales y herramientas.</p>
     </div>
 
     <div class="grid">
@@ -49,7 +49,7 @@
 
     escucharMateriales(
       (items) => {
-        estado.textContent = "Base de datos conectada. Datos en tiempo real.";
+        estado.textContent = "Base de datos conectada.";
         document.getElementById("stat-materiales").textContent = items.length;
         const alertas = items.filter((m) => nivelStock(m) !== "ok").length;
         document.getElementById("stat-alertas").textContent = alertas;
