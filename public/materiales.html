@@ -42,7 +42,10 @@
             <option value="">Todas las categorías</option>
           </select>
         </div>
-        <button class="btn btn-primary only-bodega" id="btn-nuevo">+ Nuevo material</button>
+        <div class="row-actions only-bodega">
+          <button class="btn btn-primary" id="btn-entrante">Material entrante</button>
+          <button class="btn btn-secondary" id="btn-saliente">Material saliente</button>
+        </div>
       </div>
 
       <div class="table-wrap">
@@ -59,115 +62,165 @@
               <th class="text-right">Stock</th>
               <th>Ubicación</th>
               <th>Actualizado</th>
-              <th class="only-bodega"></th>
             </tr>
           </thead>
           <tbody id="tbody">
-            <tr><td colspan="11" class="empty">Cargando…</td></tr>
+            <tr><td colspan="10" class="empty">Cargando…</td></tr>
           </tbody>
         </table>
       </div>
     </div>
   </div>
 
-  <!-- ── Modal: nuevo material ─────────────────────────────────────────── -->
-  <dialog id="dlg-nuevo">
+  <!-- ── Modal: material entrante ──────────────────────────────────────── -->
+  <dialog id="dlg-entrante">
     <div class="modal-head">
-      <h3>Nuevo material</h3>
+      <h3>Material entrante</h3>
       <button type="button" class="modal-close" data-close>&times;</button>
     </div>
-    <form id="form-nuevo">
-      <div id="err-nuevo" class="alert alert-error hidden"></div>
-      <div class="field">
-        <label for="n-producto">Producto</label>
-        <input type="text" id="n-producto" required maxlength="120" placeholder="Ej: Cemento Portland 25 kg" />
-      </div>
-      <div class="row">
-        <div class="field">
-          <label for="n-categoria">Categoría</label>
-          <select id="n-categoria" required></select>
-        </div>
-        <div class="field">
-          <label for="n-unidad">Unidad</label>
-          <input type="text" id="n-unidad" required maxlength="20" placeholder="sacos, unidades, m, kg…" />
-        </div>
-      </div>
-      <div class="row">
-        <div class="field">
-          <label for="n-cantidad">Cantidad <span class="muted">(opcional)</span></label>
-          <input type="number" id="n-cantidad" min="0" step="any" placeholder="Ej: 12" />
-        </div>
-        <div class="field">
-          <label for="n-medida">Medida <span class="muted">(opcional)</span></label>
-          <input type="text" id="n-medida" maxlength="40" placeholder="Ej: 1/2 pulgada, 25 kg…" />
-        </div>
-      </div>
-      <div class="row">
-        <div class="field">
-          <label for="n-centro-gestion">Centro de gestión <span class="muted">(opcional)</span></label>
-          <input type="text" id="n-centro-gestion" maxlength="60" />
-        </div>
-        <div class="field">
-          <label for="n-centro-costo">Centro de costo <span class="muted">(opcional)</span></label>
-          <input type="text" id="n-centro-costo" maxlength="60" />
-        </div>
-      </div>
-      <div class="row">
-        <div class="field">
-          <label for="n-minimo">Stock mínimo (alerta)</label>
-          <input type="number" id="n-minimo" min="0" step="any" value="0" />
-        </div>
-        <div class="field">
-          <label for="n-ubicacion">Ubicación <span class="muted">(opcional)</span></label>
-          <input type="text" id="n-ubicacion" maxlength="60" placeholder="Rack A-3, Patio…" />
-        </div>
-      </div>
-      <div class="field">
-        <label for="n-descripcion">Descripción <span class="muted">(opcional)</span></label>
-        <textarea id="n-descripcion" rows="2" maxlength="300"></textarea>
-      </div>
-      <div class="modal-foot">
-        <button type="button" class="btn btn-ghost" data-close>Cancelar</button>
-        <button type="submit" class="btn btn-primary" id="btn-guardar-nuevo">Guardar</button>
-      </div>
-    </form>
-  </dialog>
+    <form id="form-entrante">
+      <div id="err-entrante" class="alert alert-error hidden"></div>
 
-  <!-- ── Modal: registrar llegada ──────────────────────────────────────── -->
-  <dialog id="dlg-llegada">
-    <div class="modal-head">
-      <h3>Registrar llegada</h3>
-      <button type="button" class="modal-close" data-close>&times;</button>
-    </div>
-    <form id="form-llegada">
-      <div id="err-llegada" class="alert alert-error hidden"></div>
-      <p class="text-sm mt" style="margin-top:0;margin-bottom:14px;">
-        <strong id="l-material-producto">—</strong>
-        <span class="muted" id="l-stock-actual"></span>
-      </p>
-      <input type="hidden" id="l-material-id" />
+      <div class="field">
+        <label for="e-producto">Producto</label>
+        <select id="e-producto" required>
+          <option value="">Selecciona un producto…</option>
+          <option value="__nuevo__">+ Agregar producto nuevo</option>
+        </select>
+      </div>
+      <p class="text-sm muted" id="e-stock-actual" style="margin-top:-8px; margin-bottom:14px;"></p>
+
+      <div id="e-nuevo-campos" class="hidden">
+        <div class="field">
+          <label for="e-nuevo-producto">Nombre del producto</label>
+          <input type="text" id="e-nuevo-producto" maxlength="120" placeholder="Ej: Cemento Portland 25 kg" />
+        </div>
+        <div class="row">
+          <div class="field">
+            <label for="e-nuevo-categoria">Categoría</label>
+            <select id="e-nuevo-categoria"></select>
+          </div>
+          <div class="field">
+            <label for="e-nuevo-unidad">Unidad</label>
+            <input type="text" id="e-nuevo-unidad" maxlength="20" placeholder="sacos, unidades, m, kg…" />
+          </div>
+        </div>
+        <div class="row">
+          <div class="field">
+            <label for="e-nuevo-cantidad">Cantidad <span class="muted">(opcional)</span></label>
+            <input type="number" id="e-nuevo-cantidad" min="0" step="any" placeholder="Ej: 12" />
+          </div>
+          <div class="field">
+            <label for="e-nuevo-medida">Medida <span class="muted">(opcional)</span></label>
+            <input type="text" id="e-nuevo-medida" maxlength="40" placeholder="Ej: 1/2 pulgada, 25 kg…" />
+          </div>
+        </div>
+        <div class="row">
+          <div class="field">
+            <label for="e-nuevo-centro-gestion">Centro de gestión <span class="muted">(opcional)</span></label>
+            <input type="text" id="e-nuevo-centro-gestion" maxlength="60" />
+          </div>
+          <div class="field">
+            <label for="e-nuevo-centro-costo">Centro de costo <span class="muted">(opcional)</span></label>
+            <input type="text" id="e-nuevo-centro-costo" maxlength="60" />
+          </div>
+        </div>
+        <div class="row">
+          <div class="field">
+            <label for="e-nuevo-minimo">Stock mínimo (alerta)</label>
+            <input type="number" id="e-nuevo-minimo" min="0" step="any" value="0" />
+          </div>
+          <div class="field">
+            <label for="e-nuevo-ubicacion">Ubicación <span class="muted">(opcional)</span></label>
+            <input type="text" id="e-nuevo-ubicacion" maxlength="60" placeholder="Rack A-3, Patio…" />
+          </div>
+        </div>
+        <div class="field">
+          <label for="e-nuevo-descripcion">Descripción <span class="muted">(opcional)</span></label>
+          <textarea id="e-nuevo-descripcion" rows="2" maxlength="300"></textarea>
+        </div>
+      </div>
+
       <div class="row">
         <div class="field">
-          <label for="l-cantidad">Cantidad recibida</label>
-          <input type="number" id="l-cantidad" required min="0" step="any" />
+          <label for="e-cantidad">Cantidad recibida</label>
+          <input type="number" id="e-cantidad" required min="0" step="any" />
         </div>
         <div class="field">
-          <label for="l-documento">N.º guía / factura <span class="muted">(opcional)</span></label>
-          <input type="text" id="l-documento" maxlength="40" />
+          <label for="e-documento">N.º guía / factura <span class="muted">(opcional)</span></label>
+          <input type="text" id="e-documento" maxlength="40" />
         </div>
       </div>
       <div class="field">
-        <label for="l-proveedor">Proveedor <span class="muted">(opcional)</span></label>
-        <input type="text" id="l-proveedor" maxlength="80" />
+        <label for="e-proveedor">Proveedor <span class="muted">(opcional)</span></label>
+        <input type="text" id="e-proveedor" maxlength="80" />
       </div>
       <div class="field">
-        <label for="l-motivo">Observación <span class="muted">(opcional)</span></label>
-        <input type="text" id="l-motivo" maxlength="120" placeholder="Llegada de material" />
+        <label for="e-motivo">Observación <span class="muted">(opcional)</span></label>
+        <input type="text" id="e-motivo" maxlength="120" placeholder="Llegada de material" />
       </div>
       <p class="text-sm muted">La foto de la guía se agrega en el Tramo 3.</p>
       <div class="modal-foot">
         <button type="button" class="btn btn-ghost" data-close>Cancelar</button>
-        <button type="submit" class="btn btn-primary" id="btn-guardar-llegada">Registrar</button>
+        <button type="submit" class="btn btn-primary" id="btn-guardar-entrante">Registrar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- ── Modal: material saliente ──────────────────────────────────────── -->
+  <dialog id="dlg-saliente">
+    <div class="modal-head">
+      <h3>Material saliente</h3>
+      <button type="button" class="modal-close" data-close>&times;</button>
+    </div>
+    <form id="form-saliente">
+      <div id="err-saliente" class="alert alert-error hidden"></div>
+
+      <div class="field">
+        <label for="s-producto">Producto</label>
+        <select id="s-producto" required>
+          <option value="">Selecciona un producto…</option>
+        </select>
+      </div>
+      <p class="text-sm muted" id="s-stock-actual" style="margin-top:-8px; margin-bottom:14px;"></p>
+
+      <div class="row">
+        <div class="field">
+          <label for="s-cantidad">Cantidad</label>
+          <input type="number" id="s-cantidad" required min="0" step="any" />
+        </div>
+        <div class="field">
+          <label for="s-numero-vale">N.º de vale <span class="muted">(opcional)</span></label>
+          <input type="text" id="s-numero-vale" maxlength="40" />
+        </div>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label for="s-persona-retira">Persona que retira</label>
+          <input type="text" id="s-persona-retira" required maxlength="80" />
+        </div>
+        <div class="field">
+          <label for="s-supervisor">Supervisor <span class="muted">(opcional)</span></label>
+          <input type="text" id="s-supervisor" maxlength="80" />
+        </div>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label for="s-actividad">Actividad <span class="muted">(opcional)</span></label>
+          <input type="text" id="s-actividad" maxlength="80" />
+        </div>
+        <div class="field">
+          <label for="s-zona">Área / zona <span class="muted">(opcional)</span></label>
+          <input type="text" id="s-zona" maxlength="60" />
+        </div>
+      </div>
+      <div class="field">
+        <label for="s-observacion">Observación <span class="muted">(opcional)</span></label>
+        <input type="text" id="s-observacion" maxlength="120" />
+      </div>
+      <div class="modal-foot">
+        <button type="button" class="btn btn-ghost" data-close>Cancelar</button>
+        <button type="submit" class="btn btn-primary" id="btn-guardar-saliente">Registrar</button>
       </div>
     </form>
   </dialog>
@@ -176,7 +229,7 @@
     import { montarTopbar, flash } from "./js/ui.js";
     import {
       CATEGORIAS, etiquetaCategoria, nivelStock,
-      escucharMateriales, crearMaterial, registrarLlegada,
+      escucharMateriales, registrarEntrada, registrarSalida,
     } from "./js/materiales.js";
 
     montarTopbar("materiales");
@@ -184,7 +237,7 @@
     // ── Poblar selects de categoría ───────────────────────────────────────
     const optsCat = CATEGORIAS.map((c) => `<option value="${c.valor}">${c.etiqueta}</option>`).join("");
     document.getElementById("filtro-categoria").insertAdjacentHTML("beforeend", optsCat);
-    document.getElementById("n-categoria").innerHTML = optsCat;
+    document.getElementById("e-nuevo-categoria").innerHTML = optsCat;
 
     // ── Estado y render ───────────────────────────────────────────────────
     let materiales = [];
@@ -228,7 +281,7 @@
       }
 
       if (!vista.length) {
-        tbody.innerHTML = `<tr><td colspan="11" class="empty">${
+        tbody.innerHTML = `<tr><td colspan="10" class="empty">${
           materiales.length ? "Sin resultados para el filtro." : "Aún no hay materiales cargados."
         }</td></tr>`;
         return;
@@ -256,101 +309,154 @@
             </td>
             <td>${esc(m.ubicacion) || "<span class='muted'>—</span>"}</td>
             <td class="nowrap text-sm muted">${fmtFecha(m.actualizadoEn)}</td>
-            <td class="only-bodega row-actions">
-              <button class="btn btn-ghost btn-xs" data-llegada="${m.id}">Registrar llegada</button>
-            </td>
           </tr>`;
       }).join("");
+    }
+
+    // ── Selects de producto de los modales (se repueblan con cada cambio) ──
+    function opcionesProducto(vacio) {
+      const items = [...materiales].sort((a, b) =>
+        (a.producto || "").localeCompare(b.producto || "", "es", { sensitivity: "base" }));
+      return `<option value="">${vacio}</option>` + items
+        .map((m) => `<option value="${m.id}">${esc(m.producto)} — stock ${fmtNum(m.stock)} ${esc(m.unidad)}</option>`)
+        .join("");
+    }
+
+    function repoblarSelectsProducto() {
+      const eSel = document.getElementById("e-producto");
+      const sSel = document.getElementById("s-producto");
+      const eActual = eSel.value;
+      const sActual = sSel.value;
+      eSel.innerHTML = opcionesProducto("Selecciona un producto…") +
+        '<option value="__nuevo__">+ Agregar producto nuevo</option>';
+      sSel.innerHTML = opcionesProducto("Selecciona un producto…");
+      if ([...eSel.options].some((o) => o.value === eActual)) eSel.value = eActual;
+      if ([...sSel.options].some((o) => o.value === sActual)) sSel.value = sActual;
     }
 
     buscar.addEventListener("input", render);
     filtroCat.addEventListener("change", render);
 
     escucharMateriales(
-      (items) => { materiales = items; render(); },
+      (items) => { materiales = items; render(); repoblarSelectsProducto(); },
       (err) => {
-        tbody.innerHTML = `<tr><td colspan="11" class="empty">Error al cargar: ${esc(err.message)}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="10" class="empty">Error al cargar: ${esc(err.message)}</td></tr>`;
       },
     );
 
-    // ── Modales ──────────────────────────────────────────────────────────
+    // ── Modales: apertura/cierre comunes ────────────────────────────────
     document.querySelectorAll("dialog [data-close]").forEach((b) =>
       b.addEventListener("click", () => b.closest("dialog").close()));
 
-    const dlgNuevo = document.getElementById("dlg-nuevo");
-    const formNuevo = document.getElementById("form-nuevo");
-    const errNuevo = document.getElementById("err-nuevo");
+    // ── Material entrante ───────────────────────────────────────────────
+    const dlgEntrante = document.getElementById("dlg-entrante");
+    const formEntrante = document.getElementById("form-entrante");
+    const errEntrante = document.getElementById("err-entrante");
+    const eProducto = document.getElementById("e-producto");
+    const eNuevoCampos = document.getElementById("e-nuevo-campos");
+    const eStockActual = document.getElementById("e-stock-actual");
 
-    document.getElementById("btn-nuevo").addEventListener("click", () => {
-      formNuevo.reset();
-      document.getElementById("n-categoria").innerHTML = optsCat;
-      errNuevo.classList.add("hidden");
-      dlgNuevo.showModal();
+    function actualizarVistaEntrante() {
+      const val = eProducto.value;
+      eNuevoCampos.classList.toggle("hidden", val !== "__nuevo__");
+      if (val && val !== "__nuevo__") {
+        const m = materiales.find((x) => x.id === val);
+        eStockActual.textContent = m ? `Stock actual: ${fmtNum(m.stock)} ${m.unidad}` : "";
+      } else {
+        eStockActual.textContent = "";
+      }
+    }
+    eProducto.addEventListener("change", actualizarVistaEntrante);
+
+    document.getElementById("btn-entrante").addEventListener("click", () => {
+      formEntrante.reset();
+      document.getElementById("e-nuevo-categoria").innerHTML = optsCat;
+      errEntrante.classList.add("hidden");
+      actualizarVistaEntrante();
+      dlgEntrante.showModal();
     });
 
-    formNuevo.addEventListener("submit", async (e) => {
+    formEntrante.addEventListener("submit", async (e) => {
       e.preventDefault();
-      errNuevo.classList.add("hidden");
-      const btn = document.getElementById("btn-guardar-nuevo");
+      errEntrante.classList.add("hidden");
+      const btn = document.getElementById("btn-guardar-entrante");
       btn.disabled = true; btn.textContent = "Guardando…";
       try {
-        await crearMaterial({
-          producto: document.getElementById("n-producto").value,
-          categoria: document.getElementById("n-categoria").value,
-          unidad: document.getElementById("n-unidad").value,
-          cantidad: document.getElementById("n-cantidad").value,
-          medida: document.getElementById("n-medida").value,
-          centroGestion: document.getElementById("n-centro-gestion").value,
-          centroCosto: document.getElementById("n-centro-costo").value,
-          stockMinimo: document.getElementById("n-minimo").value,
-          ubicacion: document.getElementById("n-ubicacion").value,
-          descripcion: document.getElementById("n-descripcion").value,
-        });
-        dlgNuevo.close();
-        flash("Material creado.");
+        const val = eProducto.value;
+        if (!val) throw new Error("Selecciona un producto.");
+        const datos = {
+          cantidadRecibida: document.getElementById("e-cantidad").value,
+          proveedor: document.getElementById("e-proveedor").value,
+          documento: document.getElementById("e-documento").value,
+          motivo: document.getElementById("e-motivo").value,
+        };
+        if (val === "__nuevo__") {
+          datos.nuevoMaterial = {
+            producto: document.getElementById("e-nuevo-producto").value,
+            categoria: document.getElementById("e-nuevo-categoria").value,
+            unidad: document.getElementById("e-nuevo-unidad").value,
+            cantidad: document.getElementById("e-nuevo-cantidad").value,
+            medida: document.getElementById("e-nuevo-medida").value,
+            centroGestion: document.getElementById("e-nuevo-centro-gestion").value,
+            centroCosto: document.getElementById("e-nuevo-centro-costo").value,
+            stockMinimo: document.getElementById("e-nuevo-minimo").value,
+            ubicacion: document.getElementById("e-nuevo-ubicacion").value,
+            descripcion: document.getElementById("e-nuevo-descripcion").value,
+          };
+        } else {
+          datos.materialId = val;
+        }
+        await registrarEntrada(datos);
+        dlgEntrante.close();
+        flash("Material entrante registrado.");
       } catch (err) {
-        errNuevo.textContent = err.message;
-        errNuevo.classList.remove("hidden");
+        errEntrante.textContent = err.message;
+        errEntrante.classList.remove("hidden");
       } finally {
-        btn.disabled = false; btn.textContent = "Guardar";
+        btn.disabled = false; btn.textContent = "Registrar";
       }
     });
 
-    const dlgLlegada = document.getElementById("dlg-llegada");
-    const formLlegada = document.getElementById("form-llegada");
-    const errLlegada = document.getElementById("err-llegada");
+    // ── Material saliente ───────────────────────────────────────────────
+    const dlgSaliente = document.getElementById("dlg-saliente");
+    const formSaliente = document.getElementById("form-saliente");
+    const errSaliente = document.getElementById("err-saliente");
+    const sProducto = document.getElementById("s-producto");
+    const sStockActual = document.getElementById("s-stock-actual");
 
-    tbody.addEventListener("click", (e) => {
-      const id = e.target.getAttribute?.("data-llegada");
-      if (!id) return;
-      const m = materiales.find((x) => x.id === id);
-      if (!m) return;
-      formLlegada.reset();
-      errLlegada.classList.add("hidden");
-      document.getElementById("l-material-id").value = m.id;
-      document.getElementById("l-material-producto").textContent = m.producto;
-      document.getElementById("l-stock-actual").textContent =
-        ` — stock actual: ${fmtNum(m.stock)} ${m.unidad}`;
-      dlgLlegada.showModal();
+    sProducto.addEventListener("change", () => {
+      const m = materiales.find((x) => x.id === sProducto.value);
+      sStockActual.textContent = m ? `Stock actual: ${fmtNum(m.stock)} ${m.unidad}` : "";
     });
 
-    formLlegada.addEventListener("submit", async (e) => {
+    document.getElementById("btn-saliente").addEventListener("click", () => {
+      formSaliente.reset();
+      errSaliente.classList.add("hidden");
+      sStockActual.textContent = "";
+      dlgSaliente.showModal();
+    });
+
+    formSaliente.addEventListener("submit", async (e) => {
       e.preventDefault();
-      errLlegada.classList.add("hidden");
-      const btn = document.getElementById("btn-guardar-llegada");
-      btn.disabled = true; btn.textContent = "Registrando…";
+      errSaliente.classList.add("hidden");
+      const btn = document.getElementById("btn-guardar-saliente");
+      btn.disabled = true; btn.textContent = "Guardando…";
       try {
-        await registrarLlegada(document.getElementById("l-material-id").value, {
-          cantidad: document.getElementById("l-cantidad").value,
-          proveedor: document.getElementById("l-proveedor").value,
-          documento: document.getElementById("l-documento").value,
-          motivo: document.getElementById("l-motivo").value,
+        if (!sProducto.value) throw new Error("Selecciona un producto.");
+        await registrarSalida(sProducto.value, {
+          cantidad: document.getElementById("s-cantidad").value,
+          personaRetira: document.getElementById("s-persona-retira").value,
+          supervisor: document.getElementById("s-supervisor").value,
+          actividad: document.getElementById("s-actividad").value,
+          zona: document.getElementById("s-zona").value,
+          numeroVale: document.getElementById("s-numero-vale").value,
+          observacion: document.getElementById("s-observacion").value,
         });
-        dlgLlegada.close();
-        flash("Llegada registrada.");
+        dlgSaliente.close();
+        flash("Material saliente registrado.");
       } catch (err) {
-        errLlegada.textContent = err.message;
-        errLlegada.classList.remove("hidden");
+        errSaliente.textContent = err.message;
+        errSaliente.classList.remove("hidden");
       } finally {
         btn.disabled = false; btn.textContent = "Registrar";
       }

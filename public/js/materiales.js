@@ -52,52 +52,85 @@ export function escucharMateriales(onCambio, onError) {
 }
 
 /**
- * Crea un material nuevo (sin stock inicial: eso se hace con "registrar llegada").
- * El "item" es un correlativo automático (1, 2, 3…) asignado en una transacción
- * sobre contadores/materiales, para que no se repita aunque se creen varios a la vez.
+ * Registra material entrante: si `materialId` viene vacío, crea el producto
+ * (con correlativo automático "item") con el stock inicial recibido; si viene
+ * un id existente, solo suma esa cantidad a su stock. En ambos casos deja un
+ * movimiento de tipo "entrada" en el historial. Todo en una sola transacción.
  */
-export async function crearMaterial({
-  producto, categoria, unidad, cantidad, medida, centroGestion, centroCosto, stockMinimo, ubicacion, descripcion,
-}) {
+export async function registrarEntrada({ materialId, nuevoMaterial, cantidadRecibida, proveedor, documento, motivo }) {
   if (MODO_DEMO) bloquearEnDemo();
+  const cant = Number(cantidadRecibida);
+  if (!(cant > 0)) throw new Error("La cantidad recibida debe ser mayor que cero.");
+
   const email = usuarioActual()?.email ?? null;
-  const nuevoDoc = doc(materialesRef);
 
   await runTransaction(db, async (tx) => {
-    const contadorSnap = await tx.get(contadorMaterialesDoc);
-    const item = (Number(contadorSnap.data()?.valor) || 0) + 1;
+    let materialDoc, productoNombre, resultante;
 
-    tx.set(contadorMaterialesDoc, { valor: item }, { merge: true });
-    tx.set(nuevoDoc, {
-      item,
-      producto: producto.trim(),
-      categoria,
-      unidad: unidad.trim(),
-      cantidad: Number(cantidad) || 0,
-      medida: medida?.trim() || "",
-      centroGestion: centroGestion?.trim() || "",
-      centroCosto: centroCosto?.trim() || "",
-      stock: 0,
-      stockMinimo: Number(stockMinimo) || 0,
-      ubicacion: ubicacion?.trim() || "",
-      descripcion: descripcion?.trim() || "",
-      creadoPor: email,
-      creadoEn: serverTimestamp(),
-      actualizadoEn: serverTimestamp(),
+    if (materialId) {
+      materialDoc = doc(db, "materiales", materialId);
+      const snap = await tx.get(materialDoc);
+      if (!snap.exists()) throw new Error("El material ya no existe.");
+      productoNombre = snap.data().producto;
+      const actual = Number(snap.data().stock) || 0;
+      resultante = Math.round((actual + cant) * 1000) / 1000;
+      tx.update(materialDoc, { stock: resultante, actualizadoEn: serverTimestamp() });
+    } else {
+      if (!nuevoMaterial?.producto?.trim()) throw new Error("Indica el nombre del producto.");
+      const contadorSnap = await tx.get(contadorMaterialesDoc);
+      const item = (Number(contadorSnap.data()?.valor) || 0) + 1;
+      tx.set(contadorMaterialesDoc, { valor: item }, { merge: true });
+
+      materialDoc = doc(materialesRef);
+      productoNombre = nuevoMaterial.producto.trim();
+      resultante = cant;
+      tx.set(materialDoc, {
+        item,
+        producto: productoNombre,
+        categoria: nuevoMaterial.categoria,
+        unidad: nuevoMaterial.unidad.trim(),
+        cantidad: Number(nuevoMaterial.cantidad) || 0,
+        medida: nuevoMaterial.medida?.trim() || "",
+        centroGestion: nuevoMaterial.centroGestion?.trim() || "",
+        centroCosto: nuevoMaterial.centroCosto?.trim() || "",
+        stock: cant,
+        stockMinimo: Number(nuevoMaterial.stockMinimo) || 0,
+        ubicacion: nuevoMaterial.ubicacion?.trim() || "",
+        descripcion: nuevoMaterial.descripcion?.trim() || "",
+        creadoPor: email,
+        creadoEn: serverTimestamp(),
+        actualizadoEn: serverTimestamp(),
+      });
+    }
+
+    const nuevoMov = doc(movimientosRef);
+    tx.set(nuevoMov, {
+      materialId: materialDoc.id,
+      materialProducto: productoNombre,
+      tipo: "entrada",
+      cantidad: cant,
+      stockResultante: resultante,
+      proveedor: proveedor?.trim() || "",
+      documento: documento?.trim() || "",
+      motivo: motivo?.trim() || "Llegada de material",
+      responsable: email,
+      fecha: serverTimestamp(),
     });
   });
-
-  return nuevoDoc;
 }
 
 /**
- * Registra la llegada de material (entrada de stock) de forma atómica:
- * suma al stock del material y deja un movimiento en el historial.
+ * Registra la salida de material de un producto existente: descuenta stock
+ * (no deja bajar de 0) y deja un movimiento de tipo "salida" con la
+ * trazabilidad de a quién/para qué se entregó.
  */
-export async function registrarLlegada(materialId, { cantidad, proveedor, documento, motivo }) {
+export async function registrarSalida(materialId, {
+  cantidad, supervisor, actividad, zona, personaRetira, numeroVale, observacion,
+}) {
   if (MODO_DEMO) bloquearEnDemo();
   const cant = Number(cantidad);
   if (!(cant > 0)) throw new Error("La cantidad debe ser mayor que cero.");
+  if (!personaRetira?.trim()) throw new Error("Indica quién retira el material.");
 
   const email = usuarioActual()?.email ?? null;
   const materialDoc = doc(db, "materiales", materialId);
@@ -107,7 +140,8 @@ export async function registrarLlegada(materialId, { cantidad, proveedor, docume
     if (!snap.exists()) throw new Error("El material ya no existe.");
 
     const actual = Number(snap.data().stock) || 0;
-    const resultante = Math.round((actual + cant) * 1000) / 1000;
+    if (cant > actual) throw new Error(`No hay stock suficiente (disponible: ${actual}).`);
+    const resultante = Math.round((actual - cant) * 1000) / 1000;
 
     tx.update(materialDoc, { stock: resultante, actualizadoEn: serverTimestamp() });
 
@@ -115,12 +149,15 @@ export async function registrarLlegada(materialId, { cantidad, proveedor, docume
     tx.set(nuevoMov, {
       materialId,
       materialProducto: snap.data().producto,
-      tipo: "entrada",
+      tipo: "salida",
       cantidad: cant,
       stockResultante: resultante,
-      proveedor: proveedor?.trim() || "",
-      documento: documento?.trim() || "",
-      motivo: motivo?.trim() || "Llegada de material",
+      supervisor: supervisor?.trim() || "",
+      actividad: actividad?.trim() || "",
+      zona: zona?.trim() || "",
+      personaRetira: personaRetira.trim(),
+      numeroVale: numeroVale?.trim() || "",
+      observacion: observacion?.trim() || "",
       responsable: email,
       fecha: serverTimestamp(),
     });
