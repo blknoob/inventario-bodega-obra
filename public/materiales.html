@@ -52,7 +52,6 @@
         <table>
           <thead>
             <tr>
-              <th>Item</th>
               <th>Producto</th>
               <th>Categoría</th>
               <th>Medida</th>
@@ -65,7 +64,7 @@
             </tr>
           </thead>
           <tbody id="tbody">
-            <tr><td colspan="10" class="empty">Cargando…</td></tr>
+            <tr><td colspan="9" class="empty">Cargando…</td></tr>
           </tbody>
         </table>
       </div>
@@ -371,7 +370,7 @@
       }
 
       if (!vista.length) {
-        tbody.innerHTML = `<tr><td colspan="10" class="empty">${
+        tbody.innerHTML = `<tr><td colspan="9" class="empty">${
           materiales.length ? "Sin resultados para el filtro." : "Aún no hay materiales cargados."
         }</td></tr>`;
         return;
@@ -382,7 +381,6 @@
         const clase = { ok: "stock-ok", bajo: "stock-bajo", cero: "stock-cero" }[nivel];
         return `
           <tr>
-            <td class="muted">${m.item ?? "—"}</td>
             <td>
               <div>${esc(m.producto)}</div>
               ${m.descripcion ? `<div class="text-sm muted">${esc(m.descripcion)}</div>` : ""}
@@ -416,7 +414,7 @@
         render();
       },
       (err) => {
-        tbody.innerHTML = `<tr><td colspan="10" class="empty">Error al cargar: ${esc(err.message)}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="9" class="empty">Error al cargar: ${esc(err.message)}</td></tr>`;
       },
     );
 
