@@ -38,6 +38,8 @@
           <select id="filtro-categoria">
             <option value="">Todas las categorías</option>
           </select>
+          <input type="date" id="filtro-fecha" />
+          <button type="button" class="btn btn-ghost btn-xs" id="btn-fecha-hoy">Hoy</button>
         </div>
       </div>
 
@@ -82,6 +84,20 @@
     const buscar = document.getElementById("buscar");
     const filtroTipo = document.getElementById("filtro-tipo");
     const filtroCat = document.getElementById("filtro-categoria");
+    const filtroFecha = document.getElementById("filtro-fecha");
+    const btnFechaHoy = document.getElementById("btn-fecha-hoy");
+
+    // "YYYY-MM-DD" en horario local, para comparar contra <input type="date">.
+    const fechaISO = (d) => {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, "0");
+      const day = String(d.getDate()).padStart(2, "0");
+      return `${y}-${m}-${day}`;
+    };
+    btnFechaHoy.addEventListener("click", () => {
+      filtroFecha.value = fechaISO(new Date());
+      render();
+    });
 
     // Si se llega con ?categoria=epp (ej: desde la tarjeta "EPPs" de Inicio),
     // deja el filtro ya aplicado.
@@ -122,9 +138,11 @@
       const q = buscar.value.trim().toLowerCase();
       const tipo = filtroTipo.value;
       const cat = filtroCat.value;
+      const fecha = filtroFecha.value;
       const vista = movimientos.filter((m) =>
         (!tipo || m.tipo === tipo) &&
         (!cat || m.categoria === cat) &&
+        (!fecha || (m.fecha?.toDate?.() && fechaISO(m.fecha.toDate()) === fecha)) &&
         (!q || [m.materialProducto, m.personaRetira, m.proveedor, m.supervisor, m.responsable]
           .some((v) => (v || "").toLowerCase().includes(q))));
 
@@ -156,6 +174,7 @@
     buscar.addEventListener("input", render);
     filtroTipo.addEventListener("change", render);
     filtroCat.addEventListener("change", render);
+    filtroFecha.addEventListener("change", render);
 
     escucharMovimientos(
       (items) => { movimientos = items; render(); },
