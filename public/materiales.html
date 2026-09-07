@@ -95,7 +95,8 @@
       <div id="e-nuevo-campos" class="hidden">
         <div class="field">
           <label for="e-nuevo-producto">Nombre del producto</label>
-          <input type="text" id="e-nuevo-producto" maxlength="120" placeholder="Ej: Cemento Portland 25 kg" />
+          <input type="text" id="e-nuevo-producto" maxlength="120" placeholder="" autocomplete="off" />
+          <div id="e-nuevo-producto-aviso" class="alert alert-warn hidden" style="margin-top:8px; margin-bottom:0;"></div>
         </div>
         <div class="row">
           <div class="field">
@@ -104,7 +105,7 @@
           </div>
           <div class="field">
             <label for="e-nuevo-unidad">Unidad</label>
-            <input type="text" id="e-nuevo-unidad" maxlength="20" placeholder="sacos, unidades, m, kg…" />
+            <input type="text" id="e-nuevo-unidad" maxlength="20" placeholder="piezas, unidades, m, kg…" />
           </div>
         </div>
         <div class="field">
@@ -128,7 +129,7 @@
           </div>
           <div class="field">
             <label for="e-nuevo-ubicacion">Ubicación <span class="muted">(opcional)</span></label>
-            <input type="text" id="e-nuevo-ubicacion" maxlength="60" placeholder="Rack A-3, Patio…" />
+            <input type="text" id="e-nuevo-ubicacion" maxlength="60" placeholder="Bodega, Patio 1..." />
           </div>
         </div>
         <div class="field">
@@ -371,7 +372,28 @@
     const eNuevoCampos = document.getElementById("e-nuevo-campos");
     const eStockActual = document.getElementById("e-stock-actual");
     const btnProductoNuevo = document.getElementById("btn-producto-nuevo");
+    const eNuevoProducto = document.getElementById("e-nuevo-producto");
+    const eNuevoAviso = document.getElementById("e-nuevo-producto-aviso");
     let modoProductoNuevo = false;
+
+    // Sin tildes/mayúsculas, para comparar nombres de forma más flexible.
+    const normalizar = (s) => String(s || "").trim().toLowerCase()
+      .normalize("NFD").replace(/[̀-ͯ]/g, "");
+
+    // Mientras se escribe el nombre de un producto nuevo, avisa si ya existe
+    // uno parecido (para no duplicar, como pasó con "Guantes de Cabretilla").
+    eNuevoProducto.addEventListener("input", () => {
+      const q = normalizar(eNuevoProducto.value);
+      if (q.length < 2) { eNuevoAviso.classList.add("hidden"); return; }
+      const coincidencias = materiales.filter((m) => normalizar(m.producto).includes(q));
+      if (!coincidencias.length) { eNuevoAviso.classList.add("hidden"); return; }
+      const lista = coincidencias.slice(0, 3)
+        .map((m) => `<strong>${esc(m.producto)}</strong> (stock ${fmtNum(m.stock)} ${esc(m.unidad)})`)
+        .join(", ");
+      eNuevoAviso.innerHTML = `⚠ Ya existe ${coincidencias.length > 1 ? "algo parecido" : "un producto parecido"}: ${lista}. ` +
+        "Si es el mismo, cancela y elígelo de la lista en vez de crear uno nuevo.";
+      eNuevoAviso.classList.remove("hidden");
+    });
 
     function actualizarVistaEntrante() {
       eNuevoCampos.classList.toggle("hidden", !modoProductoNuevo);
@@ -391,6 +413,7 @@
     btnProductoNuevo.addEventListener("click", () => {
       modoProductoNuevo = !modoProductoNuevo;
       if (modoProductoNuevo) eProducto.value = "";
+      eNuevoAviso.classList.add("hidden");
       actualizarVistaEntrante();
     });
 
@@ -398,6 +421,7 @@
       formEntrante.reset();
       document.getElementById("e-nuevo-categoria").innerHTML = optsCat;
       errEntrante.classList.add("hidden");
+      eNuevoAviso.classList.add("hidden");
       modoProductoNuevo = false;
       actualizarVistaEntrante();
       dlgEntrante.showModal();
