@@ -61,10 +61,11 @@
               <th class="text-right">Stock</th>
               <th>Ubicación</th>
               <th>Actualizado</th>
+              <th class="only-bodega"></th>
             </tr>
           </thead>
           <tbody id="tbody">
-            <tr><td colspan="9" class="empty">Cargando…</td></tr>
+            <tr><td colspan="10" class="empty">Cargando…</td></tr>
           </tbody>
         </table>
       </div>
@@ -222,7 +223,7 @@
     import { montarTopbar, flash } from "./js/ui.js";
     import {
       CATEGORIAS, etiquetaCategoria, nivelStock,
-      escucharMateriales, registrarEntrada, registrarSalida,
+      escucharMateriales, registrarEntrada, registrarSalida, eliminarMaterial,
     } from "./js/materiales.js";
 
     montarTopbar("materiales");
@@ -274,7 +275,7 @@
       }
 
       if (!vista.length) {
-        tbody.innerHTML = `<tr><td colspan="9" class="empty">${
+        tbody.innerHTML = `<tr><td colspan="10" class="empty">${
           materiales.length ? "Sin resultados para el filtro." : "Aún no hay materiales cargados."
         }</td></tr>`;
         return;
@@ -301,6 +302,9 @@
             </td>
             <td>${esc(m.ubicacion) || "<span class='muted'>—</span>"}</td>
             <td class="nowrap text-sm muted">${fmtFecha(m.actualizadoEn)}</td>
+            <td class="only-bodega row-actions">
+              <button class="btn btn-ghost btn-xs btn-danger" data-eliminar="${m.id}">Eliminar</button>
+            </td>
           </tr>`;
       }).join("");
     }
@@ -332,9 +336,27 @@
     escucharMateriales(
       (items) => { materiales = items; render(); repoblarSelectsProducto(); },
       (err) => {
-        tbody.innerHTML = `<tr><td colspan="9" class="empty">Error al cargar: ${esc(err.message)}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="10" class="empty">Error al cargar: ${esc(err.message)}</td></tr>`;
       },
     );
+
+    // ── Eliminar material ───────────────────────────────────────────────
+    tbody.addEventListener("click", async (e) => {
+      const id = e.target.getAttribute?.("data-eliminar");
+      if (!id) return;
+      const m = materiales.find((x) => x.id === id);
+      if (!m) return;
+      const ok = confirm(
+        `¿Eliminar "${m.producto}"? Se borra la ficha del catálogo (stock actual: ${fmtNum(m.stock)} ${m.unidad}). El historial de movimientos no se borra. Esta acción no se puede deshacer.`,
+      );
+      if (!ok) return;
+      try {
+        await eliminarMaterial(id);
+        flash("Material eliminado.");
+      } catch (err) {
+        flash(err.message, "error");
+      }
+    });
 
     // ── Modales: apertura/cierre comunes ────────────────────────────────
     document.querySelectorAll("dialog [data-close]").forEach((b) =>

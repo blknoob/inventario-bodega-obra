@@ -5,6 +5,7 @@
 import {
   collection,
   doc,
+  deleteDoc,
   onSnapshot,
   runTransaction,
   serverTimestamp,
@@ -161,6 +162,16 @@ export async function registrarSalida(materialId, {
       fecha: serverTimestamp(),
     });
   });
+}
+
+/**
+ * Elimina un material del catálogo. No borra su historial de movimientos
+ * (son un registro inmutable: quedan con el nombre del producto igual, aunque
+ * ya no exista la ficha).
+ */
+export async function eliminarMaterial(materialId) {
+  if (MODO_DEMO) bloquearEnDemo();
+  await deleteDoc(doc(db, "materiales", materialId));
 }
 
 /** Devuelve el estado del stock frente al mínimo: 'ok' | 'bajo' | 'cero'. */
