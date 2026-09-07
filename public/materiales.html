@@ -380,19 +380,34 @@
     const normalizar = (s) => String(s || "").trim().toLowerCase()
       .normalize("NFD").replace(/[̀-ͯ]/g, "");
 
-    // Mientras se escribe el nombre de un producto nuevo, avisa si ya existe
-    // uno parecido (para no duplicar, como pasó con "Guantes de Cabretilla").
+    // Mientras se escribe el nombre de un producto nuevo, muestra debajo los
+    // que ya existen y se parecen (para no duplicar). Un clic en la lista
+    // cambia al modo "producto existente" con ese producto ya seleccionado.
     eNuevoProducto.addEventListener("input", () => {
       const q = normalizar(eNuevoProducto.value);
       if (q.length < 2) { eNuevoAviso.classList.add("hidden"); return; }
       const coincidencias = materiales.filter((m) => normalizar(m.producto).includes(q));
       if (!coincidencias.length) { eNuevoAviso.classList.add("hidden"); return; }
-      const lista = coincidencias.slice(0, 3)
-        .map((m) => `<strong>${esc(m.producto)}</strong> (stock ${fmtNum(m.stock)} ${esc(m.unidad)})`)
-        .join(", ");
-      eNuevoAviso.innerHTML = `⚠ Ya existe ${coincidencias.length > 1 ? "algo parecido" : "un producto parecido"}: ${lista}. ` +
-        "Si es el mismo, cancela y elígelo de la lista en vez de crear uno nuevo.";
+      eNuevoAviso.innerHTML =
+        `<div class="text-sm">⚠ Ya existe${coincidencias.length > 1 ? "n productos parecidos" : " un producto parecido"}, toca para usarlo:</div>` +
+        `<div style="display:flex; flex-direction:column; gap:4px; margin-top:6px;">` +
+        coincidencias.slice(0, 5).map((m) => `
+          <button type="button" class="btn btn-ghost btn-xs" style="justify-content:flex-start;" data-usar-producto="${m.id}">
+            ${esc(m.producto)} — stock ${fmtNum(m.stock)} ${esc(m.unidad)}
+          </button>`).join("") +
+        `</div>`;
       eNuevoAviso.classList.remove("hidden");
+    });
+
+    eNuevoAviso.addEventListener("click", (e) => {
+      const id = e.target.closest?.("[data-usar-producto]")?.getAttribute("data-usar-producto");
+      if (!id) return;
+      modoProductoNuevo = false;
+      eNuevoProducto.value = "";
+      eNuevoAviso.classList.add("hidden");
+      actualizarVistaEntrante();
+      eProducto.value = id;
+      actualizarVistaEntrante();
     });
 
     function actualizarVistaEntrante() {
