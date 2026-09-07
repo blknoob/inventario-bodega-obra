@@ -19,7 +19,7 @@
 
     <div class="grid" style="margin-bottom: 18px;">
       <div class="stat">
-        <div class="label">Tipos de material</div>
+        <div class="label" id="stat-total-label">Tipos de material</div>
         <div class="value" id="stat-total">—</div>
       </div>
       <div class="stat">
@@ -229,26 +229,37 @@
       escucharMateriales, registrarEntrada, registrarSalida, eliminarMaterial,
     } from "./js/materiales.js";
 
-    // Esta misma página sirve para dos secciones separadas: "Materiales"
-    // (todo menos EPP) y "EPPs" (?categoria=epp desde el header o la
-    // tarjeta de Inicio) -- así no se mezclan en el mismo listado.
-    const modoEpp = new URL(location.href).searchParams.get("categoria") === "epp";
-    montarTopbar(modoEpp ? "epps" : "materiales");
+    // Esta misma página sirve para tres vistas: "Materiales" (todo menos
+    // EPP), "EPPs" (?categoria=epp desde el header o la tarjeta de Inicio,
+    // así no se mezclan en el mismo listado) y "Alertas de stock"
+    // (?alertas=1 desde Inicio, que junta materiales y EPPs con stock
+    // bajo o agotado).
+    const params = new URL(location.href).searchParams;
+    const modoEpp = params.get("categoria") === "epp";
+    const modoAlertas = params.get("alertas") === "1";
+    montarTopbar(modoAlertas ? "" : modoEpp ? "epps" : "materiales");
 
-    document.getElementById("titulo-pagina").textContent = modoEpp
-      ? "EPP | Inventario de Bodega" : "Materiales | Inventario de Bodega";
-    document.getElementById("titulo-h1").textContent = modoEpp ? "EPP" : "Materiales";
-    document.getElementById("titulo-sub").textContent = modoEpp
-      ? "Elementos de protección personal."
-      : "Consumibles, equipos y otros materiales de obra. Los EPP tienen su propia sección.";
+    if (modoAlertas) {
+      document.getElementById("titulo-pagina").textContent = "Alertas de stock | Inventario de Bodega";
+      document.getElementById("titulo-h1").textContent = "Alertas de stock";
+      document.getElementById("titulo-sub").textContent = "Materiales y EPPs con stock bajo o agotado.";
+    } else {
+      document.getElementById("titulo-pagina").textContent = modoEpp
+        ? "EPP | Inventario de Bodega" : "Materiales | Inventario de Bodega";
+      document.getElementById("titulo-h1").textContent = modoEpp ? "EPP" : "Materiales";
+      document.getElementById("titulo-sub").textContent = modoEpp
+        ? "Elementos de protección personal."
+        : "Consumibles, equipos y otros materiales de obra. Los EPP tienen su propia sección.";
+    }
 
     // ── Poblar selects de categoría (en modo EPP no aplica: siempre es epp) ─
-    const CATEGORIAS_DISPONIBLES = modoEpp ? [] : CATEGORIAS.filter((c) => c.valor !== "epp");
+    const CATEGORIAS_DISPONIBLES = modoAlertas ? CATEGORIAS : modoEpp ? [] : CATEGORIAS.filter((c) => c.valor !== "epp");
     const optsCat = CATEGORIAS_DISPONIBLES.map((c) => `<option value="${c.valor}">${c.etiqueta}</option>`).join("");
     document.getElementById("filtro-categoria").insertAdjacentHTML("beforeend", optsCat);
     document.getElementById("e-nuevo-categoria").innerHTML = optsCat;
     document.getElementById("filtro-categoria").classList.toggle("hidden", modoEpp);
     document.getElementById("campo-nuevo-categoria").classList.toggle("hidden", modoEpp);
+    if (modoAlertas) document.getElementById("stat-total-label").textContent = "En alerta";
 
     // ── Estado y render ───────────────────────────────────────────────────
     let materiales = [];
@@ -399,7 +410,9 @@
 
     escucharMateriales(
       (items) => {
-        materiales = items.filter((m) => modoEpp ? m.categoria === "epp" : m.categoria !== "epp");
+        materiales = modoAlertas
+          ? items.filter((m) => nivelStock(m) !== "ok")
+          : items.filter((m) => modoEpp ? m.categoria === "epp" : m.categoria !== "epp");
         render();
       },
       (err) => {
