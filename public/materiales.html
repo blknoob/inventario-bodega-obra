@@ -82,10 +82,12 @@
       <div id="err-entrante" class="alert alert-error hidden"></div>
 
       <div class="field">
-        <label for="e-producto">Producto</label>
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:6px;">
+          <label for="e-producto" style="margin-bottom:0;">Producto</label>
+          <button type="button" class="btn btn-ghost btn-xs" id="btn-producto-nuevo">+ Producto nuevo</button>
+        </div>
         <select id="e-producto" required>
           <option value="">Selecciona un producto…</option>
-          <option value="__nuevo__">+ Agregar producto nuevo</option>
         </select>
       </div>
       <p class="text-sm muted" id="e-stock-actual" style="margin-top:-8px; margin-bottom:14px;"></p>
@@ -323,8 +325,7 @@
       const sSel = document.getElementById("s-producto");
       const eActual = eSel.value;
       const sActual = sSel.value;
-      eSel.innerHTML = opcionesProducto("Selecciona un producto…") +
-        '<option value="__nuevo__">+ Agregar producto nuevo</option>';
+      eSel.innerHTML = opcionesProducto("Selecciona un producto…");
       sSel.innerHTML = opcionesProducto("Selecciona un producto…");
       if ([...eSel.options].some((o) => o.value === eActual)) eSel.value = eActual;
       if ([...sSel.options].some((o) => o.value === sActual)) sSel.value = sActual;
@@ -369,23 +370,35 @@
     const eProducto = document.getElementById("e-producto");
     const eNuevoCampos = document.getElementById("e-nuevo-campos");
     const eStockActual = document.getElementById("e-stock-actual");
+    const btnProductoNuevo = document.getElementById("btn-producto-nuevo");
+    let modoProductoNuevo = false;
 
     function actualizarVistaEntrante() {
-      const val = eProducto.value;
-      eNuevoCampos.classList.toggle("hidden", val !== "__nuevo__");
-      if (val && val !== "__nuevo__") {
-        const m = materiales.find((x) => x.id === val);
+      eNuevoCampos.classList.toggle("hidden", !modoProductoNuevo);
+      eProducto.classList.toggle("hidden", modoProductoNuevo);
+      eProducto.required = !modoProductoNuevo;
+      document.getElementById("e-nuevo-producto").required = modoProductoNuevo;
+      btnProductoNuevo.textContent = modoProductoNuevo ? "Elegir producto existente" : "+ Producto nuevo";
+
+      if (!modoProductoNuevo && eProducto.value) {
+        const m = materiales.find((x) => x.id === eProducto.value);
         eStockActual.textContent = m ? `Stock actual: ${fmtNum(m.stock)} ${m.unidad}` : "";
       } else {
         eStockActual.textContent = "";
       }
     }
     eProducto.addEventListener("change", actualizarVistaEntrante);
+    btnProductoNuevo.addEventListener("click", () => {
+      modoProductoNuevo = !modoProductoNuevo;
+      if (modoProductoNuevo) eProducto.value = "";
+      actualizarVistaEntrante();
+    });
 
     document.getElementById("btn-entrante").addEventListener("click", () => {
       formEntrante.reset();
       document.getElementById("e-nuevo-categoria").innerHTML = optsCat;
       errEntrante.classList.add("hidden");
+      modoProductoNuevo = false;
       actualizarVistaEntrante();
       dlgEntrante.showModal();
     });
@@ -396,15 +409,13 @@
       const btn = document.getElementById("btn-guardar-entrante");
       btn.disabled = true; btn.textContent = "Guardando…";
       try {
-        const val = eProducto.value;
-        if (!val) throw new Error("Selecciona un producto.");
         const datos = {
           cantidadRecibida: document.getElementById("e-cantidad").value,
           proveedor: document.getElementById("e-proveedor").value,
           documento: document.getElementById("e-documento").value,
           motivo: document.getElementById("e-motivo").value,
         };
-        if (val === "__nuevo__") {
+        if (modoProductoNuevo) {
           datos.nuevoMaterial = {
             producto: document.getElementById("e-nuevo-producto").value,
             categoria: document.getElementById("e-nuevo-categoria").value,
@@ -417,7 +428,8 @@
             descripcion: document.getElementById("e-nuevo-descripcion").value,
           };
         } else {
-          datos.materialId = val;
+          if (!eProducto.value) throw new Error("Selecciona un producto.");
+          datos.materialId = eProducto.value;
         }
         await registrarEntrada(datos);
         dlgEntrante.close();
