@@ -7,12 +7,15 @@ import {
   doc,
   deleteDoc,
   onSnapshot,
+  orderBy,
+  query,
+  limit,
   runTransaction,
   serverTimestamp,
 } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { usuarioActual } from "./auth.js";
-import { MODO_DEMO, MATERIALES_DEMO, bloquearEnDemo } from "./demo.js";
+import { MODO_DEMO, MATERIALES_DEMO, MOVIMIENTOS_DEMO, bloquearEnDemo } from "./demo.js";
 
 const materialesRef = collection(db, "materiales");
 const movimientosRef = collection(db, "movimientos_materiales");
@@ -66,13 +69,14 @@ export async function registrarEntrada({ materialId, nuevoMaterial, cantidadReci
   const email = usuarioActual()?.email ?? null;
 
   await runTransaction(db, async (tx) => {
-    let materialDoc, productoNombre, resultante;
+    let materialDoc, productoNombre, categoriaMovimiento, resultante;
 
     if (materialId) {
       materialDoc = doc(db, "materiales", materialId);
       const snap = await tx.get(materialDoc);
       if (!snap.exists()) throw new Error("El material ya no existe.");
       productoNombre = snap.data().producto;
+      categoriaMovimiento = snap.data().categoria;
       const actual = Number(snap.data().stock) || 0;
       resultante = Math.round((actual + cant) * 1000) / 1000;
       tx.update(materialDoc, { stock: resultante, actualizadoEn: serverTimestamp() });
@@ -84,6 +88,7 @@ export async function registrarEntrada({ materialId, nuevoMaterial, cantidadReci
 
       materialDoc = doc(materialesRef);
       productoNombre = nuevoMaterial.producto.trim();
+      categoriaMovimiento = nuevoMaterial.categoria;
       resultante = cant;
       tx.set(materialDoc, {
         item,
@@ -107,6 +112,7 @@ export async function registrarEntrada({ materialId, nuevoMaterial, cantidadReci
     tx.set(nuevoMov, {
       materialId: materialDoc.id,
       materialProducto: productoNombre,
+      categoria: categoriaMovimiento,
       tipo: "entrada",
       cantidad: cant,
       stockResultante: resultante,
@@ -149,6 +155,7 @@ export async function registrarSalida(materialId, {
     tx.set(nuevoMov, {
       materialId,
       materialProducto: snap.data().producto,
+      categoria: snap.data().categoria,
       tipo: "salida",
       cantidad: cant,
       stockResultante: resultante,
@@ -172,6 +179,23 @@ export async function registrarSalida(materialId, {
 export async function eliminarMaterial(materialId) {
   if (MODO_DEMO) bloquearEnDemo();
   await deleteDoc(doc(db, "materiales", materialId));
+}
+
+/**
+ * Escucha en tiempo real el historial de movimientos (entradas y salidas),
+ * más recientes primero. Devuelve la función para desuscribirse.
+ */
+export function escucharMovimientos(onCambio, onError, { max = 300 } = {}) {
+  if (MODO_DEMO) {
+    onCambio([...MOVIMIENTOS_DEMO].sort((a, b) => b.fecha.toDate() - a.fecha.toDate()));
+    return () => {};
+  }
+  const q = query(movimientosRef, orderBy("fecha", "desc"), limit(max));
+  return onSnapshot(
+    q,
+    (snap) => onCambio(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
+    onError,
+  );
 }
 
 /** Devuelve el estado del stock frente al mínimo: 'ok' | 'bajo' | 'cero'. */

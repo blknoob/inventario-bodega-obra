@@ -7,7 +7,7 @@ import { MODO_DEMO } from "./demo.js";
 
 /**
  * Monta la barra superior en <header id="topbar"> y refleja el estado de sesión.
- * @param {string} activo  clave de la sección activa: 'inicio' | 'materiales' | 'herramientas' | 'bodega'
+ * @param {string} activo  clave de la sección activa: 'inicio' | 'materiales' | 'herramientas' | 'historial' | 'bodega'
  */
 export function montarTopbar(activo = "") {
   const header = document.getElementById("topbar");
@@ -26,6 +26,7 @@ export function montarTopbar(activo = "") {
       ${link("index.html", "inicio", "Inicio")}
       ${link("materiales.html", "materiales", "Materiales")}
       ${link("herramientas.html", "herramientas", "Herramientas")}
+      ${link("historial.html", "historial", "Historial")}
       <span id="nav-session"></span>
       ${MODO_DEMO ? '<span class="badge badge-warn" title="Datos de muestra; no se guarda nada">DEMO</span>' : ""}
     </nav>
