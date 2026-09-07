@@ -81,14 +81,14 @@
     <form id="form-entrante">
       <div id="err-entrante" class="alert alert-error hidden"></div>
 
-      <div class="field">
+      <div class="field" style="position:relative;">
         <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:6px;">
-          <label for="e-producto" style="margin-bottom:0;">Producto</label>
+          <label for="e-producto-buscar" style="margin-bottom:0;">Producto</label>
           <button type="button" class="btn btn-ghost btn-xs btn-success" id="btn-producto-nuevo">+ Producto nuevo</button>
         </div>
-        <select id="e-producto" required>
-          <option value="">Selecciona un producto…</option>
-        </select>
+        <input type="text" id="e-producto-buscar" placeholder="Busca el producto…" autocomplete="off" />
+        <input type="hidden" id="e-producto" />
+        <div id="e-producto-lista" class="buscador-lista hidden"></div>
       </div>
       <p class="text-sm muted" id="e-stock-actual" style="margin-top:-8px; margin-bottom:14px;"></p>
 
@@ -173,11 +173,11 @@
     <form id="form-saliente">
       <div id="err-saliente" class="alert alert-error hidden"></div>
 
-      <div class="field">
-        <label for="s-producto">Producto</label>
-        <select id="s-producto" required>
-          <option value="">Selecciona un producto…</option>
-        </select>
+      <div class="field" style="position:relative;">
+        <label for="s-producto-buscar">Producto</label>
+        <input type="text" id="s-producto-buscar" placeholder="Busca el producto…" autocomplete="off" />
+        <input type="hidden" id="s-producto" />
+        <div id="s-producto-lista" class="buscador-lista hidden"></div>
       </div>
       <p class="text-sm muted" id="s-stock-actual" style="margin-top:-8px; margin-bottom:14px;"></p>
 
@@ -252,6 +252,74 @@
     const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) =>
       ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
+    // Sin tildes/mayúsculas, para comparar nombres de forma más flexible.
+    const normalizar = (s) => String(s || "").trim().toLowerCase()
+      .normalize("NFD").replace(/[̀-ͯ]/g, "");
+
+    /**
+     * Buscador de producto: un <input type="text"> + <input type="hidden">
+     * (con el id elegido) + un contenedor de resultados clickeables, todo
+     * identificado con el prefijo dado (ej: "e-producto" -> #e-producto-buscar,
+     * #e-producto, #e-producto-lista).
+     */
+    function crearBuscadorProducto(prefijo, { onSeleccionar } = {}) {
+      const input = document.getElementById(`${prefijo}-buscar`);
+      const oculto = document.getElementById(prefijo);
+      const lista = document.getElementById(`${prefijo}-lista`);
+
+      function render() {
+        const q = normalizar(input.value);
+        const items = [...materiales]
+          .filter((m) => !q || normalizar(m.producto).includes(q))
+          .sort((a, b) => (a.producto || "").localeCompare(b.producto || "", "es", { sensitivity: "base" }))
+          .slice(0, 30);
+        lista.innerHTML = items.length
+          ? items.map((m) => `
+              <button type="button" class="btn btn-ghost btn-xs" data-id="${m.id}">
+                ${esc(m.producto)} — stock ${fmtNum(m.stock)} ${esc(m.unidad)}
+              </button>`).join("")
+          : `<div class="text-sm muted empty">Sin resultados.</div>`;
+        lista.classList.remove("hidden");
+      }
+
+      input.addEventListener("focus", render);
+      input.addEventListener("input", () => {
+        oculto.value = "";
+        onSeleccionar?.(null);
+        render();
+      });
+      input.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") lista.classList.add("hidden");
+      });
+      lista.addEventListener("click", (e) => {
+        const btn = e.target.closest("[data-id]");
+        if (!btn) return;
+        seleccionar(btn.getAttribute("data-id"));
+      });
+      document.addEventListener("click", (e) => {
+        if (e.target !== input && !lista.contains(e.target)) lista.classList.add("hidden");
+      });
+
+      function seleccionar(id) {
+        const m = materiales.find((x) => x.id === id);
+        oculto.value = id || "";
+        input.value = m ? m.producto : "";
+        lista.classList.add("hidden");
+        onSeleccionar?.(m || null);
+      }
+
+      return {
+        seleccionar,
+        reset() {
+          input.value = "";
+          oculto.value = "";
+          lista.classList.add("hidden");
+          lista.innerHTML = "";
+          onSeleccionar?.(null);
+        },
+      };
+    }
+
     function render() {
       const q = buscar.value.trim().toLowerCase();
       const cat = filtroCat.value;
@@ -312,31 +380,11 @@
       }).join("");
     }
 
-    // ── Selects de producto de los modales (se repueblan con cada cambio) ──
-    function opcionesProducto(vacio) {
-      const items = [...materiales].sort((a, b) =>
-        (a.producto || "").localeCompare(b.producto || "", "es", { sensitivity: "base" }));
-      return `<option value="">${vacio}</option>` + items
-        .map((m) => `<option value="${m.id}">${esc(m.producto)} — stock ${fmtNum(m.stock)} ${esc(m.unidad)}</option>`)
-        .join("");
-    }
-
-    function repoblarSelectsProducto() {
-      const eSel = document.getElementById("e-producto");
-      const sSel = document.getElementById("s-producto");
-      const eActual = eSel.value;
-      const sActual = sSel.value;
-      eSel.innerHTML = opcionesProducto("Selecciona un producto…");
-      sSel.innerHTML = opcionesProducto("Selecciona un producto…");
-      if ([...eSel.options].some((o) => o.value === eActual)) eSel.value = eActual;
-      if ([...sSel.options].some((o) => o.value === sActual)) sSel.value = sActual;
-    }
-
     buscar.addEventListener("input", render);
     filtroCat.addEventListener("change", render);
 
     escucharMateriales(
-      (items) => { materiales = items; render(); repoblarSelectsProducto(); },
+      (items) => { materiales = items; render(); },
       (err) => {
         tbody.innerHTML = `<tr><td colspan="10" class="empty">Error al cargar: ${esc(err.message)}</td></tr>`;
       },
@@ -376,9 +424,11 @@
     const eNuevoAviso = document.getElementById("e-nuevo-producto-aviso");
     let modoProductoNuevo = false;
 
-    // Sin tildes/mayúsculas, para comparar nombres de forma más flexible.
-    const normalizar = (s) => String(s || "").trim().toLowerCase()
-      .normalize("NFD").replace(/[̀-ͯ]/g, "");
+    const buscadorEntrante = crearBuscadorProducto("e-producto", {
+      onSeleccionar: (m) => {
+        eStockActual.textContent = m ? `Stock actual: ${fmtNum(m.stock)} ${m.unidad}` : "";
+      },
+    });
 
     // Mientras se escribe el nombre de un producto nuevo, muestra debajo los
     // que ya existen y se parecen (para no duplicar). Un clic en la lista
@@ -406,34 +456,25 @@
       eNuevoProducto.value = "";
       eNuevoAviso.classList.add("hidden");
       actualizarVistaEntrante();
-      eProducto.value = id;
-      actualizarVistaEntrante();
+      buscadorEntrante.seleccionar(id);
     });
 
     function actualizarVistaEntrante() {
       eNuevoCampos.classList.toggle("hidden", !modoProductoNuevo);
-      eProducto.classList.toggle("hidden", modoProductoNuevo);
-      eProducto.required = !modoProductoNuevo;
+      document.getElementById("e-producto-buscar").classList.toggle("hidden", modoProductoNuevo);
       document.getElementById("e-nuevo-producto").required = modoProductoNuevo;
       btnProductoNuevo.textContent = modoProductoNuevo ? "Elegir producto existente" : "+ Producto nuevo";
-
-      if (!modoProductoNuevo && eProducto.value) {
-        const m = materiales.find((x) => x.id === eProducto.value);
-        eStockActual.textContent = m ? `Stock actual: ${fmtNum(m.stock)} ${m.unidad}` : "";
-      } else {
-        eStockActual.textContent = "";
-      }
+      if (modoProductoNuevo) buscadorEntrante.reset();
     }
-    eProducto.addEventListener("change", actualizarVistaEntrante);
     btnProductoNuevo.addEventListener("click", () => {
       modoProductoNuevo = !modoProductoNuevo;
-      if (modoProductoNuevo) eProducto.value = "";
       eNuevoAviso.classList.add("hidden");
       actualizarVistaEntrante();
     });
 
     document.getElementById("btn-entrante").addEventListener("click", () => {
       formEntrante.reset();
+      buscadorEntrante.reset();
       document.getElementById("e-nuevo-categoria").innerHTML = optsCat;
       errEntrante.classList.add("hidden");
       eNuevoAviso.classList.add("hidden");
@@ -488,15 +529,16 @@
     const sProducto = document.getElementById("s-producto");
     const sStockActual = document.getElementById("s-stock-actual");
 
-    sProducto.addEventListener("change", () => {
-      const m = materiales.find((x) => x.id === sProducto.value);
-      sStockActual.textContent = m ? `Stock actual: ${fmtNum(m.stock)} ${m.unidad}` : "";
+    const buscadorSaliente = crearBuscadorProducto("s-producto", {
+      onSeleccionar: (m) => {
+        sStockActual.textContent = m ? `Stock actual: ${fmtNum(m.stock)} ${m.unidad}` : "";
+      },
     });
 
     document.getElementById("btn-saliente").addEventListener("click", () => {
       formSaliente.reset();
+      buscadorSaliente.reset();
       errSaliente.classList.add("hidden");
-      sStockActual.textContent = "";
       dlgSaliente.showModal();
     });
 

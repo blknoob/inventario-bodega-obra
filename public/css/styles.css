@@ -201,6 +201,26 @@ a.stat:hover { box-shadow: 0 4px 14px rgba(0, 0, 0, .14), 0 1px 2px rgba(0, 0, 0
   overflow-y: auto;
   box-shadow: 0 10px 24px rgba(0, 0, 0, .18);
 }
+
+/* Resultados del buscador de producto (Material entrante/saliente):
+   flota bajo el campo de búsqueda, no empuja el resto del formulario. */
+.buscador-lista {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 30;
+  margin-top: 4px;
+  max-height: 240px;
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, .18);
+  padding: 4px;
+}
+.buscador-lista .btn { width: 100%; justify-content: flex-start; text-align: left; }
+.buscador-lista .empty { padding: 8px 10px; text-align: left; }
 .hidden { display: none !important; }
 
 /* ── Tablas ─────────────────────────────────────────────────────────────── */
