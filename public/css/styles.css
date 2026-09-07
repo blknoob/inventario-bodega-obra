@@ -27,20 +27,26 @@ body {
   color: var(--ink);
   line-height: 1.5;
   min-height: 100vh;
+  /* Red de seguridad: que ningún elemento angosto genere scroll horizontal
+     de toda la página (la tabla sigue scrolleando en su propio contenedor). */
+  overflow-x: hidden;
 }
 
 a { color: var(--info); }
 
 /* ── Barra superior ──────────────────────────────────────────────────────── */
+/* min-height (no height fija) + flex-wrap: si la marca o el menú no caben en
+   una línea, bajan a la siguiente en vez de recortarse y tapar el contenido. */
 .topbar {
   background: var(--ink);
   color: #fff;
-  padding: 0 20px;
-  height: 58px;
+  padding: 10px 20px;
+  min-height: 58px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 8px 16px;
+  flex-wrap: wrap;
 }
 .topbar .brand {
   font-weight: 700;
@@ -51,19 +57,50 @@ a { color: var(--info); }
   gap: 8px;
   color: #fff;
   text-decoration: none;
+  white-space: nowrap;
 }
 .topbar .brand b { color: var(--brand); }
-.topbar nav { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.topbar nav { display: flex; align-items: center; gap: 4px 6px; flex-wrap: wrap; }
 .topbar nav a {
   color: #cbd2d9;
   text-decoration: none;
   font-size: 13px;
   padding: 6px 10px;
   border-radius: 6px;
+  white-space: nowrap;
 }
 .topbar nav a:hover,
 .topbar nav a.active { background: rgba(255, 255, 255, .12); color: #fff; }
 .topbar .session { font-size: 12px; color: var(--muted); }
+
+/* Botón hamburguesa: oculto en desktop, se muestra en el media query de abajo. */
+.menu-toggle {
+  display: none;
+  flex: 0 0 auto;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+}
+.menu-toggle:hover { background: rgba(255, 255, 255, .12); }
+.menu-toggle .bar {
+  display: block;
+  width: 20px;
+  height: 2px;
+  margin: 0 auto;
+  background: #fff;
+  border-radius: 2px;
+  transition: transform .15s ease, opacity .15s ease;
+}
+.menu-toggle[aria-expanded="true"] .bar:nth-child(1) { transform: translateY(6px) rotate(45deg); }
+.menu-toggle[aria-expanded="true"] .bar:nth-child(2) { opacity: 0; }
+.menu-toggle[aria-expanded="true"] .bar:nth-child(3) { transform: translateY(-6px) rotate(-45deg); }
 
 /* ── Contenedor ─────────────────────────────────────────────────────────── */
 .wrap { max-width: 1080px; margin: 0 auto; padding: 24px 20px 48px; }
@@ -129,14 +166,24 @@ a { color: var(--info); }
 .btn-block { width: 100%; }
 
 /* ── Avisos ─────────────────────────────────────────────────────────────── */
-.alert { padding: 10px 14px; border-radius: 6px; font-size: 13px; margin-bottom: 14px; }
+.alert { padding: 10px 14px; border-radius: 6px; font-size: 13px; margin-bottom: 14px; overflow-wrap: break-word; }
 .alert-error { background: #fde8e8; color: var(--danger); border: 1px solid #f5c2c2; }
 .alert-ok    { background: #e3f4e9; color: var(--ok);     border: 1px solid #bfe3cc; }
 .alert-info  { background: #e5edfb; color: var(--info);   border: 1px solid #c3d5f5; }
 .hidden { display: none !important; }
 
 /* ── Tablas ─────────────────────────────────────────────────────────────── */
-.table-wrap { overflow-x: auto; }
+/* Con varias columnas la tabla no cabe en un celular: se scrollea horizontal
+   dentro de .table-wrap. El degradé a la derecha avisa que hay más columnas. */
+.table-wrap { position: relative; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.table-wrap::after {
+  content: "";
+  position: absolute;
+  top: 0; right: 0; bottom: 0;
+  width: 24px;
+  background: linear-gradient(to right, transparent, rgba(31, 41, 51, .08));
+  pointer-events: none;
+}
 table { width: 100%; border-collapse: collapse; font-size: 14px; }
 th { background: #f8f9fa; text-align: left; padding: 10px 12px; font-size: 12px; text-transform: uppercase; letter-spacing: .4px; color: var(--ink-soft); border-bottom: 2px solid var(--line); }
 td { padding: 10px 12px; border-bottom: 1px solid var(--line); }
@@ -223,3 +270,58 @@ dialog .modal-foot {
 .only-bodega { display: none; }
 body.es-bodega .only-bodega { display: revert; }
 body.es-bodega .only-bodega.row-actions { display: flex; }
+
+/* ── Responsive (celular / pantallas angostas) ─────────────────────────── */
+@media (max-width: 640px) {
+  /* auto-fill con minmax(200px,1fr) puede pasarse de ancho en celulares
+     angostos y generar scroll horizontal de toda la página: forzamos 1 columna. */
+  .grid { grid-template-columns: 1fr; }
+
+  /* Header: marca + botón hamburguesa en una sola fila (la marca se trunca
+     si no cabe); el menú se pliega debajo y solo aparece al abrirlo. */
+  .topbar { padding: 10px 14px; }
+  .topbar .brand {
+    font-size: 14px;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .menu-toggle { display: flex; }
+  .topbar nav {
+    display: none;
+    flex-basis: 100%;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 2px;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(255, 255, 255, .12);
+  }
+  .topbar nav.open { display: flex; }
+  .topbar nav a { font-size: 14px; padding: 10px 12px; }
+
+  .wrap { padding: 16px 14px 36px; }
+  .page-head h1 { font-size: 19px; }
+  .page-head p { font-size: 13px; }
+
+  .card { padding: 14px; }
+  .stat { padding: 14px; }
+  .stat .value { font-size: 22px; }
+
+  /* Filtros y botón "+ Nuevo" a lo ancho, apilados: más fácil de tocar. */
+  .toolbar { flex-direction: column; align-items: stretch; }
+  .toolbar .filters { flex-direction: column; align-items: stretch; }
+  .toolbar input[type="search"] { min-width: 0; }
+  .toolbar input[type="search"],
+  .toolbar select,
+  .toolbar > .btn { width: 100%; }
+
+  .row { flex-direction: column; gap: 0; }
+  .row .field { min-width: 0; }
+
+  /* La tabla sigue con scroll horizontal (.table-wrap), pero más compacta. */
+  th, td { padding: 8px 10px; font-size: 13px; }
+
+  dialog form { padding: 16px; }
+}

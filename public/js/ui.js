@@ -19,7 +19,10 @@ export function montarTopbar(activo = "") {
   header.className = "topbar";
   header.innerHTML = `
     <a class="brand" href="index.html">Control de Inventario <b>DPC</b></a>
-    <nav>
+    <button type="button" class="menu-toggle" id="menu-toggle" aria-label="Abrir menú" aria-expanded="false" aria-controls="topbar-nav">
+      <span class="bar"></span><span class="bar"></span><span class="bar"></span>
+    </button>
+    <nav id="topbar-nav">
       ${link("index.html", "inicio", "Inicio")}
       ${link("materiales.html", "materiales", "Materiales")}
       ${link("herramientas.html", "herramientas", "Herramientas")}
@@ -27,6 +30,14 @@ export function montarTopbar(activo = "") {
       ${MODO_DEMO ? '<span class="badge badge-warn" title="Datos de muestra; no se guarda nada">DEMO</span>' : ""}
     </nav>
   `;
+
+  // Menú hamburguesa (solo se ve en pantallas angostas, vía CSS).
+  const toggle = header.querySelector("#menu-toggle");
+  const nav = header.querySelector("#topbar-nav");
+  toggle.addEventListener("click", () => {
+    const abierto = nav.classList.toggle("open");
+    toggle.setAttribute("aria-expanded", String(abierto));
+  });
 
   if (MODO_DEMO) {
     // En demo mostramos los controles de bodega para ver la interfaz completa.
