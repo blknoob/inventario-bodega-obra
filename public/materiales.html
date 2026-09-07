@@ -14,7 +14,7 @@
 
     <div class="page-head">
       <h1>Materiales</h1>
-      <p>Consumibles, EPP y equipos. Bodega registra la llegada; el equipo consulta el stock en tiempo real.</p>
+      <p>Consumibles, EPP, equipos y herramientas</p>
     </div>
 
     <div class="grid" style="margin-bottom: 18px;">
@@ -49,8 +49,13 @@
         <table>
           <thead>
             <tr>
-              <th>Material</th>
+              <th>Item</th>
+              <th>Producto</th>
               <th>Categoría</th>
+              <th>Cantidad</th>
+              <th>Medida</th>
+              <th>Centro de gestión</th>
+              <th>Centro de costo</th>
               <th class="text-right">Stock</th>
               <th>Ubicación</th>
               <th>Actualizado</th>
@@ -58,7 +63,7 @@
             </tr>
           </thead>
           <tbody id="tbody">
-            <tr><td colspan="6" class="empty">Cargando…</td></tr>
+            <tr><td colspan="11" class="empty">Cargando…</td></tr>
           </tbody>
         </table>
       </div>
@@ -74,8 +79,8 @@
     <form id="form-nuevo">
       <div id="err-nuevo" class="alert alert-error hidden"></div>
       <div class="field">
-        <label for="n-nombre">Nombre</label>
-        <input type="text" id="n-nombre" required maxlength="120" placeholder="Ej: Cemento Portland 25 kg" />
+        <label for="n-producto">Producto</label>
+        <input type="text" id="n-producto" required maxlength="120" placeholder="Ej: Cemento Portland 25 kg" />
       </div>
       <div class="row">
         <div class="field">
@@ -85,6 +90,26 @@
         <div class="field">
           <label for="n-unidad">Unidad</label>
           <input type="text" id="n-unidad" required maxlength="20" placeholder="sacos, unidades, m, kg…" />
+        </div>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label for="n-cantidad">Cantidad <span class="muted">(opcional)</span></label>
+          <input type="number" id="n-cantidad" min="0" step="any" placeholder="Ej: 12" />
+        </div>
+        <div class="field">
+          <label for="n-medida">Medida <span class="muted">(opcional)</span></label>
+          <input type="text" id="n-medida" maxlength="40" placeholder="Ej: 1/2 pulgada, 25 kg…" />
+        </div>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label for="n-centro-gestion">Centro de gestión <span class="muted">(opcional)</span></label>
+          <input type="text" id="n-centro-gestion" maxlength="60" />
+        </div>
+        <div class="field">
+          <label for="n-centro-costo">Centro de costo <span class="muted">(opcional)</span></label>
+          <input type="text" id="n-centro-costo" maxlength="60" />
         </div>
       </div>
       <div class="row">
@@ -117,7 +142,7 @@
     <form id="form-llegada">
       <div id="err-llegada" class="alert alert-error hidden"></div>
       <p class="text-sm mt" style="margin-top:0;margin-bottom:14px;">
-        <strong id="l-material-nombre">—</strong>
+        <strong id="l-material-producto">—</strong>
         <span class="muted" id="l-stock-actual"></span>
       </p>
       <input type="hidden" id="l-material-id" />
@@ -182,7 +207,7 @@
       const cat = filtroCat.value;
       const vista = materiales.filter((m) =>
         (!cat || m.categoria === cat) &&
-        (!q || (m.nombre || "").toLowerCase().includes(q)));
+        (!q || (m.producto || "").toLowerCase().includes(q)));
 
       // Estadísticas (sobre todo el inventario, no la vista filtrada)
       const bajos = materiales.filter((m) => nivelStock(m) === "bajo");
@@ -196,14 +221,14 @@
       if (enAlerta.length) {
         alerta.classList.remove("hidden");
         alerta.textContent = "Atención: " + enAlerta
-          .map((m) => `${m.nombre} (${fmtNum(m.stock)} ${m.unidad})`)
+          .map((m) => `${m.producto} (${fmtNum(m.stock)} ${m.unidad})`)
           .join(" · ");
       } else {
         alerta.classList.add("hidden");
       }
 
       if (!vista.length) {
-        tbody.innerHTML = `<tr><td colspan="6" class="empty">${
+        tbody.innerHTML = `<tr><td colspan="11" class="empty">${
           materiales.length ? "Sin resultados para el filtro." : "Aún no hay materiales cargados."
         }</td></tr>`;
         return;
@@ -214,11 +239,16 @@
         const clase = { ok: "stock-ok", bajo: "stock-bajo", cero: "stock-cero" }[nivel];
         return `
           <tr>
+            <td class="muted">${m.item ?? "—"}</td>
             <td>
-              <div>${esc(m.nombre)}</div>
+              <div>${esc(m.producto)}</div>
               ${m.descripcion ? `<div class="text-sm muted">${esc(m.descripcion)}</div>` : ""}
             </td>
             <td><span class="badge badge-muted">${esc(etiquetaCategoria(m.categoria))}</span></td>
+            <td>${m.cantidad ? esc(fmtNum(m.cantidad)) : "<span class='muted'>—</span>"}</td>
+            <td>${esc(m.medida) || "<span class='muted'>—</span>"}</td>
+            <td>${esc(m.centroGestion) || "<span class='muted'>—</span>"}</td>
+            <td>${esc(m.centroCosto) || "<span class='muted'>—</span>"}</td>
             <td class="text-right nowrap">
               <span class="stock-num ${clase}">${fmtNum(m.stock)}</span>
               <span class="muted text-sm">${esc(m.unidad)}</span>
@@ -239,7 +269,7 @@
     escucharMateriales(
       (items) => { materiales = items; render(); },
       (err) => {
-        tbody.innerHTML = `<tr><td colspan="6" class="empty">Error al cargar: ${esc(err.message)}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="11" class="empty">Error al cargar: ${esc(err.message)}</td></tr>`;
       },
     );
 
@@ -265,9 +295,13 @@
       btn.disabled = true; btn.textContent = "Guardando…";
       try {
         await crearMaterial({
-          nombre: document.getElementById("n-nombre").value,
+          producto: document.getElementById("n-producto").value,
           categoria: document.getElementById("n-categoria").value,
           unidad: document.getElementById("n-unidad").value,
+          cantidad: document.getElementById("n-cantidad").value,
+          medida: document.getElementById("n-medida").value,
+          centroGestion: document.getElementById("n-centro-gestion").value,
+          centroCosto: document.getElementById("n-centro-costo").value,
           stockMinimo: document.getElementById("n-minimo").value,
           ubicacion: document.getElementById("n-ubicacion").value,
           descripcion: document.getElementById("n-descripcion").value,
@@ -294,7 +328,7 @@
       formLlegada.reset();
       errLlegada.classList.add("hidden");
       document.getElementById("l-material-id").value = m.id;
-      document.getElementById("l-material-nombre").textContent = m.nombre;
+      document.getElementById("l-material-producto").textContent = m.producto;
       document.getElementById("l-stock-actual").textContent =
         ` — stock actual: ${fmtNum(m.stock)} ${m.unidad}`;
       dlgLlegada.showModal();

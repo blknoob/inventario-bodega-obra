@@ -43,6 +43,13 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // Correlativos automáticos (ej: "item" de materiales). Se leen y escriben
+    // juntos dentro de la misma transacción que crea el registro.
+    match /contadores/{id} {
+      allow read: if true;
+      allow write: if bodega();
+    }
+
     // Todo lo demás queda cerrado por defecto.
     match /{document=**} {
       allow read, write: if false;

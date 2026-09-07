@@ -21,12 +21,12 @@ import {
 } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
 
 const firebaseConfig = {
-  apiKey: "TU_API_KEY",
-  authDomain: "TU_PROYECTO.firebaseapp.com",
-  projectId: "TU_PROYECTO",
-  storageBucket: "TU_PROYECTO.appspot.com",
-  messagingSenderId: "TU_SENDER_ID",
-  appId: "TU_APP_ID",
+  apiKey: "AIzaSyCMULyYbr11A4ehqZHeXqXVFHHrvrT_Huc",
+  authDomain: "inventario-bodega-obra.firebaseapp.com",
+  projectId: "inventario-bodega-obra",
+  storageBucket: "inventario-bodega-obra.firebasestorage.app",
+  messagingSenderId: "334773734505",
+  appId: "1:334773734505:web:1f0e02c2104b496e9866f8",
 };
 
 // Modo emulador local: abre cualquier página con ?emu (queda recordado).

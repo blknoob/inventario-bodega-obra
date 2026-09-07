@@ -18,7 +18,7 @@ export function montarTopbar(activo = "") {
 
   header.className = "topbar";
   header.innerHTML = `
-    <a class="brand" href="index.html">Bodega <b>Obra</b></a>
+    <a class="brand" href="index.html">Control de Inventario <b>DPC</b></a>
     <nav>
       ${link("index.html", "inicio", "Inicio")}
       ${link("materiales.html", "materiales", "Materiales")}

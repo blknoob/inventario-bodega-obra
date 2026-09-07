@@ -25,10 +25,10 @@ export function bloquearEnDemo() {
 const hace = (segundos) => ({ toDate: () => new Date(Date.now() - segundos * 1000) });
 
 export const MATERIALES_DEMO = [
-  { id: "d1", nombre: "Cemento Portland 25 kg", categoria: "consumible", unidad: "sacos", stock: 42, stockMinimo: 20, ubicacion: "Patio A", descripcion: "", actualizadoEn: hace(3600) },
-  { id: "d2", nombre: "Guantes de cabritilla", categoria: "epp", unidad: "pares", stock: 8, stockMinimo: 12, ubicacion: "Rack B-2", descripcion: "Talla L", actualizadoEn: hace(7200) },
-  { id: "d3", nombre: 'Disco de corte 4½"', categoria: "consumible", unidad: "unidades", stock: 0, stockMinimo: 10, ubicacion: "Rack C-1", descripcion: "", actualizadoEn: hace(90000) },
-  { id: "d4", nombre: "Casco de seguridad", categoria: "epp", unidad: "unidades", stock: 25, stockMinimo: 10, ubicacion: "Estante EPP", descripcion: "", actualizadoEn: hace(1800) },
-  { id: "d5", nombre: "Andamio marco 1.5 m", categoria: "equipo", unidad: "cuerpos", stock: 16, stockMinimo: 0, ubicacion: "Patio B", descripcion: "", actualizadoEn: hace(260000) },
-  { id: "d6", nombre: "Fierro estriado Ø10", categoria: "consumible", unidad: "barras", stock: 120, stockMinimo: 50, ubicacion: "Patio A", descripcion: "", actualizadoEn: hace(400000) },
+  { id: "d1", item: 1, producto: "Cemento Portland 25 kg", categoria: "consumible", unidad: "sacos", cantidad: 1, medida: "25 kg", centroGestion: "Obra Gruesa", centroCosto: "CC-100", stock: 42, stockMinimo: 20, ubicacion: "Patio A", descripcion: "", actualizadoEn: hace(3600) },
+  { id: "d2", item: 2, producto: "Guantes de cabritilla", categoria: "epp", unidad: "pares", cantidad: 1, medida: "Talla L", centroGestion: "Prevención", centroCosto: "CC-200", stock: 8, stockMinimo: 12, ubicacion: "Rack B-2", descripcion: "Talla L", actualizadoEn: hace(7200) },
+  { id: "d3", item: 3, producto: 'Disco de corte 4½"', categoria: "consumible", unidad: "unidades", cantidad: 1, medida: '4 1/2"', centroGestion: "Obra Gruesa", centroCosto: "CC-100", stock: 0, stockMinimo: 10, ubicacion: "Rack C-1", descripcion: "", actualizadoEn: hace(90000) },
+  { id: "d4", item: 4, producto: "Casco de seguridad", categoria: "epp", unidad: "unidades", cantidad: 1, medida: "Único", centroGestion: "Prevención", centroCosto: "CC-200", stock: 25, stockMinimo: 10, ubicacion: "Estante EPP", descripcion: "", actualizadoEn: hace(1800) },
+  { id: "d5", item: 5, producto: "Andamio marco 1.5 m", categoria: "equipo", unidad: "cuerpos", cantidad: 1, medida: "1.5 m", centroGestion: "Obra Gruesa", centroCosto: "CC-100", stock: 16, stockMinimo: 0, ubicacion: "Patio B", descripcion: "", actualizadoEn: hace(260000) },
+  { id: "d6", item: 6, producto: "Fierro estriado Ø10", categoria: "consumible", unidad: "barras", cantidad: 12, medida: "Ø10 mm", centroGestion: "Obra Gruesa", centroCosto: "CC-100", stock: 120, stockMinimo: 50, ubicacion: "Patio A", descripcion: "", actualizadoEn: hace(400000) },
 ];

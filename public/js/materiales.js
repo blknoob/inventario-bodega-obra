@@ -5,7 +5,6 @@
 import {
   collection,
   doc,
-  addDoc,
   onSnapshot,
   runTransaction,
   serverTimestamp,
@@ -16,6 +15,7 @@ import { MODO_DEMO, MATERIALES_DEMO, bloquearEnDemo } from "./demo.js";
 
 const materialesRef = collection(db, "materiales");
 const movimientosRef = collection(db, "movimientos_materiales");
+const contadorMaterialesDoc = doc(db, "contadores", "materiales");
 
 export const CATEGORIAS = [
   { valor: "consumible", etiqueta: "Consumible" },
@@ -30,12 +30,12 @@ export function etiquetaCategoria(valor) {
 
 /**
  * Escucha en tiempo real toda la colección de materiales.
- * Entrega un array ordenado por nombre. Devuelve la función para desuscribirse.
+ * Entrega un array ordenado por producto. Devuelve la función para desuscribirse.
  */
 export function escucharMateriales(onCambio, onError) {
   if (MODO_DEMO) {
     onCambio([...MATERIALES_DEMO].sort((a, b) =>
-      a.nombre.localeCompare(b.nombre, "es", { sensitivity: "base" })));
+      a.producto.localeCompare(b.producto, "es", { sensitivity: "base" })));
     return () => {};
   }
   return onSnapshot(
@@ -43,7 +43,7 @@ export function escucharMateriales(onCambio, onError) {
     (snap) => {
       const items = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
       items.sort((a, b) =>
-        (a.nombre || "").localeCompare(b.nombre || "", "es", { sensitivity: "base" }),
+        (a.producto || "").localeCompare(b.producto || "", "es", { sensitivity: "base" }),
       );
       onCambio(items);
     },
@@ -51,22 +51,43 @@ export function escucharMateriales(onCambio, onError) {
   );
 }
 
-/** Crea un material nuevo (sin stock inicial: eso se hace con "registrar llegada"). */
-export async function crearMaterial({ nombre, categoria, unidad, stockMinimo, ubicacion, descripcion }) {
+/**
+ * Crea un material nuevo (sin stock inicial: eso se hace con "registrar llegada").
+ * El "item" es un correlativo automático (1, 2, 3…) asignado en una transacción
+ * sobre contadores/materiales, para que no se repita aunque se creen varios a la vez.
+ */
+export async function crearMaterial({
+  producto, categoria, unidad, cantidad, medida, centroGestion, centroCosto, stockMinimo, ubicacion, descripcion,
+}) {
   if (MODO_DEMO) bloquearEnDemo();
   const email = usuarioActual()?.email ?? null;
-  return addDoc(materialesRef, {
-    nombre: nombre.trim(),
-    categoria,
-    unidad: unidad.trim(),
-    stock: 0,
-    stockMinimo: Number(stockMinimo) || 0,
-    ubicacion: ubicacion?.trim() || "",
-    descripcion: descripcion?.trim() || "",
-    creadoPor: email,
-    creadoEn: serverTimestamp(),
-    actualizadoEn: serverTimestamp(),
+  const nuevoDoc = doc(materialesRef);
+
+  await runTransaction(db, async (tx) => {
+    const contadorSnap = await tx.get(contadorMaterialesDoc);
+    const item = (Number(contadorSnap.data()?.valor) || 0) + 1;
+
+    tx.set(contadorMaterialesDoc, { valor: item }, { merge: true });
+    tx.set(nuevoDoc, {
+      item,
+      producto: producto.trim(),
+      categoria,
+      unidad: unidad.trim(),
+      cantidad: Number(cantidad) || 0,
+      medida: medida?.trim() || "",
+      centroGestion: centroGestion?.trim() || "",
+      centroCosto: centroCosto?.trim() || "",
+      stock: 0,
+      stockMinimo: Number(stockMinimo) || 0,
+      ubicacion: ubicacion?.trim() || "",
+      descripcion: descripcion?.trim() || "",
+      creadoPor: email,
+      creadoEn: serverTimestamp(),
+      actualizadoEn: serverTimestamp(),
+    });
   });
+
+  return nuevoDoc;
 }
 
 /**
@@ -93,7 +114,7 @@ export async function registrarLlegada(materialId, { cantidad, proveedor, docume
     const nuevoMov = doc(movimientosRef);
     tx.set(nuevoMov, {
       materialId,
-      materialNombre: snap.data().nombre,
+      materialProducto: snap.data().producto,
       tipo: "entrada",
       cantidad: cant,
       stockResultante: resultante,
