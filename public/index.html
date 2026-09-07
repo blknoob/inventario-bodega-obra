@@ -20,6 +20,10 @@
         <div class="label">Materiales</div>
         <div class="value" id="stat-materiales">—</div>
       </a>
+      <a class="stat" href="materiales.html?categoria=epp">
+        <div class="label">EPPs</div>
+        <div class="value" id="stat-epp">—</div>
+      </a>
       <a class="stat" href="herramientas.html">
         <div class="label">Herramientas</div>
         <div class="value" id="stat-herramientas">—</div>
@@ -51,6 +55,8 @@
       (items) => {
         estado.textContent = "Base de datos conectada.";
         document.getElementById("stat-materiales").textContent = items.length;
+        const epp = items.filter((m) => m.categoria === "epp").length;
+        document.getElementById("stat-epp").textContent = epp;
         const alertas = items.filter((m) => nivelStock(m) !== "ok").length;
         document.getElementById("stat-alertas").textContent = alertas;
       },

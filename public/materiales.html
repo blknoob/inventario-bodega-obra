@@ -242,6 +242,13 @@
     const buscar = document.getElementById("buscar");
     const filtroCat = document.getElementById("filtro-categoria");
 
+    // Si se llega con ?categoria=epp (ej: desde la tarjeta "EPPs" de Inicio),
+    // deja el filtro ya aplicado.
+    const catInicial = new URL(location.href).searchParams.get("categoria");
+    if (catInicial && CATEGORIAS.some((c) => c.valor === catInicial)) {
+      filtroCat.value = catInicial;
+    }
+
     const fmtNum = (n) => (Number(n) || 0).toLocaleString("es-CL", { maximumFractionDigits: 3 });
     const fmtFecha = (ts) => {
       const d = ts?.toDate?.();
