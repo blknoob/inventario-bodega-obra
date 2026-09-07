@@ -19,7 +19,7 @@ const contadorMaterialesDoc = doc(db, "contadores", "materiales");
 
 export const CATEGORIAS = [
   { valor: "consumible", etiqueta: "Consumible" },
-  { valor: "epp", etiqueta: "EPP (protección personal)" },
+  { valor: "epp", etiqueta: "EPP" },
   { valor: "equipo", etiqueta: "Equipo" },
   { valor: "otro", etiqueta: "Otro" },
 ];
@@ -89,7 +89,6 @@ export async function registrarEntrada({ materialId, nuevoMaterial, cantidadReci
         producto: productoNombre,
         categoria: nuevoMaterial.categoria,
         unidad: nuevoMaterial.unidad.trim(),
-        cantidad: Number(nuevoMaterial.cantidad) || 0,
         medida: nuevoMaterial.medida?.trim() || "",
         centroGestion: nuevoMaterial.centroGestion?.trim() || "",
         centroCosto: nuevoMaterial.centroCosto?.trim() || "",
