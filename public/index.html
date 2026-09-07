@@ -54,10 +54,11 @@
     escucharMateriales(
       (items) => {
         estado.textContent = "Base de datos conectada.";
-        document.getElementById("stat-materiales").textContent = items.length;
-        const epp = items.filter((m) => m.categoria === "epp").length;
-        document.getElementById("stat-epp").textContent = epp;
-        const alertas = items.filter((m) => nivelStock(m) !== "ok").length;
+        const materiales = items.filter((m) => m.categoria !== "epp");
+        const epps = items.filter((m) => m.categoria === "epp");
+        document.getElementById("stat-materiales").textContent = materiales.length;
+        document.getElementById("stat-epp").textContent = epps.length;
+        const alertas = materiales.filter((m) => nivelStock(m) !== "ok").length;
         document.getElementById("stat-alertas").textContent = alertas;
       },
       (err) => { estado.textContent = "Error de conexión: " + err.message; },
