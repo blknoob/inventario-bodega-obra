@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Materiales | Inventario de Bodega</title>
+  <title id="titulo-pagina">Materiales | Inventario de Bodega</title>
   <link rel="stylesheet" href="css/styles.css" />
 </head>
 <body>
@@ -13,8 +13,8 @@
     <div id="flash" class="alert hidden"></div>
 
     <div class="page-head">
-      <h1>Materiales</h1>
-      <p>Consumibles, EPP, equipos y herramientas</p>
+      <h1 id="titulo-h1">Materiales</h1>
+      <p id="titulo-sub">Consumibles, equipos y otros materiales de obra. Los EPP tienen su propia sección.</p>
     </div>
 
     <div class="grid" style="margin-bottom: 18px;">
@@ -38,7 +38,7 @@
       <div class="toolbar">
         <div class="filters">
           <input type="search" id="buscar" placeholder="Buscar material…" autocomplete="off" />
-          <select id="filtro-categoria">
+          <select id="filtro-categoria" class="hidden">
             <option value="">Todas las categorías</option>
           </select>
         </div>
@@ -99,7 +99,7 @@
           <div id="e-nuevo-producto-aviso" class="alert alert-warn hidden"></div>
         </div>
         <div class="row">
-          <div class="field">
+          <div class="field" id="campo-nuevo-categoria">
             <label for="e-nuevo-categoria">Categoría</label>
             <select id="e-nuevo-categoria"></select>
           </div>
@@ -229,25 +229,32 @@
       escucharMateriales, registrarEntrada, registrarSalida, eliminarMaterial,
     } from "./js/materiales.js";
 
-    montarTopbar("materiales");
+    // Esta misma página sirve para dos secciones separadas: "Materiales"
+    // (todo menos EPP) y "EPPs" (?categoria=epp desde el header o la
+    // tarjeta de Inicio) -- así no se mezclan en el mismo listado.
+    const modoEpp = new URL(location.href).searchParams.get("categoria") === "epp";
+    montarTopbar(modoEpp ? "epps" : "materiales");
 
-    // ── Poblar selects de categoría ───────────────────────────────────────
-    const optsCat = CATEGORIAS.map((c) => `<option value="${c.valor}">${c.etiqueta}</option>`).join("");
+    document.getElementById("titulo-pagina").textContent = modoEpp
+      ? "EPP | Inventario de Bodega" : "Materiales | Inventario de Bodega";
+    document.getElementById("titulo-h1").textContent = modoEpp ? "EPP" : "Materiales";
+    document.getElementById("titulo-sub").textContent = modoEpp
+      ? "Elementos de protección personal."
+      : "Consumibles, equipos y otros materiales de obra. Los EPP tienen su propia sección.";
+
+    // ── Poblar selects de categoría (en modo EPP no aplica: siempre es epp) ─
+    const CATEGORIAS_DISPONIBLES = modoEpp ? [] : CATEGORIAS.filter((c) => c.valor !== "epp");
+    const optsCat = CATEGORIAS_DISPONIBLES.map((c) => `<option value="${c.valor}">${c.etiqueta}</option>`).join("");
     document.getElementById("filtro-categoria").insertAdjacentHTML("beforeend", optsCat);
     document.getElementById("e-nuevo-categoria").innerHTML = optsCat;
+    document.getElementById("filtro-categoria").classList.toggle("hidden", modoEpp);
+    document.getElementById("campo-nuevo-categoria").classList.toggle("hidden", modoEpp);
 
     // ── Estado y render ───────────────────────────────────────────────────
     let materiales = [];
     const tbody = document.getElementById("tbody");
     const buscar = document.getElementById("buscar");
     const filtroCat = document.getElementById("filtro-categoria");
-
-    // Si se llega con ?categoria=epp (ej: desde la tarjeta "EPPs" de Inicio),
-    // deja el filtro ya aplicado.
-    const catInicial = new URL(location.href).searchParams.get("categoria");
-    if (catInicial && CATEGORIAS.some((c) => c.valor === catInicial)) {
-      filtroCat.value = catInicial;
-    }
 
     const fmtNum = (n) => (Number(n) || 0).toLocaleString("es-CL", { maximumFractionDigits: 3 });
     const fmtFecha = (ts) => {
@@ -391,7 +398,10 @@
     filtroCat.addEventListener("change", render);
 
     escucharMateriales(
-      (items) => { materiales = items; render(); },
+      (items) => {
+        materiales = items.filter((m) => modoEpp ? m.categoria === "epp" : m.categoria !== "epp");
+        render();
+      },
       (err) => {
         tbody.innerHTML = `<tr><td colspan="10" class="empty">Error al cargar: ${esc(err.message)}</td></tr>`;
       },
@@ -505,7 +515,7 @@
         if (modoProductoNuevo) {
           datos.nuevoMaterial = {
             producto: document.getElementById("e-nuevo-producto").value,
-            categoria: document.getElementById("e-nuevo-categoria").value,
+            categoria: modoEpp ? "epp" : document.getElementById("e-nuevo-categoria").value,
             unidad: document.getElementById("e-nuevo-unidad").value,
             medida: document.getElementById("e-nuevo-medida").value,
             centroGestion: document.getElementById("e-nuevo-centro-gestion").value,
