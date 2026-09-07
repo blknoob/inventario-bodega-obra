@@ -9,6 +9,7 @@ import {
   onSnapshot,
   runTransaction,
   serverTimestamp,
+  updateDoc,
 } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { usuarioActual } from "./auth.js";
@@ -174,8 +175,19 @@ export async function eliminarMaterial(materialId) {
   await deleteDoc(doc(db, "materiales", materialId));
 }
 
+/**
+ * Marca o desmarca un material como "no se repone" (ej: un equipo único que
+ * no se va a volver a comprar). Mientras esté marcado, no cuenta como alerta
+ * de stock aunque esté bajo o en cero.
+ */
+export async function marcarSinReposicion(materialId, sinReposicion) {
+  if (MODO_DEMO) bloquearEnDemo();
+  await updateDoc(doc(db, "materiales", materialId), { sinReposicion: !!sinReposicion });
+}
+
 /** Devuelve el estado del stock frente al mínimo: 'ok' | 'bajo' | 'cero'. */
 export function nivelStock(material) {
+  if (material.sinReposicion) return "ok";
   const stock = Number(material.stock) || 0;
   const min = Number(material.stockMinimo) || 0;
   if (stock <= 0) return "cero";

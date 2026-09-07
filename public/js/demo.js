@@ -31,4 +31,5 @@ export const MATERIALES_DEMO = [
   { id: "d4", item: 4, producto: "Casco de seguridad", categoria: "epp", unidad: "unidades", medida: "Único", centroGestion: "Prevención", centroCosto: "CC-200", stock: 25, stockMinimo: 10, ubicacion: "Estante EPP", descripcion: "", actualizadoEn: hace(1800) },
   { id: "d5", item: 5, producto: "Andamio marco 1.5 m", categoria: "equipo", unidad: "cuerpos", medida: "1.5 m", centroGestion: "Obra Gruesa", centroCosto: "CC-100", stock: 16, stockMinimo: 0, ubicacion: "Patio B", descripcion: "", actualizadoEn: hace(260000) },
   { id: "d6", item: 6, producto: "Fierro estriado Ø10", categoria: "consumible", unidad: "barras", medida: "Ø10 mm", centroGestion: "Obra Gruesa", centroCosto: "CC-100", stock: 120, stockMinimo: 50, ubicacion: "Patio A", descripcion: "", actualizadoEn: hace(400000) },
+  { id: "d7", item: 7, producto: "Calentador industrial", categoria: "equipo", unidad: "unidades", medida: "", centroGestion: "Obra Gruesa", centroCosto: "CC-100", stock: 0, stockMinimo: 1, sinReposicion: true, ubicacion: "Bodega", descripcion: "", actualizadoEn: hace(500000) },
 ];

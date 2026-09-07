@@ -22,14 +22,14 @@
         <div class="label" id="stat-total-label">Tipos de material</div>
         <div class="value" id="stat-total">—</div>
       </div>
-      <div class="stat">
+      <button type="button" class="stat" id="stat-bajo-card" title="Ver solo con stock bajo">
         <div class="label">Con stock bajo</div>
         <div class="value stock-bajo" id="stat-bajo">—</div>
-      </div>
-      <div class="stat">
+      </button>
+      <button type="button" class="stat" id="stat-cero-card" title="Ver solo sin stock">
         <div class="label">Sin stock</div>
         <div class="value stock-cero" id="stat-cero">—</div>
-      </div>
+      </button>
     </div>
 
     <div id="alerta-stock" class="alert alert-info hidden"></div>
@@ -225,7 +225,7 @@
     import { montarTopbar, flash } from "./js/ui.js";
     import {
       CATEGORIAS, etiquetaCategoria, nivelStock,
-      escucharMateriales, registrarEntrada, registrarSalida, eliminarMaterial,
+      escucharMateriales, registrarEntrada, registrarSalida, eliminarMaterial, marcarSinReposicion,
     } from "./js/materiales.js";
 
     // Esta misma página sirve para tres vistas: "Materiales" (todo menos
@@ -265,6 +265,21 @@
     const tbody = document.getElementById("tbody");
     const buscar = document.getElementById("buscar");
     const filtroCat = document.getElementById("filtro-categoria");
+
+    // Filtro por nivel de stock ('' | 'bajo' | 'cero'), activado al tocar
+    // las tarjetas "Con stock bajo" / "Sin stock". Tocar la misma de nuevo
+    // lo quita.
+    let filtroStock = "";
+    const statBajoCard = document.getElementById("stat-bajo-card");
+    const statCeroCard = document.getElementById("stat-cero-card");
+    function setFiltroStock(valor) {
+      filtroStock = filtroStock === valor ? "" : valor;
+      statBajoCard.classList.toggle("active", filtroStock === "bajo");
+      statCeroCard.classList.toggle("active", filtroStock === "cero");
+      render();
+    }
+    statBajoCard.addEventListener("click", () => setFiltroStock("bajo"));
+    statCeroCard.addEventListener("click", () => setFiltroStock("cero"));
 
     const fmtNum = (n) => (Number(n) || 0).toLocaleString("es-CL", { maximumFractionDigits: 3 });
     const fmtFecha = (ts) => {
@@ -349,6 +364,7 @@
       const cat = filtroCat.value;
       const vista = materiales.filter((m) =>
         (!cat || m.categoria === cat) &&
+        (!filtroStock || nivelStock(m) === filtroStock) &&
         (!q || (m.producto || "").toLowerCase().includes(q)));
 
       // Estadísticas (sobre todo el inventario, no la vista filtrada)
@@ -384,6 +400,7 @@
             <td>
               <div>${esc(m.producto)}</div>
               ${m.descripcion ? `<div class="text-sm muted">${esc(m.descripcion)}</div>` : ""}
+              ${m.sinReposicion ? `<div class="text-sm muted">No se repone</div>` : ""}
             </td>
             <td><span class="badge badge-muted">${esc(etiquetaCategoria(m.categoria))}</span></td>
             <td>${esc(m.medida) || "<span class='muted'>—</span>"}</td>
@@ -397,6 +414,7 @@
             <td>${esc(m.ubicacion) || "<span class='muted'>—</span>"}</td>
             <td class="nowrap text-sm muted">${fmtFecha(m.actualizadoEn)}</td>
             <td class="only-bodega nowrap">
+              <button class="btn btn-ghost btn-xs" data-sin-reposicion="${m.id}" data-valor="${m.sinReposicion ? "0" : "1"}">${m.sinReposicion ? "Reponer" : "No reponer"}</button>
               <button class="btn btn-ghost btn-xs btn-danger" data-eliminar="${m.id}">Eliminar</button>
             </td>
           </tr>`;
@@ -420,19 +438,35 @@
 
     // ── Eliminar material ───────────────────────────────────────────────
     tbody.addEventListener("click", async (e) => {
-      const id = e.target.getAttribute?.("data-eliminar");
-      if (!id) return;
-      const m = materiales.find((x) => x.id === id);
-      if (!m) return;
-      const ok = confirm(
-        `¿Eliminar "${m.producto}"? Se borra la ficha del catálogo (stock actual: ${fmtNum(m.stock)} ${m.unidad}). El historial de movimientos no se borra. Esta acción no se puede deshacer.`,
-      );
-      if (!ok) return;
-      try {
-        await eliminarMaterial(id);
-        flash("Material eliminado.");
-      } catch (err) {
-        flash(err.message, "error");
+      const idEliminar = e.target.getAttribute?.("data-eliminar");
+      const idSinReposicion = e.target.getAttribute?.("data-sin-reposicion");
+
+      if (idEliminar) {
+        const m = materiales.find((x) => x.id === idEliminar);
+        if (!m) return;
+        const ok = confirm(
+          `¿Eliminar "${m.producto}"? Se borra la ficha del catálogo (stock actual: ${fmtNum(m.stock)} ${m.unidad}). El historial de movimientos no se borra. Esta acción no se puede deshacer.`,
+        );
+        if (!ok) return;
+        try {
+          await eliminarMaterial(idEliminar);
+          flash("Material eliminado.");
+        } catch (err) {
+          flash(err.message, "error");
+        }
+        return;
+      }
+
+      if (idSinReposicion) {
+        const nuevoValor = e.target.getAttribute("data-valor") === "1";
+        try {
+          await marcarSinReposicion(idSinReposicion, nuevoValor);
+          flash(nuevoValor
+            ? "Producto marcado como 'no se repone': ya no cuenta como alerta de stock."
+            : "Producto vuelve a contar para las alertas de stock.");
+        } catch (err) {
+          flash(err.message, "error");
+        }
       }
     });
 
