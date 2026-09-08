@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Historial | Inventario de Bodega</title>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <header id="topbar"></header>
+
+  <div class="wrap">
+    <div class="page-head">
+      <h1>Historial</h1>
+      <p>Entradas y salidas de materiales y EPP, en tiempo real.</p>
+    </div>
+
+    <div class="grid" style="margin-bottom: 18px;">
+      <div class="stat">
+        <div class="label">Entrantes</div>
+        <div class="value stock-ok" id="stat-entradas">—</div>
+      </div>
+      <div class="stat">
+        <div class="label">Salientes</div>
+        <div class="value" id="stat-salidas" style="color: var(--info);">—</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="toolbar">
+        <div class="filters">
+          <input type="search" id="buscar" placeholder="Buscar producto, persona, proveedor…" autocomplete="off" />
+          <select id="filtro-tipo">
+            <option value="">Todos los movimientos</option>
+            <option value="entrada">Entrantes</option>
+            <option value="salida">Salientes</option>
+          </select>
+          <select id="filtro-categoria">
+            <option value="">Todas las categorías</option>
+          </select>
+          <input type="date" id="filtro-fecha" />
+          <button type="button" class="btn btn-ghost btn-xs" id="btn-fecha-hoy">Hoy</button>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Fecha</th>
+              <th>Tipo</th>
+              <th>Producto</th>
+              <th>Categoría</th>
+              <th class="text-right">Cantidad</th>
+              <th class="text-right">Stock resultante</th>
+              <th>Detalle</th>
+              <th>Responsable</th>
+            </tr>
+          </thead>
+          <tbody id="tbody">
+            <tr><td colspan="8" class="empty">Cargando…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Herramientas</h2>
+      <p class="text-sm muted">Aún no hay movimientos de herramientas. Esta parte del historial se activa en el Tramo 4.</p>
+    </div>
+  </div>
+
+  <script type="module">
+    import { montarTopbar } from "./js/ui.js";
+    import { CATEGORIAS, etiquetaCategoria, escucharMovimientos } from "./js/materiales.js";
+
+    montarTopbar("historial");
+
+    const optsCat = CATEGORIAS.map((c) => `<option value="${c.valor}">${c.etiqueta}</option>`).join("");
+    document.getElementById("filtro-categoria").insertAdjacentHTML("beforeend", optsCat);
+
+    let movimientos = [];
+    const tbody = document.getElementById("tbody");
+    const buscar = document.getElementById("buscar");
+    const filtroTipo = document.getElementById("filtro-tipo");
+    const filtroCat = document.getElementById("filtro-categoria");
+    const filtroFecha = document.getElementById("filtro-fecha");
+    const btnFechaHoy = document.getElementById("btn-fecha-hoy");
+
+    // "YYYY-MM-DD" en horario local, para comparar contra <input type="date">.
+    const fechaISO = (d) => {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, "0");
+      const day = String(d.getDate()).padStart(2, "0");
+      return `${y}-${m}-${day}`;
+    };
+    btnFechaHoy.addEventListener("click", () => {
+      filtroFecha.value = fechaISO(new Date());
+      render();
+    });
+
+    // Si se llega con ?categoria=epp (ej: desde la tarjeta "EPPs" de Inicio),
+    // deja el filtro ya aplicado.
+    const catInicial = new URL(location.href).searchParams.get("categoria");
+    if (catInicial && CATEGORIAS.some((c) => c.valor === catInicial)) {
+      filtroCat.value = catInicial;
+    }
+
+    const fmtNum = (n) => (Number(n) || 0).toLocaleString("es-CL", { maximumFractionDigits: 3 });
+    const fmtFecha = (ts) => {
+      const d = ts?.toDate?.();
+      if (!d) return "—";
+      return d.toLocaleDateString("es-CL") + " " +
+        d.toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" });
+    };
+    const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) =>
+      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+    /** Línea de detalle: varía según sea entrada (proveedor/doc) o salida (retiro). */
+    function detalle(m) {
+      if (m.tipo === "entrada") {
+        const partes = [];
+        if (m.proveedor) partes.push(`Proveedor: ${esc(m.proveedor)}`);
+        if (m.documento) partes.push(`Doc: ${esc(m.documento)}`);
+        if (m.motivo) partes.push(esc(m.motivo));
+        return partes.join(" · ") || "<span class='muted'>—</span>";
+      }
+      const partes = [`Retira: ${esc(m.personaRetira || "—")}`];
+      if (m.supervisor) partes.push(`Supervisor: ${esc(m.supervisor)}`);
+      if (m.actividad) partes.push(`Actividad: ${esc(m.actividad)}`);
+      if (m.zona) partes.push(`Zona: ${esc(m.zona)}`);
+      if (m.numeroVale) partes.push(`Vale: ${esc(m.numeroVale)}`);
+      if (m.observacion) partes.push(esc(m.observacion));
+      return partes.join(" · ");
+    }
+
+    function render() {
+      const q = buscar.value.trim().toLowerCase();
+      const tipo = filtroTipo.value;
+      const cat = filtroCat.value;
+      const fecha = filtroFecha.value;
+      const vista = movimientos.filter((m) =>
+        (!tipo || m.tipo === tipo) &&
+        (!cat || m.categoria === cat) &&
+        (!fecha || (m.fecha?.toDate?.() && fechaISO(m.fecha.toDate()) === fecha)) &&
+        (!q || [m.materialProducto, m.personaRetira, m.proveedor, m.supervisor, m.responsable]
+          .some((v) => (v || "").toLowerCase().includes(q))));
+
+      document.getElementById("stat-entradas").textContent =
+        movimientos.filter((m) => m.tipo === "entrada").length;
+      document.getElementById("stat-salidas").textContent =
+        movimientos.filter((m) => m.tipo === "salida").length;
+
+      if (!vista.length) {
+        tbody.innerHTML = `<tr><td colspan="8" class="empty">${
+          movimientos.length ? "Sin resultados para el filtro." : "Aún no hay movimientos registrados."
+        }</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = vista.map((m) => `
+        <tr>
+          <td class="nowrap text-sm">${fmtFecha(m.fecha)}</td>
+          <td><span class="badge ${m.tipo === "entrada" ? "badge-ok" : "badge-info"}">${m.tipo === "entrada" ? "Entrante" : "Saliente"}</span></td>
+          <td>${esc(m.materialProducto)}</td>
+          <td><span class="badge badge-muted">${esc(etiquetaCategoria(m.categoria))}</span></td>
+          <td class="text-right nowrap">${fmtNum(m.cantidad)}</td>
+          <td class="text-right nowrap">${fmtNum(m.stockResultante)}</td>
+          <td class="text-sm">${detalle(m)}</td>
+          <td class="text-sm muted">${esc(m.responsable) || "—"}</td>
+        </tr>`).join("");
+    }
+
+    buscar.addEventListener("input", render);
+    filtroTipo.addEventListener("change", render);
+    filtroCat.addEventListener("change", render);
+    filtroFecha.addEventListener("change", render);
+
+    escucharMovimientos(
+      (items) => { movimientos = items; render(); },
+      (err) => {
+        tbody.innerHTML = `<tr><td colspan="8" class="empty">Error al cargar: ${esc(err.message)}</td></tr>`;
+      },
+    );
+  </script>
+</body>
+</html>

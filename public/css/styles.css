@@ -273,6 +273,7 @@ tr:hover td { background: #fafbfc; }
 }
 .toolbar .filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .toolbar input[type="search"],
+.toolbar input[type="date"],
 .toolbar select {
   padding: 8px 10px;
   border: 1px solid var(--line);
@@ -280,6 +281,7 @@ tr:hover td { background: #fafbfc; }
   font-size: 13px;
   font-family: inherit;
   background: #fff;
+  color: var(--ink);
 }
 .toolbar input[type="search"] { min-width: 200px; }
 
@@ -374,6 +376,7 @@ body.es-bodega .only-bodega.row-actions { display: flex; }
   .toolbar .filters { flex-direction: column; align-items: stretch; }
   .toolbar input[type="search"] { min-width: 0; }
   .toolbar input[type="search"],
+  .toolbar input[type="date"],
   .toolbar select,
   .toolbar > .btn { width: 100%; }
 
