@@ -310,20 +310,22 @@
       row.querySelector("[data-quitar-fila]").addEventListener("click", () => row.remove());
       pItems.appendChild(row);
     }
-    document.getElementById("btn-p-agregar-item").addEventListener("click", () => filaItemPedido());
+    document.getElementById("btn-p-agregar-item")?.addEventListener("click", () => filaItemPedido());
 
     const dlgPedido = document.getElementById("dlg-pedido");
     const formPedido = document.getElementById("form-pedido");
     const errPedido = document.getElementById("err-pedido");
     const pArchivo = document.getElementById("p-archivo");
     const pArchivoEstado = document.getElementById("p-archivo-estado");
-    const textoAyudaArchivo = pArchivoEstado.textContent;
+    const textoAyudaArchivo = pArchivoEstado?.textContent ?? "";
 
     document.getElementById("btn-nuevo-pedido").addEventListener("click", () => {
       formPedido.reset();
       pItems.innerHTML = "";
-      pArchivoEstado.textContent = textoAyudaArchivo;
-      pArchivoEstado.classList.remove("stock-cero");
+      if (pArchivoEstado) {
+        pArchivoEstado.textContent = textoAyudaArchivo;
+        pArchivoEstado.classList.remove("stock-cero");
+      }
       errPedido.classList.add("hidden");
       dlgPedido.showModal();
     });
@@ -334,15 +336,23 @@
       const archivo = pArchivo.files[0];
       pItems.innerHTML = "";
       if (!archivo) return;
-      pArchivoEstado.textContent = "Leyendo el Excel…";
-      pArchivoEstado.classList.remove("stock-cero");
+      if (pArchivoEstado) {
+        pArchivoEstado.textContent = "Leyendo el Excel…";
+        pArchivoEstado.classList.remove("stock-cero");
+      }
       try {
         const items = await leerItemsDeExcel(archivo);
         items.forEach((it) => filaItemPedido(it));
-        pArchivoEstado.textContent = `${items.length} ítem${items.length > 1 ? "s" : ""} detectado${items.length > 1 ? "s" : ""} del Excel. Revísalos antes de guardar.`;
+        if (pArchivoEstado) {
+          pArchivoEstado.textContent = `${items.length} ítem${items.length > 1 ? "s" : ""} detectado${items.length > 1 ? "s" : ""} del Excel. Revísalos antes de guardar.`;
+        }
       } catch (err) {
-        pArchivoEstado.textContent = err.message;
-        pArchivoEstado.classList.add("stock-cero");
+        if (pArchivoEstado) {
+          pArchivoEstado.textContent = err.message;
+          pArchivoEstado.classList.add("stock-cero");
+        } else {
+          flash(err.message, "error");
+        }
       }
     });
 
