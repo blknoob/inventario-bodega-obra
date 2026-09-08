@@ -76,21 +76,27 @@ async function subirArchivo(carpeta, id, archivo) {
 }
 
 /**
- * Crea un nuevo Pedido de Materiales (PM): número/folio, quién lo solicita,
- * la lista de ítems pedidos (texto libre: no requieren existir todavía en el
- * catálogo de Materiales/EPPs) y, opcionalmente, el Excel del pedido.
+ * Crea un nuevo Pedido de Materiales (PM): número/folio, quién lo solicita, el
+ * Excel del pedido (obligatorio: es la única forma de cargar un PM) y la
+ * lista de ítems que trae ese Excel (línea, centro de gestión, centro de
+ * costo, cantidad, unidad, glosa). Los ítems son texto libre: no requieren
+ * existir todavía en el catálogo de Materiales/EPPs.
  */
 export async function crearPedido({ numero, solicitante, observacion, items, archivo }) {
   if (MODO_DEMO) bloquearEnDemo();
+  if (!archivo) throw new Error("Sube el Excel del pedido: es la única forma de cargar un PM.");
   const itemsLimpios = (items || [])
     .map((it) => ({
       id: it.id || crypto.randomUUID(),
-      nombre: (it.nombre || "").trim(),
+      linea: (it.linea ?? "").toString().trim(),
+      centroGestion: (it.centroGestion || "").trim(),
+      centroCosto: (it.centroCosto || "").trim(),
       cantidad: Number(it.cantidad) || 0,
       unidad: (it.unidad || "").trim(),
+      glosa: (it.glosa || "").trim(),
     }))
-    .filter((it) => it.nombre);
-  if (!itemsLimpios.length) throw new Error("Agrega al menos un ítem al pedido.");
+    .filter((it) => it.glosa);
+  if (!itemsLimpios.length) throw new Error("El Excel no tiene ítems reconocibles (revisa la columna 'glosa').");
 
   const email = usuarioActual()?.email ?? null;
   const pedidoDoc = doc(pedidosRef);
@@ -127,7 +133,7 @@ export async function crearOrdenCompra({ pmId, numero, proveedor, itemsCubiertos
   if (!pmId) throw new Error("Falta el pedido al que pertenece esta orden.");
   const itemsLimpios = (itemsCubiertos || [])
     .filter((it) => it.incluido)
-    .map((it) => ({ pmItemId: it.pmItemId, nombre: it.nombre, cantidad: Number(it.cantidad) || 0 }));
+    .map((it) => ({ pmItemId: it.pmItemId, glosa: it.glosa, cantidad: Number(it.cantidad) || 0 }));
   if (!itemsLimpios.length) throw new Error("Selecciona al menos un ítem que cubra esta orden.");
 
   const email = usuarioActual()?.email ?? null;
@@ -164,6 +170,57 @@ export async function eliminarOrdenCompra(orden) {
     try { await deleteObject(ref(storage, orden.archivo.path)); } catch { /* ya no existe */ }
   }
   await deleteDoc(doc(db, "ordenes_compra", orden.id));
+}
+
+// Nombres de columna esperados en el Excel del pedido, normalizados (sin
+// tildes, minúscula). El PM de Carlos usa: linea, centro de gestión,
+// centro de costo, cantidad, unidad, glosa.
+const ALIAS_COLUMNAS = {
+  linea: ["linea"],
+  centroGestion: ["centro de gestion"],
+  centroCosto: ["centro de costo"],
+  cantidad: ["cantidad", "cant"],
+  unidad: ["unidad", "und"],
+  glosa: ["glosa", "descripcion", "detalle", "producto"],
+};
+
+const normalizarEncabezado = (s) => String(s ?? "").trim().toLowerCase()
+  .normalize("NFD").replace(/[̀-ͯ]/g, "");
+
+/**
+ * Lee el Excel de un pedido y extrae sus ítems (línea, centro de gestión,
+ * centro de costo, cantidad, unidad, glosa) buscando esas columnas por su
+ * encabezado en la primera fila, sin importar el orden. Requiere que
+ * SheetJS (window.XLSX) esté cargado en la página.
+ */
+export async function leerItemsDeExcel(archivo) {
+  if (!window.XLSX) throw new Error("No se pudo cargar el lector de Excel. Recarga la página e intenta de nuevo.");
+  const buffer = await archivo.arrayBuffer();
+  const libro = window.XLSX.read(buffer, { type: "array" });
+  const hoja = libro.Sheets[libro.SheetNames[0]];
+  const filas = window.XLSX.utils.sheet_to_json(hoja, { defval: "" });
+  if (!filas.length) throw new Error("El Excel no tiene filas de datos.");
+
+  const claves = Object.keys(filas[0]);
+  const mapa = {};
+  for (const [campo, alias] of Object.entries(ALIAS_COLUMNAS)) {
+    mapa[campo] = claves.find((k) => alias.includes(normalizarEncabezado(k))) || null;
+  }
+  if (!mapa.glosa) throw new Error("No se encontró la columna 'glosa' (nombre del ítem) en el Excel.");
+
+  const items = filas
+    .map((fila) => ({
+      linea: mapa.linea ? String(fila[mapa.linea] ?? "").trim() : "",
+      centroGestion: mapa.centroGestion ? String(fila[mapa.centroGestion] ?? "").trim() : "",
+      centroCosto: mapa.centroCosto ? String(fila[mapa.centroCosto] ?? "").trim() : "",
+      cantidad: mapa.cantidad ? fila[mapa.cantidad] : "",
+      unidad: mapa.unidad ? String(fila[mapa.unidad] ?? "").trim() : "",
+      glosa: String(fila[mapa.glosa] ?? "").trim(),
+    }))
+    .filter((it) => it.glosa);
+  if (!items.length) throw new Error("No se reconoció ningún ítem con glosa en el Excel.");
+
+  return items;
 }
 
 /**
