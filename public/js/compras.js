@@ -66,11 +66,29 @@ export function escucharOrdenes(onCambio, onError) {
   );
 }
 
+/**
+ * Corre `promesa` con un tope de tiempo: si no resuelve antes de `ms`,
+ * rechaza con `mensaje` en vez de dejar la operación colgada para siempre
+ * (el SDK de Storage reintenta solo y nunca falla si, por ejemplo, el
+ * proyecto no tiene Storage activado: sin este tope el botón de guardar
+ * queda pegado en "Guardando…" sin ningún aviso).
+ */
+function conTope(promesa, ms, mensaje) {
+  return Promise.race([
+    promesa,
+    new Promise((_, reject) => setTimeout(() => reject(new Error(mensaje)), ms)),
+  ]);
+}
+
 async function subirArchivo(carpeta, id, archivo) {
   if (!archivo) return null;
   const path = `${carpeta}/${id}/${archivo.name}`;
   const archivoRef = ref(storage, path);
-  await uploadBytes(archivoRef, archivo);
+  await conTope(
+    uploadBytes(archivoRef, archivo),
+    20000,
+    "No se pudo subir el archivo (se demoró demasiado). Revisa que Firebase Storage esté activado para este proyecto.",
+  );
   const url = await getDownloadURL(archivoRef);
   return { nombre: archivo.name, url, path };
 }
