@@ -173,12 +173,13 @@ export async function eliminarOrdenCompra(orden) {
 }
 
 // Nombres de columna esperados en el Excel del pedido, normalizados (sin
-// tildes, minúscula). El PM de Carlos usa: linea, centro de gestión,
-// centro de costo, cantidad, unidad, glosa.
+// tildes, minúscula). La plantilla real de Carlos usa: LÍNEA, CENTRO
+// GESTION, CENTRO COSTO, CANTIDAD*, unidad*, GLOSA* (encabezados en
+// mayúscula, con asterisco, y "centro de gestión" sin el "de").
 const ALIAS_COLUMNAS = {
   linea: ["linea"],
-  centroGestion: ["centro de gestion"],
-  centroCosto: ["centro de costo"],
+  centroGestion: ["centro de gestion", "centro gestion"],
+  centroCosto: ["centro de costo", "centro costo"],
   cantidad: ["cantidad", "cant"],
   unidad: ["unidad", "und"],
   glosa: ["glosa", "descripcion", "detalle", "producto"],
@@ -191,10 +192,24 @@ const normalizarEncabezado = (s) => String(s ?? "").trim().toLowerCase()
   .normalize("NFD").replace(/[̀-ͯ]/g, "")
   .replace(/[^a-z0-9 ]/g, "").trim();
 
+function mapearColumnas(filaTitulos) {
+  const mapa = {};
+  for (const [campo, alias] of Object.entries(ALIAS_COLUMNAS)) {
+    const idx = filaTitulos.findIndex((celda) => alias.includes(normalizarEncabezado(celda)));
+    mapa[campo] = idx >= 0 ? idx : null;
+  }
+  return mapa;
+}
+
+const valorColumna = (fila, idx) => (idx == null || fila[idx] == null) ? "" : String(fila[idx]).trim();
+
 /**
  * Lee el Excel de un pedido y extrae sus ítems (línea, centro de gestión,
- * centro de costo, cantidad, unidad, glosa) buscando esas columnas por su
- * encabezado en la primera fila, sin importar el orden. Requiere que
+ * centro de costo, cantidad, unidad, glosa). Busca esas columnas por su
+ * encabezado, sin importar el orden ni en qué fila estén: la plantilla real
+ * trae datos del pedido (fecha, nombre del PM...) arriba de la tabla, así
+ * que se recorre fila por fila hasta encontrar la que trae los títulos
+ * (identificada por tener una celda que calce con 'glosa'). Requiere que
  * SheetJS (window.XLSX) esté cargado en la página.
  */
 export async function leerItemsDeExcel(archivo) {
@@ -202,24 +217,27 @@ export async function leerItemsDeExcel(archivo) {
   const buffer = await archivo.arrayBuffer();
   const libro = window.XLSX.read(buffer, { type: "array" });
   const hoja = libro.Sheets[libro.SheetNames[0]];
-  const filas = window.XLSX.utils.sheet_to_json(hoja, { defval: "" });
+  // header: 1 -> filas como arrays crudos, no como objetos por título de
+  // la primera fila (la fila de títulos real no siempre es la primera).
+  const filas = window.XLSX.utils.sheet_to_json(hoja, { header: 1, defval: "" });
   if (!filas.length) throw new Error("El Excel no tiene filas de datos.");
 
-  const claves = Object.keys(filas[0]);
-  const mapa = {};
-  for (const [campo, alias] of Object.entries(ALIAS_COLUMNAS)) {
-    mapa[campo] = claves.find((k) => alias.includes(normalizarEncabezado(k))) || null;
+  let mapa = null;
+  let indiceTitulos = -1;
+  for (let i = 0; i < filas.length; i++) {
+    const candidato = mapearColumnas(filas[i]);
+    if (candidato.glosa != null) { mapa = candidato; indiceTitulos = i; break; }
   }
-  if (!mapa.glosa) throw new Error("No se encontró la columna 'glosa' (nombre del ítem) en el Excel.");
+  if (!mapa) throw new Error("No se encontró la columna 'glosa' (nombre del ítem) en el Excel.");
 
-  const items = filas
+  const items = filas.slice(indiceTitulos + 1)
     .map((fila) => ({
-      linea: mapa.linea ? String(fila[mapa.linea] ?? "").trim() : "",
-      centroGestion: mapa.centroGestion ? String(fila[mapa.centroGestion] ?? "").trim() : "",
-      centroCosto: mapa.centroCosto ? String(fila[mapa.centroCosto] ?? "").trim() : "",
-      cantidad: mapa.cantidad ? fila[mapa.cantidad] : "",
-      unidad: mapa.unidad ? String(fila[mapa.unidad] ?? "").trim() : "",
-      glosa: String(fila[mapa.glosa] ?? "").trim(),
+      linea: valorColumna(fila, mapa.linea),
+      centroGestion: valorColumna(fila, mapa.centroGestion),
+      centroCosto: valorColumna(fila, mapa.centroCosto),
+      cantidad: valorColumna(fila, mapa.cantidad),
+      unidad: valorColumna(fila, mapa.unidad),
+      glosa: valorColumna(fila, mapa.glosa),
     }))
     .filter((it) => it.glosa);
   if (!items.length) throw new Error("No se reconoció ningún ítem con glosa en el Excel.");
