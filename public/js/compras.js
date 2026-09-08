@@ -184,8 +184,12 @@ const ALIAS_COLUMNAS = {
   glosa: ["glosa", "descripcion", "detalle", "producto"],
 };
 
+// Algunas plantillas marcan los campos obligatorios con un asterisco u otro
+// símbolo pegado al título ("glosa*", "cantidad*"...): se quita para que
+// igual calce con el alias.
 const normalizarEncabezado = (s) => String(s ?? "").trim().toLowerCase()
-  .normalize("NFD").replace(/[̀-ͯ]/g, "");
+  .normalize("NFD").replace(/[̀-ͯ]/g, "")
+  .replace(/[^a-z0-9 ]/g, "").trim();
 
 /**
  * Lee el Excel de un pedido y extrae sus ítems (línea, centro de gestión,

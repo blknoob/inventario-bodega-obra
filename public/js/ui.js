@@ -28,7 +28,7 @@ export function montarTopbar(activo = "") {
       ${link("materiales.html?categoria=epp", "epps", "EPPs")}
       ${link("herramientas.html", "herramientas", "Herramientas")}
       ${link("historial.html", "historial", "Historial")}
-      ${link("compras.html", "compras", "Compras")}
+      ${link("compras.html", "compras", "Seguimiento de Compras")}
       <span id="nav-session"></span>
       ${MODO_DEMO ? '<span class="badge badge-warn" title="Datos de muestra; no se guarda nada">DEMO</span>' : ""}
     </nav>
