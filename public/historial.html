@@ -122,6 +122,7 @@
         const partes = [];
         if (m.proveedor) partes.push(`Proveedor: ${esc(m.proveedor)}`);
         if (m.documento) partes.push(`Doc: ${esc(m.documento)}`);
+        if (m.ordenCompraNumero) partes.push(`OC: ${esc(m.ordenCompraNumero)}`);
         if (m.motivo) partes.push(esc(m.motivo));
         return partes.join(" · ") || "<span class='muted'>—</span>";
       }

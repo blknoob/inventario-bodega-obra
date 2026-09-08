@@ -147,6 +147,18 @@
           <input type="text" id="e-documento" maxlength="40" />
         </div>
       </div>
+      <div class="field" style="position:relative;">
+        <label for="e-orden-buscar">Orden de compra <span class="muted">(opcional, si este ingreso viene de una)</span></label>
+        <input type="text" id="e-orden-buscar" placeholder="Busca por N.º de orden o proveedor…" autocomplete="off" />
+        <input type="hidden" id="e-orden" />
+        <div id="e-orden-lista" class="buscador-lista hidden"></div>
+      </div>
+      <div class="field hidden" id="campo-orden-recibida" style="margin-top:-8px;">
+        <label style="display:flex; align-items:center; gap:8px; font-weight:400;">
+          <input type="checkbox" id="e-orden-recibida" checked style="width:auto;" />
+          Marcar esa orden de compra como recibida
+        </label>
+      </div>
       <div class="field">
         <label for="e-proveedor">Proveedor <span class="muted">(opcional)</span></label>
         <input type="text" id="e-proveedor" maxlength="80" />
@@ -227,6 +239,7 @@
       CATEGORIAS, etiquetaCategoria, nivelStock,
       escucharMateriales, registrarEntrada, registrarSalida, eliminarMaterial, marcarSinReposicion,
     } from "./js/materiales.js";
+    import { escucharOrdenes, marcarOrdenRecibida } from "./js/compras.js";
 
     // Esta misma página sirve para tres vistas: "Materiales" (todo menos
     // EPP), "EPPs" (?categoria=epp desde el header o la tarjeta de Inicio,
@@ -359,6 +372,70 @@
       };
     }
 
+    /**
+     * Buscador de orden de compra (mismo patrón que crearBuscadorProducto):
+     * para asociar un "Material entrante" a la orden de compra que lo trajo,
+     * viniendo de Seguimiento de compra. Las pendientes salen primero.
+     */
+    function crearBuscadorOrden(prefijo, { onSeleccionar } = {}) {
+      const input = document.getElementById(`${prefijo}-buscar`);
+      const oculto = document.getElementById(prefijo);
+      const lista = document.getElementById(`${prefijo}-lista`);
+
+      function render() {
+        const q = normalizar(input.value);
+        const items = [...ordenesCompra]
+          .filter((o) => !q || normalizar(o.numero).includes(q) || normalizar(o.proveedor).includes(q))
+          .sort((a, b) => Number(a.recibida) - Number(b.recibida))
+          .slice(0, 30);
+        lista.innerHTML = items.length
+          ? items.map((o) => `
+              <button type="button" class="btn btn-ghost btn-xs" data-id="${o.id}">
+                ${esc(o.numero) || "(sin folio)"} — ${esc(o.proveedor) || "sin proveedor"}
+                ${o.recibida ? "<span class='badge badge-ok' style='margin-left:6px;'>Recibida</span>" : "<span class='badge badge-muted' style='margin-left:6px;'>Pendiente</span>"}
+              </button>`).join("")
+          : `<div class="text-sm muted empty">Sin resultados.</div>`;
+        lista.classList.remove("hidden");
+      }
+
+      input.addEventListener("focus", render);
+      input.addEventListener("input", () => {
+        oculto.value = "";
+        onSeleccionar?.(null);
+        render();
+      });
+      input.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") lista.classList.add("hidden");
+      });
+      lista.addEventListener("click", (e) => {
+        const btn = e.target.closest("[data-id]");
+        if (!btn) return;
+        seleccionar(btn.getAttribute("data-id"));
+      });
+      document.addEventListener("click", (e) => {
+        if (e.target !== input && !lista.contains(e.target)) lista.classList.add("hidden");
+      });
+
+      function seleccionar(id) {
+        const o = ordenesCompra.find((x) => x.id === id);
+        oculto.value = id || "";
+        input.value = o ? `${o.numero || "(sin folio)"} — ${o.proveedor || "sin proveedor"}` : "";
+        lista.classList.add("hidden");
+        onSeleccionar?.(o || null);
+      }
+
+      return {
+        seleccionar,
+        reset() {
+          input.value = "";
+          oculto.value = "";
+          lista.classList.add("hidden");
+          lista.innerHTML = "";
+          onSeleccionar?.(null);
+        },
+      };
+    }
+
     function render() {
       const q = buscar.value.trim().toLowerCase();
       const cat = filtroCat.value;
@@ -436,6 +513,12 @@
       },
     );
 
+    // Órdenes de compra (Seguimiento de compra): para poder asociar un
+    // "Material entrante" a la orden que lo trajo, sin importar la
+    // categoría del material.
+    let ordenesCompra = [];
+    escucharOrdenes((items) => { ordenesCompra = items; }, () => {});
+
     // ── Eliminar material ───────────────────────────────────────────────
     tbody.addEventListener("click", async (e) => {
       const idEliminar = e.target.getAttribute?.("data-eliminar");
@@ -492,6 +575,18 @@
       },
     });
 
+    // Asociar el ingreso a la orden de compra que lo trajo (Seguimiento de
+    // compra): opcional, y si se elige una, ofrece marcarla como recibida
+    // y precarga el proveedor si el campo está vacío.
+    const eProveedor = document.getElementById("e-proveedor");
+    const campoOrdenRecibida = document.getElementById("campo-orden-recibida");
+    const buscadorOrdenEntrante = crearBuscadorOrden("e-orden", {
+      onSeleccionar: (o) => {
+        campoOrdenRecibida.classList.toggle("hidden", !o || o.recibida);
+        if (o?.proveedor && !eProveedor.value.trim()) eProveedor.value = o.proveedor;
+      },
+    });
+
     // Mientras se escribe el nombre de un producto nuevo, muestra debajo los
     // que ya existen y se parecen (para no duplicar). Un clic en la lista
     // cambia al modo "producto existente" con ese producto ya seleccionado.
@@ -537,6 +632,8 @@
     document.getElementById("btn-entrante").addEventListener("click", () => {
       formEntrante.reset();
       buscadorEntrante.reset();
+      buscadorOrdenEntrante.reset();
+      campoOrdenRecibida.classList.add("hidden");
       document.getElementById("e-nuevo-categoria").innerHTML = optsCat;
       errEntrante.classList.add("hidden");
       eNuevoAviso.classList.add("hidden");
@@ -551,11 +648,14 @@
       const btn = document.getElementById("btn-guardar-entrante");
       btn.disabled = true; btn.textContent = "Guardando…";
       try {
+        const ordenSeleccionada = ordenesCompra.find((o) => o.id === document.getElementById("e-orden").value);
         const datos = {
           cantidadRecibida: document.getElementById("e-cantidad").value,
           proveedor: document.getElementById("e-proveedor").value,
           documento: document.getElementById("e-documento").value,
           motivo: document.getElementById("e-motivo").value,
+          ordenCompraId: ordenSeleccionada?.id || null,
+          ordenCompraNumero: ordenSeleccionada?.numero || "",
         };
         if (modoProductoNuevo) {
           datos.nuevoMaterial = {
@@ -574,6 +674,9 @@
           datos.materialId = eProducto.value;
         }
         await registrarEntrada(datos);
+        if (ordenSeleccionada && !ordenSeleccionada.recibida && document.getElementById("e-orden-recibida").checked) {
+          try { await marcarOrdenRecibida(ordenSeleccionada.id, true); } catch { /* el ingreso ya quedó registrado */ }
+        }
         dlgEntrante.close();
         flash("Material entrante registrado.");
       } catch (err) {
