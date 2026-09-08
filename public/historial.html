@@ -24,6 +24,10 @@
         <div class="label">Salientes</div>
         <div class="value" id="stat-salidas" style="color: var(--info);">—</div>
       </div>
+      <div class="stat">
+        <div class="label">Entradas sin orden de compra</div>
+        <div class="value stock-bajo" id="stat-sin-oc">—</div>
+      </div>
     </div>
 
     <div class="card">
@@ -40,6 +44,10 @@
           </select>
           <input type="date" id="filtro-fecha" />
           <button type="button" class="btn btn-ghost btn-xs" id="btn-fecha-hoy">Hoy</button>
+          <label class="text-sm" style="display:flex; align-items:center; gap:6px;">
+            <input type="checkbox" id="filtro-sin-oc" style="width:auto;" />
+            Solo entradas sin OC
+          </label>
         </div>
       </div>
 
@@ -86,6 +94,7 @@
     const filtroCat = document.getElementById("filtro-categoria");
     const filtroFecha = document.getElementById("filtro-fecha");
     const btnFechaHoy = document.getElementById("btn-fecha-hoy");
+    const filtroSinOC = document.getElementById("filtro-sin-oc");
 
     // "YYYY-MM-DD" en horario local, para comparar contra <input type="date">.
     const fechaISO = (d) => {
@@ -120,11 +129,12 @@
     function detalle(m) {
       if (m.tipo === "entrada") {
         const partes = [];
+        if (m.ordenCompraNumero) partes.push(`OC: ${esc(m.ordenCompraNumero)}`);
+        else partes.push(`<span class="badge badge-warn">Sin OC</span>`);
         if (m.proveedor) partes.push(`Proveedor: ${esc(m.proveedor)}`);
         if (m.documento) partes.push(`Doc: ${esc(m.documento)}`);
-        if (m.ordenCompraNumero) partes.push(`OC: ${esc(m.ordenCompraNumero)}`);
         if (m.motivo) partes.push(esc(m.motivo));
-        return partes.join(" · ") || "<span class='muted'>—</span>";
+        return partes.join(" · ");
       }
       const partes = [`Retira: ${esc(m.personaRetira || "—")}`];
       if (m.supervisor) partes.push(`Supervisor: ${esc(m.supervisor)}`);
@@ -140,17 +150,21 @@
       const tipo = filtroTipo.value;
       const cat = filtroCat.value;
       const fecha = filtroFecha.value;
+      const soloSinOC = filtroSinOC.checked;
       const vista = movimientos.filter((m) =>
         (!tipo || m.tipo === tipo) &&
         (!cat || m.categoria === cat) &&
         (!fecha || (m.fecha?.toDate?.() && fechaISO(m.fecha.toDate()) === fecha)) &&
+        (!soloSinOC || (m.tipo === "entrada" && !m.ordenCompraNumero)) &&
         (!q || [m.materialProducto, m.personaRetira, m.proveedor, m.supervisor, m.responsable]
           .some((v) => (v || "").toLowerCase().includes(q))));
 
-      document.getElementById("stat-entradas").textContent =
-        movimientos.filter((m) => m.tipo === "entrada").length;
+      const entradas = movimientos.filter((m) => m.tipo === "entrada");
+      document.getElementById("stat-entradas").textContent = entradas.length;
       document.getElementById("stat-salidas").textContent =
         movimientos.filter((m) => m.tipo === "salida").length;
+      document.getElementById("stat-sin-oc").textContent =
+        entradas.filter((m) => !m.ordenCompraNumero).length;
 
       if (!vista.length) {
         tbody.innerHTML = `<tr><td colspan="8" class="empty">${
@@ -176,6 +190,7 @@
     filtroTipo.addEventListener("change", render);
     filtroCat.addEventListener("change", render);
     filtroFecha.addEventListener("change", render);
+    filtroSinOC.addEventListener("change", render);
 
     escucharMovimientos(
       (items) => { movimientos = items; render(); },
