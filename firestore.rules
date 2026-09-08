@@ -50,6 +50,17 @@ service cloud.firestore {
       allow write: if bodega();
     }
 
+    // Seguimiento de compra: Pedido de Materiales (PM) -> Orden(es) de compra.
+    match /pedidos_materiales/{id} {
+      allow read: if true;
+      allow write: if bodega();
+    }
+
+    match /ordenes_compra/{id} {
+      allow read: if true;
+      allow write: if bodega();
+    }
+
     // Todo lo demás queda cerrado por defecto.
     match /{document=**} {
       allow read, write: if false;

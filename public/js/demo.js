@@ -34,6 +34,42 @@ export const MATERIALES_DEMO = [
   { id: "d7", item: 7, producto: "Calentador industrial", categoria: "equipo", unidad: "unidades", medida: "", centroGestion: "Obra Gruesa", centroCosto: "CC-100", stock: 0, stockMinimo: 1, sinReposicion: true, ubicacion: "Bodega", descripcion: "", actualizadoEn: hace(500000) },
 ];
 
+export const PEDIDOS_DEMO = [
+  {
+    id: "p1", numero: "PM-001", solicitante: "Juan Pérez", observacion: "Reposición mensual",
+    archivo: null,
+    items: [
+      { id: "i1", nombre: "Cemento Portland 25 kg", cantidad: 40, unidad: "sacos" },
+      { id: "i2", nombre: "Guantes de cabritilla", cantidad: 20, unidad: "pares" },
+      { id: "i3", nombre: "Andamio marco 1.5 m", cantidad: 5, unidad: "cuerpos" },
+    ],
+    creadoPor: "bodega@demo.cl", creadoEn: hace(10 * 86400),
+  },
+  {
+    id: "p2", numero: "PM-002", solicitante: "María Soto", observacion: "",
+    archivo: null,
+    items: [
+      { id: "i4", nombre: 'Disco de corte 4½"', cantidad: 30, unidad: "unidades" },
+    ],
+    creadoPor: "bodega@demo.cl", creadoEn: hace(2 * 86400),
+  },
+];
+
+export const ORDENES_DEMO = [
+  {
+    id: "o1", pmId: "p1", numero: "OC-1001", proveedor: "Cementos Melón", archivo: null,
+    itemsCubiertos: [{ pmItemId: "i1", nombre: "Cemento Portland 25 kg", cantidad: 40 }],
+    recibida: true, recibidaEn: hace(3 * 86400),
+    creadoPor: "bodega@demo.cl", creadoEn: hace(9 * 86400),
+  },
+  {
+    id: "o2", pmId: "p1", numero: "OC-1002", proveedor: "3M Chile", archivo: null,
+    itemsCubiertos: [{ pmItemId: "i2", nombre: "Guantes de cabritilla", cantidad: 20 }],
+    recibida: false, recibidaEn: null,
+    creadoPor: "bodega@demo.cl", creadoEn: hace(8 * 86400),
+  },
+];
+
 export const MOVIMIENTOS_DEMO = [
   { id: "m1", materialId: "d1", materialProducto: "Cemento Portland 25 kg", categoria: "consumible", tipo: "entrada", cantidad: 20, stockResultante: 42, proveedor: "Cementos Melón", documento: "F-1023", motivo: "Llegada de material", responsable: "bodega@demo.cl", fecha: hace(3600) },
   { id: "m2", materialId: "d2", materialProducto: "Guantes de cabritilla", categoria: "epp", tipo: "salida", cantidad: 4, stockResultante: 8, supervisor: "J. Soto", actividad: "Enfierradura", zona: "Torre B, nivel 3", personaRetira: "P. Muñoz", numeroVale: "V-0087", observacion: "", responsable: "bodega@demo.cl", fecha: hace(7200) },

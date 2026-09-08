@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Seguimiento de compra | Inventario de Bodega</title>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <header id="topbar"></header>
+
+  <div class="wrap">
+    <div id="flash" class="alert hidden"></div>
+
+    <div class="page-head">
+      <h1>Seguimiento de compra</h1>
+      <p>Pedido de Materiales (PM) → Orden(es) de compra → llegada a bodega.</p>
+    </div>
+
+    <div class="grid" style="margin-bottom: 18px;">
+      <div class="stat">
+        <div class="label">Pedidos (PM)</div>
+        <div class="value" id="stat-pedidos">—</div>
+      </div>
+      <div class="stat">
+        <div class="label">Órdenes de compra</div>
+        <div class="value" id="stat-ordenes">—</div>
+      </div>
+      <div class="stat">
+        <div class="label">Sin comprar (7+ días)</div>
+        <div class="value stock-bajo" id="stat-sin-comprar">—</div>
+      </div>
+    </div>
+
+    <div id="alerta-sin-comprar" class="alert alert-warn hidden"></div>
+
+    <div class="card">
+      <div class="toolbar">
+        <div class="filters">
+          <input type="search" id="buscar" placeholder="Buscar pedido, solicitante, ítem…" autocomplete="off" />
+        </div>
+        <div class="row-actions only-bodega">
+          <button class="btn btn-primary" id="btn-nuevo-pedido">Nuevo pedido</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="lista-pedidos"></div>
+  </div>
+
+  <!-- ── Modal: nuevo pedido de materiales (PM) ──────────────────────────── -->
+  <dialog id="dlg-pedido">
+    <div class="modal-head">
+      <h3>Nuevo Pedido de Materiales</h3>
+      <button type="button" class="modal-close" data-close>&times;</button>
+    </div>
+    <form id="form-pedido">
+      <div id="err-pedido" class="alert alert-error hidden"></div>
+
+      <div class="row">
+        <div class="field">
+          <label for="p-numero">N.º de pedido / folio</label>
+          <input type="text" id="p-numero" maxlength="40" placeholder="PM-001" />
+        </div>
+        <div class="field">
+          <label for="p-solicitante">Solicitante <span class="muted">(opcional)</span></label>
+          <input type="text" id="p-solicitante" maxlength="80" />
+        </div>
+      </div>
+      <div class="field">
+        <label for="p-observacion">Observación <span class="muted">(opcional)</span></label>
+        <input type="text" id="p-observacion" maxlength="160" />
+      </div>
+      <div class="field">
+        <label for="p-archivo">Excel del pedido <span class="muted">(opcional)</span></label>
+        <input type="file" id="p-archivo" accept=".xlsx,.xls,.csv" />
+      </div>
+
+      <div class="field">
+        <label>Ítems pedidos</label>
+        <div id="p-items"></div>
+        <button type="button" class="btn btn-ghost btn-xs" id="btn-p-agregar-item" style="margin-top: 4px;">+ Agregar ítem</button>
+      </div>
+
+      <div class="modal-foot">
+        <button type="button" class="btn btn-ghost" data-close>Cancelar</button>
+        <button type="submit" class="btn btn-primary" id="btn-guardar-pedido">Guardar pedido</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- ── Modal: nueva orden de compra (OC) ───────────────────────────────── -->
+  <dialog id="dlg-orden">
+    <div class="modal-head">
+      <h3>Nueva Orden de Compra</h3>
+      <button type="button" class="modal-close" data-close>&times;</button>
+    </div>
+    <form id="form-orden">
+      <div id="err-orden" class="alert alert-error hidden"></div>
+      <p class="text-sm muted" id="orden-pedido-info" style="margin-top: -8px; margin-bottom: 14px;"></p>
+
+      <div class="row">
+        <div class="field">
+          <label for="o-numero">N.º de orden de compra</label>
+          <input type="text" id="o-numero" maxlength="40" placeholder="OC-1001" />
+        </div>
+        <div class="field">
+          <label for="o-proveedor">Proveedor</label>
+          <input type="text" id="o-proveedor" maxlength="80" />
+        </div>
+      </div>
+      <div class="field">
+        <label for="o-archivo">PDF de la orden de compra <span class="muted">(opcional)</span></label>
+        <input type="file" id="o-archivo" accept=".pdf" />
+      </div>
+
+      <div class="field">
+        <label>Ítems que cubre esta orden</label>
+        <div id="o-items"></div>
+      </div>
+
+      <div class="modal-foot">
+        <button type="button" class="btn btn-ghost" data-close>Cancelar</button>
+        <button type="submit" class="btn btn-primary" id="btn-guardar-orden">Guardar orden</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script type="module">
+    import { montarTopbar, flash } from "./js/ui.js";
+    import {
+      escucharPedidos, escucharOrdenes, crearPedido, eliminarPedido,
+      crearOrdenCompra, marcarOrdenRecibida, eliminarOrdenCompra,
+      itemsSinComprar, DIAS_ALERTA_SIN_COMPRA,
+    } from "./js/compras.js";
+
+    montarTopbar("compras");
+
+    const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) =>
+      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+    const fmtNum = (n) => (Number(n) || 0).toLocaleString("es-CL", { maximumFractionDigits: 3 });
+    const fmtFecha = (ts) => {
+      const d = ts?.toDate?.();
+      if (!d) return "—";
+      return d.toLocaleDateString("es-CL") + " " +
+        d.toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" });
+    };
+
+    let pedidos = [];
+    let ordenes = [];
+    const lista = document.getElementById("lista-pedidos");
+    const buscar = document.getElementById("buscar");
+
+    function itemsCubiertosDe(pedidoId) {
+      return new Set(
+        ordenes.filter((o) => o.pmId === pedidoId).flatMap((o) => o.itemsCubiertos.map((it) => it.pmItemId)),
+      );
+    }
+
+    function render() {
+      const q = buscar.value.trim().toLowerCase();
+      const vista = !q ? pedidos : pedidos.filter((p) =>
+        [p.numero, p.solicitante, ...(p.items || []).map((it) => it.nombre)]
+          .some((v) => (v || "").toLowerCase().includes(q)));
+
+      document.getElementById("stat-pedidos").textContent = pedidos.length;
+      document.getElementById("stat-ordenes").textContent = ordenes.length;
+
+      const sinComprar = itemsSinComprar(pedidos, ordenes);
+      document.getElementById("stat-sin-comprar").textContent = sinComprar.length;
+
+      const alerta = document.getElementById("alerta-sin-comprar");
+      if (sinComprar.length) {
+        alerta.classList.remove("hidden");
+        alerta.innerHTML = `⚠ <strong>${sinComprar.length}</strong> ítem${sinComprar.length > 1 ? "s llevan" : " lleva"} ${DIAS_ALERTA_SIN_COMPRA}+ días sin orden de compra: ` +
+          sinComprar.map((r) => `${esc(r.item.nombre)} (${esc(r.pedido.numero) || "sin folio"}, ${r.dias} días)`).join(" · ");
+      } else {
+        alerta.classList.add("hidden");
+      }
+
+      if (!vista.length) {
+        lista.innerHTML = `<div class="card"><p class="empty">${
+          pedidos.length ? "Sin resultados para el filtro." : "Aún no hay pedidos de materiales registrados."
+        }</p></div>`;
+        return;
+      }
+
+      lista.innerHTML = vista.map((p) => {
+        const cubiertos = itemsCubiertosDe(p.id);
+        const ocsDelPedido = ordenes.filter((o) => o.pmId === p.id);
+        return `
+        <div class="card">
+          <div class="row-actions" style="justify-content: space-between; align-items: flex-start; margin-bottom: 10px;">
+            <div>
+              <div style="font-weight: 700;">${esc(p.numero) || "(sin folio)"} <span class="muted text-sm">— ${fmtFecha(p.creadoEn)}</span></div>
+              <div class="text-sm muted">
+                ${p.solicitante ? `Solicita: ${esc(p.solicitante)}` : ""}
+                ${p.observacion ? ` · ${esc(p.observacion)}` : ""}
+              </div>
+              ${p.archivo ? `<div class="text-sm"><a href="${esc(p.archivo.url)}" target="_blank" rel="noopener">📎 ${esc(p.archivo.nombre)}</a></div>` : ""}
+            </div>
+            <div class="row-actions only-bodega">
+              <button class="btn btn-ghost btn-xs" data-nueva-orden="${p.id}">+ Orden de compra</button>
+              <button class="btn btn-ghost btn-xs btn-danger" data-eliminar-pedido="${p.id}">Eliminar</button>
+            </div>
+          </div>
+
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Ítem pedido</th><th class="text-right">Cantidad</th><th>Estado</th></tr></thead>
+              <tbody>
+                ${(p.items || []).map((it) => `
+                  <tr>
+                    <td>${esc(it.nombre)}</td>
+                    <td class="text-right nowrap">${fmtNum(it.cantidad)} ${esc(it.unidad)}</td>
+                    <td>${cubiertos.has(it.id)
+                      ? `<span class="badge badge-ok">Con orden de compra</span>`
+                      : `<span class="badge badge-warn">Sin orden de compra</span>`}</td>
+                  </tr>`).join("")}
+              </tbody>
+            </table>
+          </div>
+
+          ${ocsDelPedido.length ? `
+            <div style="margin-top: 14px;">
+              <div class="text-sm" style="font-weight: 600; margin-bottom: 6px;">Órdenes de compra</div>
+              <div class="table-wrap">
+                <table>
+                  <thead><tr><th>N.º OC</th><th>Proveedor</th><th>Ítems</th><th>Archivo</th><th>Estado</th><th class="only-bodega"></th></tr></thead>
+                  <tbody>
+                    ${ocsDelPedido.map((o) => `
+                      <tr>
+                        <td class="nowrap">${esc(o.numero) || "—"}</td>
+                        <td>${esc(o.proveedor) || "—"}</td>
+                        <td class="text-sm">${o.itemsCubiertos.map((it) => `${esc(it.nombre)} (${fmtNum(it.cantidad)})`).join(", ")}</td>
+                        <td>${o.archivo ? `<a href="${esc(o.archivo.url)}" target="_blank" rel="noopener">📎 PDF</a>` : "<span class='muted'>—</span>"}</td>
+                        <td>${o.recibida
+                          ? `<span class="badge badge-ok">Recibida</span>`
+                          : `<span class="badge badge-muted">Pendiente</span>`}</td>
+                        <td class="only-bodega nowrap">
+                          <button class="btn btn-ghost btn-xs" data-toggle-recibida="${o.id}" data-valor="${o.recibida ? "0" : "1"}">${o.recibida ? "Marcar pendiente" : "Marcar recibida"}</button>
+                          <button class="btn btn-ghost btn-xs btn-danger" data-eliminar-orden="${o.id}">Eliminar</button>
+                        </td>
+                      </tr>`).join("")}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ` : ""}
+        </div>`;
+      }).join("");
+    }
+
+    buscar.addEventListener("input", render);
+
+    escucharPedidos(
+      (items) => { pedidos = items; render(); },
+      (err) => { lista.innerHTML = `<div class="card"><p class="empty">Error al cargar: ${esc(err.message)}</p></div>`; },
+    );
+    escucharOrdenes(
+      (items) => { ordenes = items; render(); },
+      () => {},
+    );
+
+    // ── Modales: apertura/cierre comunes ────────────────────────────────
+    document.querySelectorAll("dialog [data-close]").forEach((b) =>
+      b.addEventListener("click", () => b.closest("dialog").close()));
+
+    // ── Nuevo pedido: filas de ítems dinámicas ──────────────────────────
+    const pItems = document.getElementById("p-items");
+    function filaItemPedido(valores = {}) {
+      const row = document.createElement("div");
+      row.className = "row";
+      row.style.alignItems = "flex-end";
+      row.innerHTML = `
+        <div class="field" style="flex: 2; min-width: 160px;">
+          <input type="text" placeholder="Ítem (ej: Cemento 25 kg)" class="p-item-nombre" value="${esc(valores.nombre || "")}" />
+        </div>
+        <div class="field" style="min-width: 100px;">
+          <input type="number" min="0" step="any" placeholder="Cantidad" class="p-item-cantidad" value="${esc(valores.cantidad ?? "")}" />
+        </div>
+        <div class="field" style="min-width: 100px;">
+          <input type="text" placeholder="Unidad" class="p-item-unidad" value="${esc(valores.unidad || "")}" />
+        </div>
+        <button type="button" class="btn btn-ghost btn-xs btn-danger" style="margin-bottom: 14px;" data-quitar-fila>Quitar</button>
+      `;
+      row.querySelector("[data-quitar-fila]").addEventListener("click", () => {
+        if (pItems.children.length > 1) row.remove();
+      });
+      pItems.appendChild(row);
+    }
+    document.getElementById("btn-p-agregar-item").addEventListener("click", () => filaItemPedido());
+
+    const dlgPedido = document.getElementById("dlg-pedido");
+    const formPedido = document.getElementById("form-pedido");
+    const errPedido = document.getElementById("err-pedido");
+
+    document.getElementById("btn-nuevo-pedido").addEventListener("click", () => {
+      formPedido.reset();
+      pItems.innerHTML = "";
+      filaItemPedido();
+      errPedido.classList.add("hidden");
+      dlgPedido.showModal();
+    });
+
+    formPedido.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      errPedido.classList.add("hidden");
+      const btn = document.getElementById("btn-guardar-pedido");
+      btn.disabled = true; btn.textContent = "Guardando…";
+      try {
+        const items = [...pItems.children].map((row) => ({
+          nombre: row.querySelector(".p-item-nombre").value,
+          cantidad: row.querySelector(".p-item-cantidad").value,
+          unidad: row.querySelector(".p-item-unidad").value,
+        }));
+        await crearPedido({
+          numero: document.getElementById("p-numero").value,
+          solicitante: document.getElementById("p-solicitante").value,
+          observacion: document.getElementById("p-observacion").value,
+          items,
+          archivo: document.getElementById("p-archivo").files[0] || null,
+        });
+        dlgPedido.close();
+        flash("Pedido de materiales registrado.");
+      } catch (err) {
+        errPedido.textContent = err.message;
+        errPedido.classList.remove("hidden");
+      } finally {
+        btn.disabled = false; btn.textContent = "Guardar pedido";
+      }
+    });
+
+    // ── Eliminar pedido / marcar recibida / eliminar orden ──────────────
+    lista.addEventListener("click", async (e) => {
+      const idEliminarPedido = e.target.getAttribute?.("data-eliminar-pedido");
+      const idNuevaOrden = e.target.getAttribute?.("data-nueva-orden");
+      const idToggleRecibida = e.target.getAttribute?.("data-toggle-recibida");
+      const idEliminarOrden = e.target.getAttribute?.("data-eliminar-orden");
+
+      if (idEliminarPedido) {
+        const p = pedidos.find((x) => x.id === idEliminarPedido);
+        if (!p) return;
+        if (!confirm(`¿Eliminar el pedido "${p.numero || "(sin folio)"}"? No borra las órdenes de compra ya creadas.`)) return;
+        try {
+          await eliminarPedido(p);
+          flash("Pedido eliminado.");
+        } catch (err) { flash(err.message, "error"); }
+        return;
+      }
+
+      if (idNuevaOrden) {
+        abrirModalOrden(idNuevaOrden);
+        return;
+      }
+
+      if (idToggleRecibida) {
+        const nuevoValor = e.target.getAttribute("data-valor") === "1";
+        try {
+          await marcarOrdenRecibida(idToggleRecibida, nuevoValor);
+          flash(nuevoValor ? "Orden marcada como recibida." : "Orden marcada como pendiente.");
+        } catch (err) { flash(err.message, "error"); }
+        return;
+      }
+
+      if (idEliminarOrden) {
+        const o = ordenes.find((x) => x.id === idEliminarOrden);
+        if (!o) return;
+        if (!confirm(`¿Eliminar la orden de compra "${o.numero || "(sin folio)"}"?`)) return;
+        try {
+          await eliminarOrdenCompra(o);
+          flash("Orden de compra eliminada.");
+        } catch (err) { flash(err.message, "error"); }
+      }
+    });
+
+    // ── Nueva orden de compra ───────────────────────────────────────────
+    const dlgOrden = document.getElementById("dlg-orden");
+    const formOrden = document.getElementById("form-orden");
+    const errOrden = document.getElementById("err-orden");
+    const oItems = document.getElementById("o-items");
+    let pmIdActual = null;
+
+    function abrirModalOrden(pmId) {
+      const pedido = pedidos.find((x) => x.id === pmId);
+      if (!pedido) return;
+      pmIdActual = pmId;
+      formOrden.reset();
+      errOrden.classList.add("hidden");
+      document.getElementById("orden-pedido-info").textContent =
+        `Para el pedido ${pedido.numero || "(sin folio)"}${pedido.solicitante ? " · " + pedido.solicitante : ""}`;
+
+      const cubiertos = itemsCubiertosDe(pmId);
+      oItems.innerHTML = (pedido.items || []).map((it) => `
+        <label style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
+          <input type="checkbox" class="o-item-check" data-pm-item-id="${it.id}" data-nombre="${esc(it.nombre)}" ${cubiertos.has(it.id) ? "" : "checked"} />
+          <span style="flex:1;">${esc(it.nombre)}</span>
+          <input type="number" min="0" step="any" class="o-item-cantidad" value="${it.cantidad}" style="width: 100px; padding: 6px 8px; border:1px solid var(--line); border-radius:6px;" />
+          <span class="muted text-sm">${esc(it.unidad)}</span>
+        </label>
+      `).join("");
+
+      dlgOrden.showModal();
+    }
+
+    formOrden.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      errOrden.classList.add("hidden");
+      const btn = document.getElementById("btn-guardar-orden");
+      btn.disabled = true; btn.textContent = "Guardando…";
+      try {
+        const itemsCubiertos = [...oItems.querySelectorAll(".o-item-check")].map((chk) => ({
+          pmItemId: chk.getAttribute("data-pm-item-id"),
+          nombre: chk.getAttribute("data-nombre"),
+          cantidad: chk.closest("label").querySelector(".o-item-cantidad").value,
+          incluido: chk.checked,
+        }));
+        await crearOrdenCompra({
+          pmId: pmIdActual,
+          numero: document.getElementById("o-numero").value,
+          proveedor: document.getElementById("o-proveedor").value,
+          itemsCubiertos,
+          archivo: document.getElementById("o-archivo").files[0] || null,
+        });
+        dlgOrden.close();
+        flash("Orden de compra registrada.");
+      } catch (err) {
+        errOrden.textContent = err.message;
+        errOrden.classList.remove("hidden");
+      } finally {
+        btn.disabled = false; btn.textContent = "Guardar orden";
+      }
+    });
+  </script>
+</body>
+</html>

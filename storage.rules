@@ -1,0 +1,38 @@
+rules_version = '2';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Reglas de seguridad de Storage — archivos de seguimiento de compra
+//
+// Mismo modelo de acceso que Firestore: lectura pública (cualquiera puede
+// descargar el Excel de un pedido o el PDF de una orden de compra), escritura
+// solo con sesión de bodega. Límite de tamaño para evitar archivos gigantes.
+// ─────────────────────────────────────────────────────────────────────────────
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function bodega() {
+      return request.auth != null;
+    }
+
+    function tamanoOk() {
+      return request.resource.size < 15 * 1024 * 1024; // 15 MB
+    }
+
+    // Excel del Pedido de Materiales (PM).
+    match /pedidos/{pedidoId}/{archivo} {
+      allow read: if true;
+      allow write: if bodega() && tamanoOk();
+    }
+
+    // PDF de la Orden de Compra.
+    match /ordenes/{ordenId}/{archivo} {
+      allow read: if true;
+      allow write: if bodega() && tamanoOk();
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

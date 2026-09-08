@@ -19,6 +19,10 @@ import {
   persistentLocalCache,
   persistentMultipleTabManager,
 } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
+import {
+  getStorage,
+  connectStorageEmulator,
+} from "https://www.gstatic.com/firebasejs/12.18.0/firebase-storage.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyCMULyYbr11A4ehqZHeXqXVFHHrvrT_Huc",
@@ -60,8 +64,11 @@ export const db = initializeFirestore(
       },
 );
 
+export const storage = getStorage(app);
+
 if (USAR_EMULADOR) {
   connectAuthEmulator(auth, "http://localhost:9099", { disableWarnings: true });
   connectFirestoreEmulator(db, "localhost", 8080);
+  connectStorageEmulator(storage, "localhost", 9199);
   console.info("[firebase] Conectado a los emuladores locales (proyecto demo-inventario).");
 }
