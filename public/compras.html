@@ -83,8 +83,12 @@
 
       <div class="field">
         <label>Ítems detectados</label>
-        <div id="p-items"></div>
-        <button type="button" class="btn btn-ghost btn-xs" id="btn-p-agregar-item" style="margin-top: 4px;">+ Agregar línea manual</button>
+        <div class="table-wrap" style="max-height: 260px; overflow-y: auto;">
+          <table>
+            <thead><tr><th>Línea</th><th>Glosa</th><th>C. gestión</th><th>C. costo</th><th class="text-right">Cantidad</th><th>Unidad</th></tr></thead>
+            <tbody id="p-items"><tr><td colspan="6" class="empty">Elige el Excel para ver los ítems.</td></tr></tbody>
+          </table>
+        </div>
       </div>
 
       <div class="modal-foot">
@@ -274,43 +278,25 @@
     document.querySelectorAll("dialog [data-close]").forEach((b) =>
       b.addEventListener("click", () => b.closest("dialog").close()));
 
-    // ── Nuevo pedido: filas de ítems (se llenan solas al leer el Excel) ──
+    // ── Nuevo pedido: los ítems se leen del Excel y quedan en memoria; la
+    // tabla de abajo es solo para revisarlos, no hace falta tocarla para
+    // guardar el pedido. ────────────────────────────────────────────────
     const pItems = document.getElementById("p-items");
-    function filaItemPedido(valores = {}) {
-      const row = document.createElement("div");
-      row.className = "row";
-      row.style.alignItems = "flex-end";
-      row.innerHTML = `
-        <div class="field" style="max-width: 70px;">
-          <label class="text-sm muted">Línea</label>
-          <input type="text" class="p-item-linea" value="${esc(valores.linea ?? "")}" />
-        </div>
-        <div class="field" style="flex: 2; min-width: 160px;">
-          <label class="text-sm muted">Glosa</label>
-          <input type="text" placeholder="Ítem" class="p-item-glosa" value="${esc(valores.glosa || "")}" />
-        </div>
-        <div class="field" style="min-width: 120px;">
-          <label class="text-sm muted">C. gestión</label>
-          <input type="text" class="p-item-cgestion" value="${esc(valores.centroGestion || "")}" />
-        </div>
-        <div class="field" style="min-width: 120px;">
-          <label class="text-sm muted">C. costo</label>
-          <input type="text" class="p-item-ccosto" value="${esc(valores.centroCosto || "")}" />
-        </div>
-        <div class="field" style="min-width: 90px;">
-          <label class="text-sm muted">Cantidad</label>
-          <input type="number" min="0" step="any" class="p-item-cantidad" value="${esc(valores.cantidad ?? "")}" />
-        </div>
-        <div class="field" style="min-width: 90px;">
-          <label class="text-sm muted">Unidad</label>
-          <input type="text" class="p-item-unidad" value="${esc(valores.unidad || "")}" />
-        </div>
-        <button type="button" class="btn btn-ghost btn-xs btn-danger" style="margin-bottom: 14px;" data-quitar-fila>Quitar</button>
-      `;
-      row.querySelector("[data-quitar-fila]").addEventListener("click", () => row.remove());
-      pItems.appendChild(row);
+    let itemsPedidoActual = [];
+
+    function pintarItemsPedido() {
+      pItems.innerHTML = itemsPedidoActual.length
+        ? itemsPedidoActual.map((it) => `
+            <tr>
+              <td class="muted">${esc(it.linea) || "—"}</td>
+              <td>${esc(it.glosa)}</td>
+              <td>${esc(it.centroGestion) || "<span class='muted'>—</span>"}</td>
+              <td>${esc(it.centroCosto) || "<span class='muted'>—</span>"}</td>
+              <td class="text-right nowrap">${esc(it.cantidad)}</td>
+              <td>${esc(it.unidad)}</td>
+            </tr>`).join("")
+        : `<tr><td colspan="6" class="empty">Elige el Excel para ver los ítems.</td></tr>`;
     }
-    document.getElementById("btn-p-agregar-item")?.addEventListener("click", () => filaItemPedido());
 
     const dlgPedido = document.getElementById("dlg-pedido");
     const formPedido = document.getElementById("form-pedido");
@@ -321,7 +307,8 @@
 
     document.getElementById("btn-nuevo-pedido").addEventListener("click", () => {
       formPedido.reset();
-      pItems.innerHTML = "";
+      itemsPedidoActual = [];
+      pintarItemsPedido();
       if (pArchivoEstado) {
         pArchivoEstado.textContent = textoAyudaArchivo;
         pArchivoEstado.classList.remove("stock-cero");
@@ -330,21 +317,22 @@
       dlgPedido.showModal();
     });
 
-    // Al elegir el Excel, se leen sus ítems al tiro y se muestran abajo
-    // (editables, por si algo quedó mal detectado).
+    // Al elegir el Excel, se leen sus ítems al tiro y quedan listos para
+    // guardar; la tabla de abajo solo los muestra para revisarlos.
     pArchivo.addEventListener("change", async () => {
       const archivo = pArchivo.files[0];
-      pItems.innerHTML = "";
+      itemsPedidoActual = [];
+      pintarItemsPedido();
       if (!archivo) return;
       if (pArchivoEstado) {
         pArchivoEstado.textContent = "Leyendo el Excel…";
         pArchivoEstado.classList.remove("stock-cero");
       }
       try {
-        const items = await leerItemsDeExcel(archivo);
-        items.forEach((it) => filaItemPedido(it));
+        itemsPedidoActual = await leerItemsDeExcel(archivo);
+        pintarItemsPedido();
         if (pArchivoEstado) {
-          pArchivoEstado.textContent = `${items.length} ítem${items.length > 1 ? "s" : ""} detectado${items.length > 1 ? "s" : ""} del Excel. Revísalos antes de guardar.`;
+          pArchivoEstado.textContent = `${itemsPedidoActual.length} ítem${itemsPedidoActual.length > 1 ? "s" : ""} detectado${itemsPedidoActual.length > 1 ? "s" : ""} del Excel.`;
         }
       } catch (err) {
         if (pArchivoEstado) {
@@ -362,19 +350,11 @@
       const btn = document.getElementById("btn-guardar-pedido");
       btn.disabled = true; btn.textContent = "Guardando…";
       try {
-        const items = [...pItems.children].map((row) => ({
-          linea: row.querySelector(".p-item-linea").value,
-          glosa: row.querySelector(".p-item-glosa").value,
-          centroGestion: row.querySelector(".p-item-cgestion").value,
-          centroCosto: row.querySelector(".p-item-ccosto").value,
-          cantidad: row.querySelector(".p-item-cantidad").value,
-          unidad: row.querySelector(".p-item-unidad").value,
-        }));
         await crearPedido({
           numero: document.getElementById("p-numero").value,
           solicitante: document.getElementById("p-solicitante").value,
           observacion: document.getElementById("p-observacion").value,
-          items,
+          items: itemsPedidoActual,
           archivo: pArchivo.files[0] || null,
         });
         dlgPedido.close();
