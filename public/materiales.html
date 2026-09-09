@@ -139,25 +139,18 @@
       </div>
 
       <div id="bloque-producto-manual">
-        <p class="text-sm muted" id="aviso-sin-orden" style="margin-top:0;">Si esto es una excepción sin orden de compra detrás, busca o crea el producto acá:</p>
+        <p class="text-sm muted" id="aviso-sin-orden" style="margin-top:0;">Si esto es una excepción sin orden de compra detrás, escribe el producto acá: si ya existe lo eliges de la lista, si no, se completa solo para crearlo.</p>
         <div class="field" style="position:relative;">
-          <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:6px;">
-            <label for="e-producto-buscar" style="margin-bottom:0;">Producto</label>
-            <button type="button" class="btn btn-ghost btn-xs btn-success" id="btn-producto-nuevo">+ Producto nuevo</button>
-          </div>
-          <input type="text" id="e-producto-buscar" placeholder="Busca el producto…" autocomplete="off" />
+          <label for="e-producto-buscar">Producto</label>
+          <input type="text" id="e-producto-buscar" placeholder="Busca o escribe el nombre del producto…" autocomplete="off" />
           <input type="hidden" id="e-producto" />
+          <input type="hidden" id="e-nuevo-producto" />
           <div id="e-producto-lista" class="buscador-lista hidden"></div>
         </div>
       </div>
       <p class="text-sm muted" id="e-stock-actual" style="margin-top:-8px; margin-bottom:14px;"></p>
 
       <div id="e-nuevo-campos" class="hidden">
-        <div class="field" style="position:relative;">
-          <label for="e-nuevo-producto">Nombre del producto</label>
-          <input type="text" id="e-nuevo-producto" maxlength="120" placeholder="" autocomplete="off" />
-          <div id="e-nuevo-producto-aviso" class="alert alert-warn hidden"></div>
-        </div>
         <div class="row">
           <div class="field" id="campo-nuevo-categoria">
             <label for="e-nuevo-categoria">Categoría</label>
@@ -720,15 +713,35 @@
     const eProducto = document.getElementById("e-producto");
     const eNuevoCampos = document.getElementById("e-nuevo-campos");
     const eStockActual = document.getElementById("e-stock-actual");
-    const btnProductoNuevo = document.getElementById("btn-producto-nuevo");
+    const eProductoBuscar = document.getElementById("e-producto-buscar");
     const eNuevoProducto = document.getElementById("e-nuevo-producto");
-    const eNuevoAviso = document.getElementById("e-nuevo-producto-aviso");
     let modoProductoNuevo = false;
 
     const buscadorEntrante = crearBuscadorProducto("e-producto", {
       onSeleccionar: (m) => {
         eStockActual.textContent = m ? `Stock actual: ${fmtNum(m.stock)} ${m.unidad}` : "";
+        // Un clic en la lista es siempre un producto que ya existe.
+        if (m) { modoProductoNuevo = false; actualizarVistaEntrante(); }
       },
+    });
+
+    // Un solo campo para producto: si lo que se escribe calza exacto con
+    // uno que ya existe (o se elige de la lista), es ese; si no, se asume
+    // que es nuevo y se completan solos los campos para crearlo -- sin
+    // botón "producto nuevo/existente" que apretar.
+    eProductoBuscar.addEventListener("input", () => {
+      if (document.getElementById("e-orden").value) return; // esto lo maneja el ítem de la orden
+      const texto = eProductoBuscar.value.trim();
+      if (texto.length < 2) {
+        modoProductoNuevo = false;
+        eNuevoProducto.value = "";
+        actualizarVistaEntrante();
+        return;
+      }
+      const existeExacto = materiales.some((m) => normalizar(m.producto) === normalizar(texto));
+      modoProductoNuevo = !existeExacto;
+      eNuevoProducto.value = modoProductoNuevo ? texto : "";
+      actualizarVistaEntrante();
     });
 
     // Casi todo entra por una guía/factura con su orden de compra detrás:
@@ -909,51 +922,14 @@
     // Mientras se escribe el nombre de un producto nuevo, muestra debajo los
     // que ya existen y se parecen (para no duplicar). Un clic en la lista
     // cambia al modo "producto existente" con ese producto ya seleccionado.
-    eNuevoProducto.addEventListener("input", () => {
-      const q = normalizar(eNuevoProducto.value);
-      if (q.length < 2) { eNuevoAviso.classList.add("hidden"); return; }
-      const coincidencias = materiales.filter((m) => normalizar(m.producto).includes(q));
-      if (!coincidencias.length) { eNuevoAviso.classList.add("hidden"); return; }
-      eNuevoAviso.innerHTML =
-        `<div class="text-sm">⚠ Ya existe${coincidencias.length > 1 ? "n productos parecidos" : " un producto parecido"}, toca para usarlo:</div>` +
-        `<div style="display:flex; flex-direction:column; gap:4px; margin-top:6px;">` +
-        coincidencias.slice(0, 5).map((m) => `
-          <button type="button" class="btn btn-ghost btn-xs" style="justify-content:flex-start;" data-usar-producto="${m.id}">
-            ${esc(m.producto)} — stock ${fmtNum(m.stock)} ${esc(m.unidad)}
-          </button>`).join("") +
-        `</div>`;
-      eNuevoAviso.classList.remove("hidden");
-    });
-
-    eNuevoAviso.addEventListener("click", (e) => {
-      const id = e.target.closest?.("[data-usar-producto]")?.getAttribute("data-usar-producto");
-      if (!id) return;
-      modoProductoNuevo = false;
-      eNuevoProducto.value = "";
-      eNuevoAviso.classList.add("hidden");
-      actualizarVistaEntrante();
-      buscadorEntrante.seleccionar(id);
-    });
-
     function actualizarVistaEntrante() {
       const hayOrden = !!document.getElementById("e-orden").value;
       eNuevoCampos.classList.toggle("hidden", !modoProductoNuevo);
-      document.getElementById("e-nuevo-producto").required = modoProductoNuevo;
-      // Con orden elegida no se muestra el buscador manual de producto ni
-      // el botón "+ Producto nuevo": el ítem de la orden ya resolvió solo
-      // si el producto existe o hay que crearlo.
+      // Con orden elegida no se muestra el buscador manual de producto: el
+      // ítem de la orden ya resolvió solo si el producto existe o hay que
+      // crearlo.
       bloqueProductoManual.classList.toggle("hidden", hayOrden);
-      if (!hayOrden) {
-        document.getElementById("e-producto-buscar").classList.toggle("hidden", modoProductoNuevo);
-        btnProductoNuevo.textContent = modoProductoNuevo ? "Elegir producto existente" : "+ Producto nuevo";
-        if (modoProductoNuevo) buscadorEntrante.reset();
-      }
     }
-    btnProductoNuevo.addEventListener("click", () => {
-      modoProductoNuevo = !modoProductoNuevo;
-      eNuevoAviso.classList.add("hidden");
-      actualizarVistaEntrante();
-    });
 
     document.getElementById("btn-entrante").addEventListener("click", () => {
       formEntrante.reset();
@@ -965,7 +941,7 @@
       campoOrdenRecibida.classList.add("hidden");
       document.getElementById("e-nuevo-categoria").innerHTML = optsCat;
       errEntrante.classList.add("hidden");
-      eNuevoAviso.classList.add("hidden");
+      eNuevoProducto.value = "";
       modoProductoNuevo = false;
       actualizarVistaEntrante();
       dlgEntrante.showModal();
