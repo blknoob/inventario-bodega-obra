@@ -86,7 +86,10 @@
           <input type="text" id="e-documento" maxlength="40" placeholder="Tal como viene en el papel" />
         </div>
         <div class="field" style="position:relative;">
-          <label for="e-orden-buscar">Orden de compra <span class="muted">(la que corresponde a esa guía/factura)</span></label>
+          <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:6px;">
+            <label for="e-orden-buscar" style="margin-bottom:0;">Orden de compra <span class="muted">(de esa guía/factura)</span></label>
+            <button type="button" class="btn btn-ghost btn-xs btn-success" id="btn-orden-nueva">+ Nueva orden de compra</button>
+          </div>
           <input type="text" id="e-orden-buscar" placeholder="Busca por N.º de orden o proveedor…" autocomplete="off" />
           <input type="hidden" id="e-orden" />
           <div id="e-orden-lista" class="buscador-lista hidden"></div>
@@ -97,6 +100,35 @@
           <input type="checkbox" id="e-orden-recibida" checked style="width:auto;" />
           Marcar esa orden de compra como recibida
         </label>
+      </div>
+
+      <div class="field hidden" id="bloque-orden-nueva" style="border:1px solid var(--line); border-radius:var(--radius); padding:14px; margin-bottom:14px;">
+        <p class="text-sm muted" style="margin-top:0;">La orden de compra llega recién con la guía/factura: créala acá para este pedido.</p>
+        <div class="field" style="position:relative;">
+          <label for="e-on-pedido-buscar">Pedido de Materiales (PM)</label>
+          <input type="text" id="e-on-pedido-buscar" placeholder="Busca por N.º de pedido o solicitante…" autocomplete="off" />
+          <input type="hidden" id="e-on-pedido" />
+          <div id="e-on-pedido-lista" class="buscador-lista hidden"></div>
+        </div>
+        <div class="row">
+          <div class="field">
+            <label for="e-on-numero">N.º de orden de compra</label>
+            <input type="text" id="e-on-numero" maxlength="40" placeholder="OC-1001" />
+          </div>
+          <div class="field">
+            <label for="e-on-proveedor">Proveedor</label>
+            <input type="text" id="e-on-proveedor" maxlength="80" />
+          </div>
+        </div>
+        <div class="field hidden" id="campo-on-items">
+          <label>Ítems que cubre esta orden</label>
+          <div id="e-on-items" style="max-height:220px; overflow-y:auto;"></div>
+        </div>
+        <div id="err-orden-nueva" class="alert alert-error hidden"></div>
+        <div class="row-actions" style="justify-content:flex-end; gap:8px;">
+          <button type="button" class="btn btn-ghost btn-xs" id="btn-orden-nueva-cancelar">Cancelar</button>
+          <button type="button" class="btn btn-primary btn-xs" id="btn-orden-nueva-crear">Crear orden</button>
+        </div>
       </div>
 
       <div class="field hidden" id="bloque-item-orden" style="position:relative;">
@@ -252,7 +284,7 @@
       CATEGORIAS, etiquetaCategoria, nivelStock,
       escucharMateriales, registrarEntrada, registrarSalida, eliminarMaterial, marcarSinReposicion,
     } from "./js/materiales.js";
-    import { escucharPedidos, escucharOrdenes, marcarOrdenRecibida } from "./js/compras.js";
+    import { escucharPedidos, escucharOrdenes, marcarOrdenRecibida, crearOrdenCompra } from "./js/compras.js";
 
     // Esta misma página sirve para tres vistas: "Materiales" (todo menos
     // EPP), "EPPs" (?categoria=epp desde el header o la tarjeta de Inicio,
@@ -735,18 +767,143 @@
       },
     });
 
+    function aplicarOrdenSeleccionada(o) {
+      campoOrdenRecibida.classList.toggle("hidden", !o || o.recibida);
+      if (o?.proveedor && !eProveedor.value.trim()) eProveedor.value = o.proveedor;
+      bloqueItemOrden.classList.toggle("hidden", !o);
+      buscadorItemOrden.setOrden(o?.id || null);
+      modoProductoNuevo = false;
+      eProducto.value = "";
+      eStockActual.textContent = "";
+      buscadorEntrante.reset();
+      actualizarVistaEntrante();
+    }
+
     const buscadorOrdenEntrante = crearBuscadorOrden("e-orden", {
-      onSeleccionar: (o) => {
-        campoOrdenRecibida.classList.toggle("hidden", !o || o.recibida);
-        if (o?.proveedor && !eProveedor.value.trim()) eProveedor.value = o.proveedor;
-        bloqueItemOrden.classList.toggle("hidden", !o);
-        buscadorItemOrden.setOrden(o?.id || null);
-        modoProductoNuevo = false;
-        eProducto.value = "";
-        eStockActual.textContent = "";
-        buscadorEntrante.reset();
-        actualizarVistaEntrante();
+      onSeleccionar: aplicarOrdenSeleccionada,
+    });
+
+    // "+ Nueva orden de compra": la orden suele llegar recién con la
+    // guía/factura (no está creada de antes), así que se puede armar acá
+    // mismo -- mismo patrón que "Nueva orden de compra" en Seguimiento de
+    // compra (elegir PM, folio, proveedor, ítems que cubre), pero al
+    // guardar deja la orden ya elegida y lista para recibir el ítem.
+    const bloqueOrdenNueva = document.getElementById("bloque-orden-nueva");
+    const errOrdenNueva = document.getElementById("err-orden-nueva");
+    const onPedido = document.getElementById("e-on-pedido");
+    const onItems = document.getElementById("e-on-items");
+    const campoOnItems = document.getElementById("campo-on-items");
+
+    function itemsCubiertosDePedido(pmId) {
+      return new Set(
+        ordenesCompra.filter((o) => o.pmId === pmId).flatMap((o) => o.itemsCubiertos.map((it) => it.pmItemId)),
+      );
+    }
+
+    function crearBuscadorPedido(prefijo, { onSeleccionar } = {}) {
+      const input = document.getElementById(`${prefijo}-buscar`);
+      const oculto = document.getElementById(prefijo);
+      const lista = document.getElementById(`${prefijo}-lista`);
+
+      function render() {
+        const q = normalizar(input.value);
+        const items = pedidos
+          .filter((p) => !q || [p.numero, p.solicitante].some((v) => normalizar(v).includes(q)))
+          .slice(0, 30);
+        lista.innerHTML = items.length
+          ? items.map((p) => `
+              <button type="button" class="btn btn-ghost btn-xs" data-id="${p.id}">
+                ${esc(p.numero) || "(sin folio)"} ${p.solicitante ? `— ${esc(p.solicitante)}` : ""}
+              </button>`).join("")
+          : `<div class="text-sm muted empty">Sin resultados.</div>`;
+        lista.classList.remove("hidden");
+      }
+
+      input.addEventListener("focus", render);
+      input.addEventListener("input", () => { oculto.value = ""; onSeleccionar?.(null); render(); });
+      input.addEventListener("keydown", (e) => { if (e.key === "Escape") lista.classList.add("hidden"); });
+      lista.addEventListener("click", (e) => {
+        const btn = e.target.closest("[data-id]");
+        if (!btn) return;
+        const p = pedidos.find((x) => x.id === btn.getAttribute("data-id"));
+        oculto.value = p?.id || "";
+        input.value = p ? `${p.numero || "(sin folio)"}${p.solicitante ? " — " + p.solicitante : ""}` : "";
+        lista.classList.add("hidden");
+        onSeleccionar?.(p || null);
+      });
+      document.addEventListener("click", (e) => {
+        if (e.target !== input && !lista.contains(e.target)) lista.classList.add("hidden");
+      });
+
+      return {
+        reset() { input.value = ""; oculto.value = ""; lista.classList.add("hidden"); lista.innerHTML = ""; },
+      };
+    }
+
+    const buscadorPedidoOrdenNueva = crearBuscadorPedido("e-on-pedido", {
+      onSeleccionar: (p) => {
+        campoOnItems.classList.toggle("hidden", !p);
+        if (!p) { onItems.innerHTML = ""; return; }
+        const cubiertos = itemsCubiertosDePedido(p.id);
+        onItems.innerHTML = (p.items || []).map((it) => `
+          <label style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
+            <input type="checkbox" class="on-item-check" data-pm-item-id="${it.id}" data-glosa="${esc(it.glosa)}" ${cubiertos.has(it.id) ? "" : "checked"} />
+            <span style="flex:1;">${esc(it.glosa)}</span>
+            <input type="number" min="0" step="any" class="on-item-cantidad" value="${it.cantidad}" style="width: 90px; padding: 6px 8px; border:1px solid var(--line); border-radius:6px;" />
+            <span class="muted text-sm">${esc(it.unidad)}</span>
+          </label>
+        `).join("");
       },
+    });
+
+    function abrirBloqueOrdenNueva() {
+      document.getElementById("e-on-numero").value = "";
+      document.getElementById("e-on-proveedor").value = "";
+      buscadorPedidoOrdenNueva.reset();
+      campoOnItems.classList.add("hidden");
+      onItems.innerHTML = "";
+      errOrdenNueva.classList.add("hidden");
+      bloqueOrdenNueva.classList.remove("hidden");
+      buscadorOrdenEntrante.reset();
+      aplicarOrdenSeleccionada(null);
+    }
+    document.getElementById("btn-orden-nueva").addEventListener("click", abrirBloqueOrdenNueva);
+    document.getElementById("btn-orden-nueva-cancelar").addEventListener("click", () => {
+      bloqueOrdenNueva.classList.add("hidden");
+    });
+
+    document.getElementById("btn-orden-nueva-crear").addEventListener("click", async () => {
+      errOrdenNueva.classList.add("hidden");
+      const btn = document.getElementById("btn-orden-nueva-crear");
+      btn.disabled = true; btn.textContent = "Creando…";
+      try {
+        if (!onPedido.value) throw new Error("Elige el Pedido de Materiales (PM) de esta orden.");
+        const itemsCubiertos = [...onItems.querySelectorAll(".on-item-check")].map((chk) => ({
+          pmItemId: chk.getAttribute("data-pm-item-id"),
+          glosa: chk.getAttribute("data-glosa"),
+          cantidad: chk.closest("label").querySelector(".on-item-cantidad").value,
+          incluido: chk.checked,
+        }));
+        const numero = document.getElementById("e-on-numero").value;
+        const proveedor = document.getElementById("e-on-proveedor").value;
+        const nuevaId = await crearOrdenCompra({ pmId: onPedido.value, numero, proveedor, itemsCubiertos, archivo: null });
+        const ordenCreada = {
+          id: nuevaId, pmId: onPedido.value, numero: numero?.trim() || "", proveedor: proveedor?.trim() || "",
+          itemsCubiertos: itemsCubiertos.filter((it) => it.incluido).map((it) => ({ pmItemId: it.pmItemId, glosa: it.glosa, cantidad: Number(it.cantidad) || 0 })),
+          recibida: false,
+        };
+        ordenesCompra = [...ordenesCompra, ordenCreada]; // hasta que llegue la actualización en vivo
+        bloqueOrdenNueva.classList.add("hidden");
+        document.getElementById("e-orden").value = ordenCreada.id;
+        document.getElementById("e-orden-buscar").value = `${ordenCreada.numero || "(sin folio)"} — ${ordenCreada.proveedor || "sin proveedor"}`;
+        aplicarOrdenSeleccionada(ordenCreada);
+        flash("Orden de compra creada.");
+      } catch (err) {
+        errOrdenNueva.textContent = err.message;
+        errOrdenNueva.classList.remove("hidden");
+      } finally {
+        btn.disabled = false; btn.textContent = "Crear orden";
+      }
     });
 
     // Mientras se escribe el nombre de un producto nuevo, muestra debajo los
@@ -804,6 +961,7 @@
       buscadorOrdenEntrante.reset();
       buscadorItemOrden.setOrden(null);
       bloqueItemOrden.classList.add("hidden");
+      bloqueOrdenNueva.classList.add("hidden");
       campoOrdenRecibida.classList.add("hidden");
       document.getElementById("e-nuevo-categoria").innerHTML = optsCat;
       errEntrante.classList.add("hidden");
