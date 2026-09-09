@@ -172,6 +172,40 @@ export async function crearOrdenCompra({ pmId, numero, proveedor, itemsCubiertos
   return ordenDoc.id;
 }
 
+/**
+ * Anota la orden de compra que trajo un ítem que se está recibiendo, sin
+ * checklist ni ceremonia: busca (por pmId + número, sin importar mayúsculas)
+ * una orden que ya se haya anotado antes para ese pedido; si existe pero no
+ * incluía este ítem, se lo agrega, y si no existe todavía, la crea con solo
+ * este ítem. `ordenes` es la lista de órdenes ya cargada en la página (no
+ * hace falta volver a leerla de Firestore). Devuelve la orden con su id
+ * definitivo, lista para usar en registrarEntrada.
+ */
+export async function anotarOrdenDeCompra(ordenes, { pmId, numero, proveedor, item }) {
+  if (MODO_DEMO) bloquearEnDemo();
+  const numeroLimpio = (numero || "").trim();
+  if (!numeroLimpio) throw new Error("Escribe el N.º de la orden de compra.");
+
+  const existente = ordenes.find(
+    (o) => o.pmId === pmId && (o.numero || "").trim().toLowerCase() === numeroLimpio.toLowerCase(),
+  );
+  const itemNuevo = { pmItemId: item.id, glosa: item.glosa, cantidad: Number(item.cantidad) || 0, recibido: 0 };
+
+  if (existente) {
+    if (existente.itemsCubiertos.some((it) => it.pmItemId === item.id)) return existente;
+    const itemsCubiertos = [...existente.itemsCubiertos, itemNuevo];
+    await updateDoc(doc(db, "ordenes_compra", existente.id), { itemsCubiertos });
+    return { ...existente, itemsCubiertos };
+  }
+
+  const nuevaId = await crearOrdenCompra({
+    pmId, numero: numeroLimpio, proveedor,
+    itemsCubiertos: [{ ...itemNuevo, incluido: true }],
+    archivo: null,
+  });
+  return { id: nuevaId, pmId, numero: numeroLimpio, proveedor: proveedor?.trim() || "", itemsCubiertos: [itemNuevo], recibida: false };
+}
+
 /** Marca (o desmarca) una orden de compra como recibida en bodega. */
 export async function marcarOrdenRecibida(ordenId, recibida) {
   if (MODO_DEMO) bloquearEnDemo();
