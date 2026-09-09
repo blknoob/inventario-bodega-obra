@@ -80,22 +80,43 @@
     <form id="form-entrante">
       <div id="err-entrante" class="alert alert-error hidden"></div>
 
-      <div class="field" style="position:relative;">
-        <label for="e-esperado-buscar">¿Qué llegó? Busca en lo pendiente de un pedido <span class="muted">(opcional; casi todo llega así)</span></label>
-        <input type="text" id="e-esperado-buscar" placeholder="Busca por ítem, proveedor o N.º de orden…" autocomplete="off" />
-        <input type="hidden" id="e-esperado" />
-        <div id="e-esperado-lista" class="buscador-lista hidden"></div>
-        <p class="text-sm muted" style="margin-top:6px; margin-bottom:0;">Al elegirlo completa el producto, la cantidad y la orden de compra solos. Si es una excepción sin pedido, sigue abajo a mano.</p>
+      <div class="row">
+        <div class="field">
+          <label for="e-documento">N.º guía / factura <span class="muted">(opcional)</span></label>
+          <input type="text" id="e-documento" maxlength="40" placeholder="Tal como viene en el papel" />
+        </div>
+        <div class="field" style="position:relative;">
+          <label for="e-orden-buscar">Orden de compra <span class="muted">(la que corresponde a esa guía/factura)</span></label>
+          <input type="text" id="e-orden-buscar" placeholder="Busca por N.º de orden o proveedor…" autocomplete="off" />
+          <input type="hidden" id="e-orden" />
+          <div id="e-orden-lista" class="buscador-lista hidden"></div>
+        </div>
+      </div>
+      <div class="field hidden" id="campo-orden-recibida" style="margin-top:-8px;">
+        <label style="display:flex; align-items:center; gap:8px; font-weight:400;">
+          <input type="checkbox" id="e-orden-recibida" checked style="width:auto;" />
+          Marcar esa orden de compra como recibida
+        </label>
       </div>
 
-      <div class="field" style="position:relative; margin-top:16px;">
-        <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:6px;">
-          <label for="e-producto-buscar" style="margin-bottom:0;">Producto</label>
-          <button type="button" class="btn btn-ghost btn-xs btn-success" id="btn-producto-nuevo">+ Producto nuevo</button>
+      <div class="field hidden" id="bloque-item-orden" style="position:relative;">
+        <label for="e-item-orden-buscar">Ítem de esta orden</label>
+        <input type="text" id="e-item-orden-buscar" placeholder="Busca el ítem…" autocomplete="off" />
+        <input type="hidden" id="e-item-orden" />
+        <div id="e-item-orden-lista" class="buscador-lista hidden"></div>
+      </div>
+
+      <div id="bloque-producto-manual">
+        <p class="text-sm muted" id="aviso-sin-orden" style="margin-top:0;">Si esto es una excepción sin orden de compra detrás, busca o crea el producto acá:</p>
+        <div class="field" style="position:relative;">
+          <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:6px;">
+            <label for="e-producto-buscar" style="margin-bottom:0;">Producto</label>
+            <button type="button" class="btn btn-ghost btn-xs btn-success" id="btn-producto-nuevo">+ Producto nuevo</button>
+          </div>
+          <input type="text" id="e-producto-buscar" placeholder="Busca el producto…" autocomplete="off" />
+          <input type="hidden" id="e-producto" />
+          <div id="e-producto-lista" class="buscador-lista hidden"></div>
         </div>
-        <input type="text" id="e-producto-buscar" placeholder="Busca el producto…" autocomplete="off" />
-        <input type="hidden" id="e-producto" />
-        <div id="e-producto-lista" class="buscador-lista hidden"></div>
       </div>
       <p class="text-sm muted" id="e-stock-actual" style="margin-top:-8px; margin-bottom:14px;"></p>
 
@@ -151,25 +172,9 @@
           <input type="number" id="e-cantidad" required min="0" step="any" />
         </div>
         <div class="field">
-          <label for="e-documento">N.º guía / factura <span class="muted">(opcional)</span></label>
-          <input type="text" id="e-documento" maxlength="40" />
+          <label for="e-proveedor">Proveedor <span class="muted">(opcional)</span></label>
+          <input type="text" id="e-proveedor" maxlength="80" />
         </div>
-      </div>
-      <div class="field" style="position:relative;">
-        <label for="e-orden-buscar">Orden de compra <span class="muted">(opcional, si este ingreso viene de una)</span></label>
-        <input type="text" id="e-orden-buscar" placeholder="Busca por N.º de orden o proveedor…" autocomplete="off" />
-        <input type="hidden" id="e-orden" />
-        <div id="e-orden-lista" class="buscador-lista hidden"></div>
-      </div>
-      <div class="field hidden" id="campo-orden-recibida" style="margin-top:-8px;">
-        <label style="display:flex; align-items:center; gap:8px; font-weight:400;">
-          <input type="checkbox" id="e-orden-recibida" checked style="width:auto;" />
-          Marcar esa orden de compra como recibida
-        </label>
-      </div>
-      <div class="field">
-        <label for="e-proveedor">Proveedor <span class="muted">(opcional)</span></label>
-        <input type="text" id="e-proveedor" maxlength="80" />
       </div>
       <div class="field">
         <label for="e-motivo">Observación <span class="muted">(opcional)</span></label>
@@ -449,30 +454,28 @@
     }
 
     /**
-     * Buscador de "qué debería estar llegando": lista los ítems de órdenes
-     * de compra aún no recibidas (itemsEsperados()), sin importar si el
-     * producto ya existe en el catálogo o hay que crearlo -- el
-     * onSeleccionar decide eso. Casi todo entra por acá; el buscador de
-     * producto de abajo queda para la excepción sin pedido de por medio.
+     * Buscador de "ítem de esta orden": una vez elegida la orden de compra
+     * de la guía/factura, lista solo sus ítems (itemsDeOrden), sin importar
+     * si el producto ya existe en el catálogo o hay que crearlo -- el
+     * onSeleccionar decide eso. Se le indica qué orden mirar con setOrden().
      */
-    function crearBuscadorEsperado(prefijo, { onSeleccionar } = {}) {
+    function crearBuscadorItemOrden(prefijo, { onSeleccionar } = {}) {
       const input = document.getElementById(`${prefijo}-buscar`);
       const oculto = document.getElementById(prefijo);
       const lista = document.getElementById(`${prefijo}-lista`);
+      let ordenId = null;
 
       function render() {
         const q = normalizar(input.value);
-        const items = itemsEsperados()
-          .filter((it) => !q || [it.glosa, it.proveedor, it.ordenNumero].some((v) => normalizar(v).includes(q)))
-          .sort((a, b) => (a.glosa || "").localeCompare(b.glosa || "", "es", { sensitivity: "base" }))
-          .slice(0, 30);
+        const items = itemsDeOrden(ordenId)
+          .filter((it) => !q || normalizar(it.glosa).includes(q))
+          .sort((a, b) => (a.glosa || "").localeCompare(b.glosa || "", "es", { sensitivity: "base" }));
         lista.innerHTML = items.length
           ? items.map((it) => `
               <button type="button" class="btn btn-ghost btn-xs" data-id="${it.id}">
                 ${esc(it.glosa)} — ${fmtNum(it.cantidad)} ${esc(it.unidad)}
-                <span class="muted">(${esc(it.ordenNumero) || "sin folio"} · ${esc(it.proveedor) || "sin proveedor"})</span>
               </button>`).join("")
-          : `<div class="text-sm muted empty">Nada pendiente por llegar. Si igual llegó algo, sigue abajo a mano.</div>`;
+          : `<div class="text-sm muted empty">Esta orden no tiene ítems.</div>`;
         lista.classList.remove("hidden");
       }
 
@@ -495,14 +498,21 @@
       });
 
       function seleccionar(id) {
-        const it = itemsEsperados().find((x) => x.id === id);
+        const it = itemsDeOrden(ordenId).find((x) => x.id === id);
         oculto.value = id || "";
-        input.value = it ? `${it.glosa} (${it.ordenNumero || "sin folio"})` : "";
+        input.value = it ? it.glosa : "";
         lista.classList.add("hidden");
         onSeleccionar?.(it || null);
       }
 
       return {
+        setOrden(id) {
+          ordenId = id;
+          input.value = "";
+          oculto.value = "";
+          lista.classList.add("hidden");
+          lista.innerHTML = "";
+        },
         reset() {
           input.value = "";
           oculto.value = "";
@@ -603,22 +613,21 @@
      * datos del ítem original del pedido (unidad, centro de gestión/costo)
      * para poder precargarlos si hay que crear el producto de cero.
      */
-    function itemsEsperados() {
-      return ordenesCompra
-        .filter((o) => !o.recibida)
-        .flatMap((o) => {
-          const pedido = pedidos.find((p) => p.id === o.pmId);
-          return o.itemsCubiertos.map((it) => {
-            const pmItem = pedido?.items?.find((pi) => pi.id === it.pmItemId);
-            return {
-              id: `${o.id}__${it.pmItemId}`,
-              ordenId: o.id, ordenNumero: o.numero, proveedor: o.proveedor,
-              glosa: it.glosa, cantidad: it.cantidad,
-              unidad: pmItem?.unidad || "",
-              centroGestion: pmItem?.centroGestion || "",
-              centroCosto: pmItem?.centroCosto || "",
-            };
-          });
+    /** Ítems de una orden de compra puntual (para el buscador "Ítem de esta orden"). */
+    function itemsDeOrden(ordenId) {
+      const o = ordenesCompra.find((x) => x.id === ordenId);
+      if (!o) return [];
+      const pedido = pedidos.find((p) => p.id === o.pmId);
+      return o.itemsCubiertos
+        .map((it) => {
+          const pmItem = pedido?.items?.find((pi) => pi.id === it.pmItemId);
+          return {
+            id: it.pmItemId,
+            glosa: it.glosa, cantidad: it.cantidad,
+            unidad: pmItem?.unidad || "",
+            centroGestion: pmItem?.centroGestion || "",
+            centroCosto: pmItem?.centroCosto || "",
+          };
         })
         // El pedido no dice a qué sección pertenece cada ítem. Si ya existe
         // como producto, se sabe por su categoría real y se muestra solo en
@@ -690,39 +699,53 @@
       },
     });
 
-    // Asociar el ingreso a la orden de compra que lo trajo (Seguimiento de
-    // compra): opcional, y si se elige una, ofrece marcarla como recibida
-    // y precarga el proveedor si el campo está vacío.
+    // Casi todo entra por una guía/factura con su orden de compra detrás:
+    // al elegir la orden, se cambia el "Producto" manual por un buscador
+    // acotado a los ítems de esa orden (bloque-item-orden), y se ofrece
+    // marcarla como recibida. Sin orden elegida, vuelve al flujo manual
+    // (buscar/crear producto) para la excepción sin pedido de por medio.
     const eProveedor = document.getElementById("e-proveedor");
     const campoOrdenRecibida = document.getElementById("campo-orden-recibida");
-    const buscadorOrdenEntrante = crearBuscadorOrden("e-orden", {
-      onSeleccionar: (o) => {
-        campoOrdenRecibida.classList.toggle("hidden", !o || o.recibida);
-        if (o?.proveedor && !eProveedor.value.trim()) eProveedor.value = o.proveedor;
-      },
-    });
+    const bloqueItemOrden = document.getElementById("bloque-item-orden");
+    const bloqueProductoManual = document.getElementById("bloque-producto-manual");
 
-    // "¿Qué llegó?": elige un ítem pendiente de una orden de compra y
-    // completa solo el resto -- la orden, la cantidad, y el producto (si ya
-    // existe lo selecciona; si no, pasa a "producto nuevo" con sus datos).
-    const buscadorEsperado = crearBuscadorEsperado("e-esperado", {
+    const buscadorItemOrden = crearBuscadorItemOrden("e-item-orden", {
       onSeleccionar: (it) => {
-        if (!it) return;
-        buscadorOrdenEntrante.seleccionar(it.ordenId);
-        document.getElementById("e-cantidad").value = it.cantidad;
-        const existente = materiales.find((m) => normalizar(m.producto) === normalizar(it.glosa));
-        if (existente) {
+        eProducto.value = "";
+        if (!it) {
           modoProductoNuevo = false;
           actualizarVistaEntrante();
-          buscadorEntrante.seleccionar(existente.id);
+          return;
+        }
+        document.getElementById("e-cantidad").value = it.cantidad;
+        const existente = materialesTodos.find((m) => normalizar(m.producto) === normalizar(it.glosa));
+        if (existente) {
+          modoProductoNuevo = false;
+          eProducto.value = existente.id;
+          eStockActual.textContent = `Stock actual: ${fmtNum(existente.stock)} ${existente.unidad}`;
         } else {
           modoProductoNuevo = true;
-          actualizarVistaEntrante();
+          eStockActual.textContent = "";
           document.getElementById("e-nuevo-producto").value = it.glosa;
           document.getElementById("e-nuevo-unidad").value = it.unidad;
           document.getElementById("e-nuevo-centro-gestion").value = it.centroGestion;
           document.getElementById("e-nuevo-centro-costo").value = it.centroCosto;
         }
+        actualizarVistaEntrante();
+      },
+    });
+
+    const buscadorOrdenEntrante = crearBuscadorOrden("e-orden", {
+      onSeleccionar: (o) => {
+        campoOrdenRecibida.classList.toggle("hidden", !o || o.recibida);
+        if (o?.proveedor && !eProveedor.value.trim()) eProveedor.value = o.proveedor;
+        bloqueItemOrden.classList.toggle("hidden", !o);
+        buscadorItemOrden.setOrden(o?.id || null);
+        modoProductoNuevo = false;
+        eProducto.value = "";
+        eStockActual.textContent = "";
+        buscadorEntrante.reset();
+        actualizarVistaEntrante();
       },
     });
 
@@ -756,11 +779,18 @@
     });
 
     function actualizarVistaEntrante() {
+      const hayOrden = !!document.getElementById("e-orden").value;
       eNuevoCampos.classList.toggle("hidden", !modoProductoNuevo);
-      document.getElementById("e-producto-buscar").classList.toggle("hidden", modoProductoNuevo);
       document.getElementById("e-nuevo-producto").required = modoProductoNuevo;
-      btnProductoNuevo.textContent = modoProductoNuevo ? "Elegir producto existente" : "+ Producto nuevo";
-      if (modoProductoNuevo) buscadorEntrante.reset();
+      // Con orden elegida no se muestra el buscador manual de producto ni
+      // el botón "+ Producto nuevo": el ítem de la orden ya resolvió solo
+      // si el producto existe o hay que crearlo.
+      bloqueProductoManual.classList.toggle("hidden", hayOrden);
+      if (!hayOrden) {
+        document.getElementById("e-producto-buscar").classList.toggle("hidden", modoProductoNuevo);
+        btnProductoNuevo.textContent = modoProductoNuevo ? "Elegir producto existente" : "+ Producto nuevo";
+        if (modoProductoNuevo) buscadorEntrante.reset();
+      }
     }
     btnProductoNuevo.addEventListener("click", () => {
       modoProductoNuevo = !modoProductoNuevo;
@@ -772,7 +802,8 @@
       formEntrante.reset();
       buscadorEntrante.reset();
       buscadorOrdenEntrante.reset();
-      buscadorEsperado.reset();
+      buscadorItemOrden.setOrden(null);
+      bloqueItemOrden.classList.add("hidden");
       campoOrdenRecibida.classList.add("hidden");
       document.getElementById("e-nuevo-categoria").innerHTML = optsCat;
       errEntrante.classList.add("hidden");
@@ -810,7 +841,9 @@
             descripcion: document.getElementById("e-nuevo-descripcion").value,
           };
         } else {
-          if (!eProducto.value) throw new Error("Selecciona un producto.");
+          if (!eProducto.value) {
+            throw new Error(ordenSeleccionada ? "Selecciona el ítem de esta orden." : "Selecciona un producto.");
+          }
           datos.materialId = eProducto.value;
         }
         await registrarEntrada(datos);
