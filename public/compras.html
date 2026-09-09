@@ -29,7 +29,7 @@
         <div class="value" id="stat-ordenes">—</div>
       </div>
       <div class="stat">
-        <div class="label">Sin comprar (7+ días)</div>
+        <div class="label">Sin llegar (10+ días)</div>
         <div class="value stock-bajo" id="stat-sin-comprar">—</div>
       </div>
     </div>
@@ -140,7 +140,7 @@
     import {
       escucharPedidos, escucharOrdenes, crearPedido, eliminarPedido,
       crearOrdenCompra, marcarOrdenRecibida, eliminarOrdenCompra,
-      leerItemsDeExcel, itemsSinComprar, DIAS_ALERTA_SIN_COMPRA,
+      leerItemsDeExcel, itemsSinLlegar, cantidadRecibidaDe, DIAS_ALERTA_SIN_LLEGAR,
     } from "./js/compras.js";
 
     montarTopbar("compras");
@@ -175,14 +175,14 @@
       document.getElementById("stat-pedidos").textContent = pedidos.length;
       document.getElementById("stat-ordenes").textContent = ordenes.length;
 
-      const sinComprar = itemsSinComprar(pedidos, ordenes);
-      document.getElementById("stat-sin-comprar").textContent = sinComprar.length;
+      const sinLlegar = itemsSinLlegar(pedidos, ordenes);
+      document.getElementById("stat-sin-comprar").textContent = sinLlegar.length;
 
       const alerta = document.getElementById("alerta-sin-comprar");
-      if (sinComprar.length) {
+      if (sinLlegar.length) {
         alerta.classList.remove("hidden");
-        alerta.innerHTML = `⚠ <strong>${sinComprar.length}</strong> ítem${sinComprar.length > 1 ? "s llevan" : " lleva"} ${DIAS_ALERTA_SIN_COMPRA}+ días sin orden de compra: ` +
-          sinComprar.map((r) => `${esc(r.item.glosa)} (${esc(r.pedido.numero) || "sin folio"}, ${r.dias} días)`).join(" · ");
+        alerta.innerHTML = `⚠ <strong>${sinLlegar.length}</strong> ítem${sinLlegar.length > 1 ? "s llevan" : " lleva"} ${DIAS_ALERTA_SIN_LLEGAR}+ días sin llegar completo a bodega: ` +
+          sinLlegar.map((r) => `${esc(r.item.glosa)} (${esc(r.pedido.numero) || "sin folio"}, faltan ${fmtNum(r.pendiente)}, ${r.dias} días)`).join(" · ");
       } else {
         alerta.classList.add("hidden");
       }
@@ -195,7 +195,6 @@
       }
 
       lista.innerHTML = vista.map((p) => {
-        const cubiertos = itemsCubiertosDe(p.id);
         const ocsDelPedido = ordenes.filter((o) => o.pmId === p.id);
         return `
         <div class="card">
@@ -218,17 +217,24 @@
             <table>
               <thead><tr><th>Línea</th><th>Glosa</th><th>Centro de gestión</th><th>Centro de costo</th><th class="text-right">Cantidad</th><th>Estado</th></tr></thead>
               <tbody>
-                ${(p.items || []).map((it) => `
+                ${(p.items || []).map((it) => {
+                  const recibido = cantidadRecibidaDe(ordenes, p.id, it.id);
+                  const pedida = Number(it.cantidad) || 0;
+                  const estado = recibido <= 0
+                    ? `<span class="badge badge-warn">Sin llegar</span>`
+                    : recibido >= pedida
+                      ? `<span class="badge badge-ok">Completo</span>`
+                      : `<span class="badge badge-muted">Parcial: ${fmtNum(recibido)}/${fmtNum(pedida)}</span>`;
+                  return `
                   <tr>
                     <td class="muted">${esc(it.linea) || "—"}</td>
                     <td>${esc(it.glosa)}</td>
                     <td>${esc(it.centroGestion) || "<span class='muted'>—</span>"}</td>
                     <td>${esc(it.centroCosto) || "<span class='muted'>—</span>"}</td>
                     <td class="text-right nowrap">${fmtNum(it.cantidad)} ${esc(it.unidad)}</td>
-                    <td>${cubiertos.has(it.id)
-                      ? `<span class="badge badge-ok">Con orden de compra</span>`
-                      : `<span class="badge badge-warn">Sin orden de compra</span>`}</td>
-                  </tr>`).join("")}
+                    <td>${estado}</td>
+                  </tr>`;
+                }).join("")}
               </tbody>
             </table>
           </div>
@@ -244,7 +250,7 @@
                       <tr>
                         <td class="nowrap">${esc(o.numero) || "—"}</td>
                         <td>${esc(o.proveedor) || "—"}</td>
-                        <td class="text-sm">${o.itemsCubiertos.map((it) => `${esc(it.glosa)} (${fmtNum(it.cantidad)})`).join(", ")}</td>
+                        <td class="text-sm">${o.itemsCubiertos.map((it) => `${esc(it.glosa)} (${fmtNum(it.recibido || 0)}/${fmtNum(it.cantidad)})`).join(", ")}</td>
                         <td>${o.archivo ? `<a href="${esc(o.archivo.url)}" target="_blank" rel="noopener">📎 PDF</a>` : "<span class='muted'>—</span>"}</td>
                         <td>${o.recibida
                           ? `<span class="badge badge-ok">Recibida</span>`

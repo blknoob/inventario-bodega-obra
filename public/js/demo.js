@@ -59,19 +59,19 @@ export const PEDIDOS_DEMO = [
 export const ORDENES_DEMO = [
   {
     id: "o1", pmId: "p1", numero: "OC-1001", proveedor: "Cementos Melón", archivo: null,
-    itemsCubiertos: [{ pmItemId: "i1", glosa: "Cemento Portland 25 kg", cantidad: 40 }],
+    itemsCubiertos: [{ pmItemId: "i1", glosa: "Cemento Portland 25 kg", cantidad: 40, recibido: 40 }],
     recibida: true, recibidaEn: hace(3 * 86400),
     creadoPor: "bodega@demo.cl", creadoEn: hace(9 * 86400),
   },
   {
     id: "o2", pmId: "p1", numero: "OC-1002", proveedor: "3M Chile", archivo: null,
-    itemsCubiertos: [{ pmItemId: "i2", glosa: "Guantes de cabritilla", cantidad: 20 }],
+    itemsCubiertos: [{ pmItemId: "i2", glosa: "Guantes de cabritilla", cantidad: 20, recibido: 8 }],
     recibida: false, recibidaEn: null,
     creadoPor: "bodega@demo.cl", creadoEn: hace(8 * 86400),
   },
   {
     id: "o3", pmId: "p2", numero: "OC-2001", proveedor: "Ferretería Central", archivo: null,
-    itemsCubiertos: [{ pmItemId: "i5", glosa: "Escoba industrial", cantidad: 3 }],
+    itemsCubiertos: [{ pmItemId: "i5", glosa: "Escoba industrial", cantidad: 3, recibido: 0 }],
     recibida: false, recibidaEn: null,
     creadoPor: "bodega@demo.cl", creadoEn: hace(86400),
   },

@@ -29,8 +29,8 @@ import { MODO_DEMO, PEDIDOS_DEMO, ORDENES_DEMO, bloquearEnDemo } from "./demo.js
 const pedidosRef = collection(db, "pedidos_materiales");
 const ordenesRef = collection(db, "ordenes_compra");
 
-/** Días sin orden de compra a partir de los cuales un ítem entra en alerta. */
-export const DIAS_ALERTA_SIN_COMPRA = 7;
+/** Días sin llegar completo a bodega a partir de los cuales un ítem entra en alerta. */
+export const DIAS_ALERTA_SIN_LLEGAR = 10;
 
 /** Escucha en tiempo real todos los Pedidos de Materiales (PM). */
 export function escucharPedidos(onCambio, onError) {
@@ -151,7 +151,7 @@ export async function crearOrdenCompra({ pmId, numero, proveedor, itemsCubiertos
   if (!pmId) throw new Error("Falta el pedido al que pertenece esta orden.");
   const itemsLimpios = (itemsCubiertos || [])
     .filter((it) => it.incluido)
-    .map((it) => ({ pmItemId: it.pmItemId, glosa: it.glosa, cantidad: Number(it.cantidad) || 0 }));
+    .map((it) => ({ pmItemId: it.pmItemId, glosa: it.glosa, cantidad: Number(it.cantidad) || 0, recibido: 0 }));
   if (!itemsLimpios.length) throw new Error("Selecciona al menos un ítem que cubra esta orden.");
 
   const email = usuarioActual()?.email ?? null;
@@ -264,23 +264,36 @@ export async function leerItemsDeExcel(archivo) {
 }
 
 /**
- * Cruza pedidos + órdenes y devuelve los ítems de PM que llevan
- * DIAS_ALERTA_SIN_COMPRA días o más sin estar cubiertos por ninguna orden de
- * compra. Cada resultado trae el pedido, el ítem y los días transcurridos.
+ * Cuánto ha llegado a bodega de un ítem del pedido: suma el "recibido" de
+ * ese ítem en todas las órdenes de compra que lo cubren (normalmente una
+ * sola, pero por si acaso se dividió en más de una).
  */
-export function itemsSinComprar(pedidos, ordenes) {
+export function cantidadRecibidaDe(ordenes, pedidoId, pmItemId) {
+  return ordenes
+    .filter((o) => o.pmId === pedidoId)
+    .flatMap((o) => o.itemsCubiertos)
+    .filter((it) => it.pmItemId === pmItemId)
+    .reduce((suma, it) => suma + (Number(it.recibido) || 0), 0);
+}
+
+/**
+ * Cruza pedidos + órdenes y devuelve los ítems de PM que llevan
+ * DIAS_ALERTA_SIN_LLEGAR días o más sin llegar completos a bodega (tengan
+ * o no una orden de compra generada). Cada resultado trae el pedido, el
+ * ítem, cuánto falta por llegar y los días transcurridos desde el pedido.
+ */
+export function itemsSinLlegar(pedidos, ordenes) {
   const ahora = Date.now();
   const resultado = [];
   for (const pedido of pedidos) {
     const fecha = pedido.creadoEn?.toDate?.();
     if (!fecha) continue;
     const dias = Math.floor((ahora - fecha.getTime()) / 86400000);
-    if (dias < DIAS_ALERTA_SIN_COMPRA) continue;
-    const cubiertos = new Set(
-      ordenes.filter((o) => o.pmId === pedido.id).flatMap((o) => o.itemsCubiertos.map((it) => it.pmItemId)),
-    );
+    if (dias < DIAS_ALERTA_SIN_LLEGAR) continue;
     for (const item of pedido.items || []) {
-      if (!cubiertos.has(item.id)) resultado.push({ pedido, item, dias });
+      const recibido = cantidadRecibidaDe(ordenes, pedido.id, item.id);
+      const pendiente = Math.round(((Number(item.cantidad) || 0) - recibido) * 1000) / 1000;
+      if (pendiente > 0) resultado.push({ pedido, item, dias, pendiente, recibido });
     }
   }
   return resultado.sort((a, b) => b.dias - a.dias);

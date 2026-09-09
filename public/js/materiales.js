@@ -62,7 +62,7 @@ export function escucharMateriales(onCambio, onError) {
  * un id existente, solo suma esa cantidad a su stock. En ambos casos deja un
  * movimiento de tipo "entrada" en el historial. Todo en una sola transacción.
  */
-export async function registrarEntrada({ materialId, nuevoMaterial, cantidadRecibida, proveedor, documento, motivo, ordenCompraId, ordenCompraNumero }) {
+export async function registrarEntrada({ materialId, nuevoMaterial, cantidadRecibida, proveedor, documento, motivo, ordenCompraId, ordenCompraNumero, pmItemId }) {
   if (MODO_DEMO) bloquearEnDemo();
   const cant = Number(cantidadRecibida);
   if (!(cant > 0)) throw new Error("La cantidad recibida debe ser mayor que cero.");
@@ -71,6 +71,17 @@ export async function registrarEntrada({ materialId, nuevoMaterial, cantidadReci
 
   await runTransaction(db, async (tx) => {
     let materialDoc, productoNombre, categoriaMovimiento, resultante;
+
+    // Si este ingreso viene de un ítem puntual de una orden de compra, hay
+    // que leerla ANTES de cualquier escritura (regla de las transacciones
+    // de Firestore: todas las lecturas van primero) para poder descontar
+    // lo recibido de lo pedido en esa orden.
+    let ordenDoc = null;
+    let ordenSnap = null;
+    if (ordenCompraId && pmItemId) {
+      ordenDoc = doc(db, "ordenes_compra", ordenCompraId);
+      ordenSnap = await tx.get(ordenDoc);
+    }
 
     if (materialId) {
       materialDoc = doc(db, "materiales", materialId);
@@ -122,9 +133,21 @@ export async function registrarEntrada({ materialId, nuevoMaterial, cantidadReci
       motivo: motivo?.trim() || "Llegada de material",
       ordenCompraId: ordenCompraId || null,
       ordenCompraNumero: ordenCompraNumero?.trim() || "",
+      pmItemId: pmItemId || null,
       responsable: email,
       fecha: serverTimestamp(),
     });
+
+    // Descuenta lo recibido de lo pedido en esa orden de compra, para
+    // saber cuánto queda pendiente de ese ítem del PM.
+    if (ordenDoc && ordenSnap?.exists()) {
+      const itemsCubiertos = (ordenSnap.data().itemsCubiertos || []).map((it) =>
+        it.pmItemId === pmItemId
+          ? { ...it, recibido: Math.round(((Number(it.recibido) || 0) + cant) * 1000) / 1000 }
+          : it,
+      );
+      tx.update(ordenDoc, { itemsCubiertos });
+    }
   });
 }
 

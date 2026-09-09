@@ -961,6 +961,7 @@
           motivo: document.getElementById("e-motivo").value,
           ordenCompraId: ordenSeleccionada?.id || null,
           ordenCompraNumero: ordenSeleccionada?.numero || "",
+          pmItemId: ordenSeleccionada ? (document.getElementById("e-item-orden").value || null) : null,
         };
         if (modoProductoNuevo) {
           datos.nuevoMaterial = {
