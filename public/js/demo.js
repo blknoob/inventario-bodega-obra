@@ -50,6 +50,7 @@ export const PEDIDOS_DEMO = [
     archivo: null,
     items: [
       { id: "i4", linea: "1", centroGestion: "Obra Gruesa", centroCosto: "CC-100", cantidad: 30, unidad: "unidades", glosa: 'Disco de corte 4½"' },
+      { id: "i5", linea: "2", centroGestion: "Obra Gruesa", centroCosto: "CC-100", cantidad: 3, unidad: "unidades", glosa: "Escoba industrial" },
     ],
     creadoPor: "bodega@demo.cl", creadoEn: hace(2 * 86400),
   },
@@ -67,6 +68,12 @@ export const ORDENES_DEMO = [
     itemsCubiertos: [{ pmItemId: "i2", glosa: "Guantes de cabritilla", cantidad: 20 }],
     recibida: false, recibidaEn: null,
     creadoPor: "bodega@demo.cl", creadoEn: hace(8 * 86400),
+  },
+  {
+    id: "o3", pmId: "p2", numero: "OC-2001", proveedor: "Ferretería Central", archivo: null,
+    itemsCubiertos: [{ pmItemId: "i5", glosa: "Escoba industrial", cantidad: 3 }],
+    recibida: false, recibidaEn: null,
+    creadoPor: "bodega@demo.cl", creadoEn: hace(86400),
   },
 ];
 

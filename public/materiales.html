@@ -81,6 +81,14 @@
       <div id="err-entrante" class="alert alert-error hidden"></div>
 
       <div class="field" style="position:relative;">
+        <label for="e-esperado-buscar">¿Qué llegó? Busca en lo pendiente de un pedido <span class="muted">(opcional; casi todo llega así)</span></label>
+        <input type="text" id="e-esperado-buscar" placeholder="Busca por ítem, proveedor o N.º de orden…" autocomplete="off" />
+        <input type="hidden" id="e-esperado" />
+        <div id="e-esperado-lista" class="buscador-lista hidden"></div>
+        <p class="text-sm muted" style="margin-top:6px; margin-bottom:0;">Al elegirlo completa el producto, la cantidad y la orden de compra solos. Si es una excepción sin pedido, sigue abajo a mano.</p>
+      </div>
+
+      <div class="field" style="position:relative; margin-top:16px;">
         <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:6px;">
           <label for="e-producto-buscar" style="margin-bottom:0;">Producto</label>
           <button type="button" class="btn btn-ghost btn-xs btn-success" id="btn-producto-nuevo">+ Producto nuevo</button>
@@ -239,7 +247,7 @@
       CATEGORIAS, etiquetaCategoria, nivelStock,
       escucharMateriales, registrarEntrada, registrarSalida, eliminarMaterial, marcarSinReposicion,
     } from "./js/materiales.js";
-    import { escucharOrdenes, marcarOrdenRecibida } from "./js/compras.js";
+    import { escucharPedidos, escucharOrdenes, marcarOrdenRecibida } from "./js/compras.js";
 
     // Esta misma página sirve para tres vistas: "Materiales" (todo menos
     // EPP), "EPPs" (?categoria=epp desde el header o la tarjeta de Inicio,
@@ -275,6 +283,10 @@
 
     // ── Estado y render ───────────────────────────────────────────────────
     let materiales = [];
+    // Catálogo completo sin filtrar por modo (materiales + EPP): solo para
+    // saber a qué categoría pertenece un ítem esperado, sin mezclarlo en la
+    // vista de esta página.
+    let materialesTodos = [];
     const tbody = document.getElementById("tbody");
     const buscar = document.getElementById("buscar");
     const filtroCat = document.getElementById("filtro-categoria");
@@ -436,6 +448,70 @@
       };
     }
 
+    /**
+     * Buscador de "qué debería estar llegando": lista los ítems de órdenes
+     * de compra aún no recibidas (itemsEsperados()), sin importar si el
+     * producto ya existe en el catálogo o hay que crearlo -- el
+     * onSeleccionar decide eso. Casi todo entra por acá; el buscador de
+     * producto de abajo queda para la excepción sin pedido de por medio.
+     */
+    function crearBuscadorEsperado(prefijo, { onSeleccionar } = {}) {
+      const input = document.getElementById(`${prefijo}-buscar`);
+      const oculto = document.getElementById(prefijo);
+      const lista = document.getElementById(`${prefijo}-lista`);
+
+      function render() {
+        const q = normalizar(input.value);
+        const items = itemsEsperados()
+          .filter((it) => !q || [it.glosa, it.proveedor, it.ordenNumero].some((v) => normalizar(v).includes(q)))
+          .sort((a, b) => (a.glosa || "").localeCompare(b.glosa || "", "es", { sensitivity: "base" }))
+          .slice(0, 30);
+        lista.innerHTML = items.length
+          ? items.map((it) => `
+              <button type="button" class="btn btn-ghost btn-xs" data-id="${it.id}">
+                ${esc(it.glosa)} — ${fmtNum(it.cantidad)} ${esc(it.unidad)}
+                <span class="muted">(${esc(it.ordenNumero) || "sin folio"} · ${esc(it.proveedor) || "sin proveedor"})</span>
+              </button>`).join("")
+          : `<div class="text-sm muted empty">Nada pendiente por llegar. Si igual llegó algo, sigue abajo a mano.</div>`;
+        lista.classList.remove("hidden");
+      }
+
+      input.addEventListener("focus", render);
+      input.addEventListener("input", () => {
+        oculto.value = "";
+        onSeleccionar?.(null);
+        render();
+      });
+      input.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") lista.classList.add("hidden");
+      });
+      lista.addEventListener("click", (e) => {
+        const btn = e.target.closest("[data-id]");
+        if (!btn) return;
+        seleccionar(btn.getAttribute("data-id"));
+      });
+      document.addEventListener("click", (e) => {
+        if (e.target !== input && !lista.contains(e.target)) lista.classList.add("hidden");
+      });
+
+      function seleccionar(id) {
+        const it = itemsEsperados().find((x) => x.id === id);
+        oculto.value = id || "";
+        input.value = it ? `${it.glosa} (${it.ordenNumero || "sin folio"})` : "";
+        lista.classList.add("hidden");
+        onSeleccionar?.(it || null);
+      }
+
+      return {
+        reset() {
+          input.value = "";
+          oculto.value = "";
+          lista.classList.add("hidden");
+          lista.innerHTML = "";
+        },
+      };
+    }
+
     function render() {
       const q = buscar.value.trim().toLowerCase();
       const cat = filtroCat.value;
@@ -503,6 +579,7 @@
 
     escucharMateriales(
       (items) => {
+        materialesTodos = items;
         materiales = modoAlertas
           ? items.filter((m) => nivelStock(m) !== "ok")
           : items.filter((m) => modoEpp ? m.categoria === "epp" : m.categoria !== "epp");
@@ -513,11 +590,49 @@
       },
     );
 
-    // Órdenes de compra (Seguimiento de compra): para poder asociar un
-    // "Material entrante" a la orden que lo trajo, sin importar la
-    // categoría del material.
+    // Pedidos de materiales (PM) y sus órdenes de compra (Seguimiento de
+    // compra): para poder asociar un "Material entrante" a la orden que lo
+    // trajo, y para el buscador de "qué debería estar llegando".
+    let pedidos = [];
     let ordenesCompra = [];
+    escucharPedidos((items) => { pedidos = items; }, () => {});
     escucharOrdenes((items) => { ordenesCompra = items; }, () => {});
+
+    /**
+     * Ítems pendientes (de órdenes de compra aún no recibidas), con los
+     * datos del ítem original del pedido (unidad, centro de gestión/costo)
+     * para poder precargarlos si hay que crear el producto de cero.
+     */
+    function itemsEsperados() {
+      return ordenesCompra
+        .filter((o) => !o.recibida)
+        .flatMap((o) => {
+          const pedido = pedidos.find((p) => p.id === o.pmId);
+          return o.itemsCubiertos.map((it) => {
+            const pmItem = pedido?.items?.find((pi) => pi.id === it.pmItemId);
+            return {
+              id: `${o.id}__${it.pmItemId}`,
+              ordenId: o.id, ordenNumero: o.numero, proveedor: o.proveedor,
+              glosa: it.glosa, cantidad: it.cantidad,
+              unidad: pmItem?.unidad || "",
+              centroGestion: pmItem?.centroGestion || "",
+              centroCosto: pmItem?.centroCosto || "",
+            };
+          });
+        })
+        // El pedido no dice a qué sección pertenece cada ítem. Si ya existe
+        // como producto, se sabe por su categoría real y se muestra solo en
+        // la página que le corresponde (para no mezclar EPP y Materiales);
+        // si no existe todavía, es ambiguo y se deja ver en ambas -- al
+        // crearlo, la categoría la fija esta misma página.
+        .filter((it) => {
+          if (modoAlertas) return true;
+          const existente = materialesTodos.find((m) => normalizar(m.producto) === normalizar(it.glosa));
+          if (!existente) return true;
+          const esEpp = existente.categoria === "epp";
+          return modoEpp ? esEpp : !esEpp;
+        });
+    }
 
     // ── Eliminar material ───────────────────────────────────────────────
     tbody.addEventListener("click", async (e) => {
@@ -587,6 +702,30 @@
       },
     });
 
+    // "¿Qué llegó?": elige un ítem pendiente de una orden de compra y
+    // completa solo el resto -- la orden, la cantidad, y el producto (si ya
+    // existe lo selecciona; si no, pasa a "producto nuevo" con sus datos).
+    const buscadorEsperado = crearBuscadorEsperado("e-esperado", {
+      onSeleccionar: (it) => {
+        if (!it) return;
+        buscadorOrdenEntrante.seleccionar(it.ordenId);
+        document.getElementById("e-cantidad").value = it.cantidad;
+        const existente = materiales.find((m) => normalizar(m.producto) === normalizar(it.glosa));
+        if (existente) {
+          modoProductoNuevo = false;
+          actualizarVistaEntrante();
+          buscadorEntrante.seleccionar(existente.id);
+        } else {
+          modoProductoNuevo = true;
+          actualizarVistaEntrante();
+          document.getElementById("e-nuevo-producto").value = it.glosa;
+          document.getElementById("e-nuevo-unidad").value = it.unidad;
+          document.getElementById("e-nuevo-centro-gestion").value = it.centroGestion;
+          document.getElementById("e-nuevo-centro-costo").value = it.centroCosto;
+        }
+      },
+    });
+
     // Mientras se escribe el nombre de un producto nuevo, muestra debajo los
     // que ya existen y se parecen (para no duplicar). Un clic en la lista
     // cambia al modo "producto existente" con ese producto ya seleccionado.
@@ -633,6 +772,7 @@
       formEntrante.reset();
       buscadorEntrante.reset();
       buscadorOrdenEntrante.reset();
+      buscadorEsperado.reset();
       campoOrdenRecibida.classList.add("hidden");
       document.getElementById("e-nuevo-categoria").innerHTML = optsCat;
       errEntrante.classList.add("hidden");
