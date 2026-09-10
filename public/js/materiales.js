@@ -25,6 +25,7 @@ const contadorMaterialesDoc = doc(db, "contadores", "materiales");
 export const CATEGORIAS = [
   { valor: "consumible", etiqueta: "Consumible" },
   { valor: "epp", etiqueta: "EPP" },
+  { valor: "herramienta", etiqueta: "Herramienta" },
   { valor: "equipo", etiqueta: "Equipo" },
   { valor: "otro", etiqueta: "Otro" },
 ];

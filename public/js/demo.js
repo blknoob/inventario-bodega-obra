@@ -32,6 +32,7 @@ export const MATERIALES_DEMO = [
   { id: "d5", item: 5, producto: "Andamio marco 1.5 m", categoria: "equipo", unidad: "cuerpos", medida: "1.5 m", centroGestion: "Obra Gruesa", centroCosto: "CC-100", stock: 16, stockMinimo: 0, ubicacion: "Patio B", descripcion: "", actualizadoEn: hace(260000) },
   { id: "d6", item: 6, producto: "Fierro estriado Ø10", categoria: "consumible", unidad: "barras", medida: "Ø10 mm", centroGestion: "Obra Gruesa", centroCosto: "CC-100", stock: 120, stockMinimo: 50, ubicacion: "Patio A", descripcion: "", actualizadoEn: hace(400000) },
   { id: "d7", item: 7, producto: "Calentador industrial", categoria: "equipo", unidad: "unidades", medida: "", centroGestion: "Obra Gruesa", centroCosto: "CC-100", stock: 0, stockMinimo: 1, sinReposicion: true, ubicacion: "Bodega", descripcion: "", actualizadoEn: hace(500000) },
+  { id: "d8", item: 8, producto: "Taladro percutor Bosch", categoria: "herramienta", unidad: "unidades", medida: "", centroGestion: "Obra Gruesa", centroCosto: "CC-100", stock: 4, stockMinimo: 2, ubicacion: "Bodega herramientas", descripcion: "", actualizadoEn: hace(50000) },
 ];
 
 export const PEDIDOS_DEMO = [
@@ -42,6 +43,7 @@ export const PEDIDOS_DEMO = [
       { id: "i1", linea: "1", centroGestion: "Obra Gruesa", centroCosto: "CC-100", cantidad: 40, unidad: "sacos", glosa: "Cemento Portland 25 kg" },
       { id: "i2", linea: "2", centroGestion: "Prevención", centroCosto: "CC-200", cantidad: 20, unidad: "pares", glosa: "Guantes de cabritilla" },
       { id: "i3", linea: "3", centroGestion: "Obra Gruesa", centroCosto: "CC-100", cantidad: 5, unidad: "cuerpos", glosa: "Andamio marco 1.5 m" },
+      { id: "i6", linea: "4", centroGestion: "Obra Gruesa", centroCosto: "CC-100", cantidad: 4, unidad: "unidades", glosa: "Chuzos" },
     ],
     creadoPor: "bodega@demo.cl", creadoEn: hace(10 * 86400),
   },

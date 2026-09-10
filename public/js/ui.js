@@ -26,7 +26,7 @@ export function montarTopbar(activo = "") {
       ${link("index.html", "inicio", "Inicio")}
       ${link("materiales.html", "materiales", "Materiales")}
       ${link("materiales.html?categoria=epp", "epps", "EPPs")}
-      ${link("herramientas.html", "herramientas", "Herramientas")}
+      ${link("materiales.html?categoria=herramienta", "herramientas", "Herramientas")}
       ${link("historial.html", "historial", "Historial")}
       ${link("compras.html", "compras", "Seguimiento de Compras")}
       <span id="nav-session"></span>

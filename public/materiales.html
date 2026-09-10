@@ -264,36 +264,48 @@
     } from "./js/materiales.js";
     import { escucharPedidos, escucharOrdenes, anotarOrdenDeCompra } from "./js/compras.js";
 
-    // Esta misma página sirve para tres vistas: "Materiales" (todo menos
-    // EPP), "EPPs" (?categoria=epp desde el header o la tarjeta de Inicio,
-    // así no se mezclan en el mismo listado) y "Alertas de stock"
-    // (?alertas=1 desde Inicio, que junta materiales y EPPs con stock
-    // bajo o agotado).
+    // Esta misma página sirve para cuatro vistas: "Materiales" (todo menos
+    // EPP/Herramientas), "EPPs" (?categoria=epp), "Herramientas"
+    // (?categoria=herramienta) -- así ninguna de las tres se mezcla en el
+    // mismo listado -- y "Alertas de stock" (?alertas=1 desde Inicio, que
+    // junta las tres con stock bajo o agotado).
     const params = new URL(location.href).searchParams;
-    const modoEpp = params.get("categoria") === "epp";
+    const categoriaParam = params.get("categoria");
+    // null en Materiales (no es una categoría aparte, es "todo lo demás").
+    const categoriaPagina = ["epp", "herramienta"].includes(categoriaParam) ? categoriaParam : null;
+    const modoEpp = categoriaPagina === "epp";
+    const modoHerramienta = categoriaPagina === "herramienta";
     const modoAlertas = params.get("alertas") === "1";
-    montarTopbar(modoAlertas ? "" : modoEpp ? "epps" : "materiales");
+    montarTopbar(modoAlertas ? "" : modoEpp ? "epps" : modoHerramienta ? "herramientas" : "materiales");
+
+    const TITULOS_PAGINA = {
+      epp: ["EPP", "Elementos de protección personal."],
+      herramienta: ["Herramientas", "Manuales, eléctricas e inalámbricas."],
+    };
 
     if (modoAlertas) {
       document.getElementById("titulo-pagina").textContent = "Alertas de stock | Inventario de Bodega";
       document.getElementById("titulo-h1").textContent = "Alertas de stock";
-      document.getElementById("titulo-sub").textContent = "Materiales y EPPs con stock bajo o agotado.";
+      document.getElementById("titulo-sub").textContent = "Materiales, EPPs y herramientas con stock bajo o agotado.";
     } else {
-      document.getElementById("titulo-pagina").textContent = modoEpp
-        ? "EPP | Inventario de Bodega" : "Materiales | Inventario de Bodega";
-      document.getElementById("titulo-h1").textContent = modoEpp ? "EPP" : "Materiales";
-      document.getElementById("titulo-sub").textContent = modoEpp
-        ? "Elementos de protección personal."
-        : "Consumibles, equipos y otros materiales de obra. Los EPP tienen su propia sección.";
+      const [titulo, subtitulo] = TITULOS_PAGINA[categoriaPagina] || ["Materiales", "Consumibles, equipos y otros materiales de obra. Los EPP y las Herramientas tienen su propia sección."];
+      document.getElementById("titulo-pagina").textContent = `${titulo} | Inventario de Bodega`;
+      document.getElementById("titulo-h1").textContent = titulo;
+      document.getElementById("titulo-sub").textContent = subtitulo;
     }
 
     // ── Poblar selects de categoría ─────────────────────────────────────────
     // El filtro de la LISTA sí queda acotado a la página (en Materiales no
-    // tiene sentido poder filtrar por "EPP": nunca aparece ahí).
-    const CATEGORIAS_DISPONIBLES = modoAlertas ? CATEGORIAS : modoEpp ? [] : CATEGORIAS.filter((c) => c.valor !== "epp");
+    // tiene sentido poder filtrar por "EPP" o "Herramienta": nunca
+    // aparecen ahí).
+    const CATEGORIAS_DISPONIBLES = modoAlertas
+      ? CATEGORIAS
+      : categoriaPagina
+        ? []
+        : CATEGORIAS.filter((c) => !["epp", "herramienta"].includes(c.valor));
     const optsCat = CATEGORIAS_DISPONIBLES.map((c) => `<option value="${c.valor}">${c.etiqueta}</option>`).join("");
     document.getElementById("filtro-categoria").insertAdjacentHTML("beforeend", optsCat);
-    document.getElementById("filtro-categoria").classList.toggle("hidden", modoEpp);
+    document.getElementById("filtro-categoria").classList.toggle("hidden", !!categoriaPagina);
     // Al CREAR un producto nuevo, en cambio, la categoría se elige siempre
     // completa (incluye EPP) sin importar en qué página estás -- un casco
     // sigue siendo EPP aunque llegue junto con cemento y se esté
@@ -536,7 +548,7 @@
         materialesTodos = items;
         materiales = modoAlertas
           ? items.filter((m) => nivelStock(m) !== "ok")
-          : items.filter((m) => modoEpp ? m.categoria === "epp" : m.categoria !== "epp");
+          : items.filter((m) => categoriaPagina ? m.categoria === categoriaPagina : !["epp", "herramienta"].includes(m.categoria));
         render();
       },
       (err) => {
@@ -564,15 +576,16 @@
       return (pedido.items || [])
         // El pedido no dice a qué sección pertenece cada ítem. Si ya existe
         // como producto, se sabe por su categoría real y se muestra solo en
-        // la página que le corresponde (para no mezclar EPP y Materiales);
-        // si no existe todavía, es ambiguo y se deja ver en ambas -- al
-        // crearlo, la categoría la fija esta misma página.
+        // la página que le corresponde (para no mezclar Materiales, EPP y
+        // Herramientas); si no existe todavía, es ambiguo y se deja ver en
+        // las tres -- al crearlo, la categoría la fija esta misma página.
         .filter((it) => {
           if (modoAlertas) return true;
           const existente = materialesTodos.find((m) => normalizar(m.producto) === normalizar(it.glosa));
           if (!existente) return true;
-          const esEpp = existente.categoria === "epp";
-          return modoEpp ? esEpp : !esEpp;
+          return categoriaPagina
+            ? existente.categoria === categoriaPagina
+            : !["epp", "herramienta"].includes(existente.categoria);
         });
     }
 
