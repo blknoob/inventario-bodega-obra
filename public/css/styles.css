@@ -234,6 +234,29 @@ button.stat.active { box-shadow: 0 0 0 2px var(--info) inset, var(--shadow); }
 }
 .buscador-lista .btn { width: 100%; justify-content: flex-start; text-align: left; }
 .buscador-lista .empty { padding: 8px 10px; text-align: left; }
+
+/* Fila con checkbox del diálogo "Elegir productos del pedido". */
+.chk-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+}
+.chk-row:hover { background: var(--bg); }
+.chk-row input[type="checkbox"] { width: 18px; height: 18px; flex-shrink: 0; }
+
+/* Fila de un producto ya elegido (con su cantidad) en Material entrante. */
+.item-pedido-fila {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 10px;
+  margin-top: 8px;
+}
+.item-pedido-fila .row { margin-bottom: 0; }
+.item-pedido-fila .field { margin-bottom: 0; }
 .hidden { display: none !important; }
 
 /* ── Tablas ─────────────────────────────────────────────────────────────── */

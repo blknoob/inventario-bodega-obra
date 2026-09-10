@@ -92,8 +92,14 @@
         <div id="e-pedido-lista" class="buscador-lista hidden"></div>
       </div>
 
-      <input type="hidden" id="e-item-pedido" />
+      <!-- Con un PM elegido: uno o varios productos de ese pedido a la vez -->
+      <div class="field hidden" id="bloque-items-pedido">
+        <label>Productos que llegan</label>
+        <button type="button" class="btn btn-ghost btn-block" id="btn-elegir-items">Elegir productos…</button>
+        <div id="items-pedido-elegidos"></div>
+      </div>
 
+      <!-- Sin PM (excepción sin pedido detrás): un producto a la vez -->
       <div id="bloque-producto-manual">
         <p class="text-sm muted" id="aviso-sin-orden" style="margin-top:0;">Si esto es una excepción sin pedido detrás (caja chica, casa matriz…), escribe el producto acá: si ya existe lo eliges de la lista, si no, se completa solo para crearlo.</p>
         <div class="field" style="position:relative;">
@@ -148,9 +154,9 @@
       </div>
 
       <div class="row">
-        <div class="field">
+        <div class="field" id="campo-cantidad-manual">
           <label for="e-cantidad">Cantidad recibida</label>
-          <input type="number" id="e-cantidad" required min="0" step="any" />
+          <input type="number" id="e-cantidad" min="0" step="any" />
         </div>
         <div class="field">
           <label for="e-proveedor">Proveedor <span class="muted">(opcional)</span></label>
@@ -167,6 +173,29 @@
         <button type="submit" class="btn btn-primary" id="btn-guardar-entrante">Registrar</button>
       </div>
     </form>
+  </dialog>
+
+  <!-- ── Modal: elegir productos del pedido (selección múltiple) ────────── -->
+  <dialog id="dlg-elegir-items">
+    <div class="modal-head">
+      <h3>Elegir productos del pedido</h3>
+      <button type="button" class="modal-close" id="btn-elegir-items-cerrar">&times;</button>
+    </div>
+    <div style="padding:16px 20px;">
+      <input type="search" id="elegir-items-buscar" placeholder="Buscar…" autocomplete="off" style="width:100%; padding:9px 12px; border:1px solid var(--line); border-radius:6px; font-size:14px; font-family:inherit; margin-bottom:12px;" />
+      <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
+        <button type="button" class="btn btn-ghost btn-xs" id="btn-elegir-items-todos">Seleccionar todos</button>
+        <button type="button" class="btn btn-ghost btn-xs" id="btn-elegir-items-limpiar">Limpiar</button>
+      </div>
+      <div id="elegir-items-lista" style="max-height:320px; overflow-y:auto;"></div>
+    </div>
+    <div class="modal-foot" style="padding:12px 20px; border-top:1px solid var(--line); margin-top:0; justify-content:space-between;">
+      <span class="text-sm muted" id="elegir-items-contador">0 de 0</span>
+      <div style="display:flex; gap:10px;">
+        <button type="button" class="btn btn-ghost" id="btn-elegir-items-cancelar">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="btn-elegir-items-listo">Listo</button>
+      </div>
+    </div>
   </dialog>
 
   <!-- ── Modal: material saliente ──────────────────────────────────────── -->
@@ -421,104 +450,6 @@
       };
     }
 
-    /**
-     * Buscador único de "Producto" para Material entrante: si hay un
-     * Pedido de Materiales (PM) elegido, lista solo sus ítems
-     * (itemsDePedido) -- se elige uno a uno, y el onSeleccionar recibe
-     * el ítem del pedido. Sin PM elegido, lista el catálogo completo
-     * como antes -- se puede elegir uno existente o escribir uno nuevo,
-     * y el onSeleccionar recibe el material (o null si se está
-     * escribiendo un nombre nuevo). Se le indica qué pedido mirar (o
-     * ninguno) con setPedido().
-     */
-    function crearBuscadorProductoEntrante(prefijo, { onSeleccionarItemPedido, onSeleccionarMaterial, onEscribir } = {}) {
-      const input = document.getElementById(`${prefijo}-buscar`);
-      const oculto = document.getElementById(prefijo);
-      const lista = document.getElementById(`${prefijo}-lista`);
-      let pedidoId = null;
-
-      function render() {
-        const q = normalizar(input.value);
-        if (pedidoId) {
-          const items = itemsDePedido(pedidoId)
-            .filter((it) => !q || normalizar(it.glosa).includes(q))
-            .sort((a, b) => (a.glosa || "").localeCompare(b.glosa || "", "es", { sensitivity: "base" }));
-          lista.innerHTML = items.length
-            ? items.map((it) => `
-                <button type="button" class="btn btn-ghost btn-xs" data-id="${it.id}">
-                  ${esc(it.glosa)} — pedido ${fmtNum(it.cantidad)} ${esc(it.unidad)}
-                </button>`).join("")
-            : `<div class="text-sm muted empty">Este pedido no tiene ítems.</div>`;
-        } else {
-          const items = [...materiales]
-            .filter((m) => !q || normalizar(m.producto).includes(q))
-            .sort((a, b) => (a.producto || "").localeCompare(b.producto || "", "es", { sensitivity: "base" }))
-            .slice(0, 30);
-          lista.innerHTML = items.length
-            ? items.map((m) => `
-                <button type="button" class="btn btn-ghost btn-xs" data-id="${m.id}">
-                  ${esc(m.producto)} — stock ${fmtNum(m.stock)} ${esc(m.unidad)}
-                </button>`).join("")
-            : `<div class="text-sm muted empty">Sin resultados.</div>`;
-        }
-        lista.classList.remove("hidden");
-      }
-
-      input.addEventListener("focus", render);
-      input.addEventListener("input", () => {
-        oculto.value = "";
-        document.getElementById("e-item-pedido").value = "";
-        if (!pedidoId) onEscribir?.(input.value);
-        render();
-      });
-      input.addEventListener("keydown", (e) => {
-        if (e.key === "Escape") lista.classList.add("hidden");
-      });
-      lista.addEventListener("click", (e) => {
-        const btn = e.target.closest("[data-id]");
-        if (!btn) return;
-        seleccionar(btn.getAttribute("data-id"));
-      });
-      document.addEventListener("click", (e) => {
-        if (e.target !== input && !lista.contains(e.target)) lista.classList.add("hidden");
-      });
-
-      function seleccionar(id) {
-        lista.classList.add("hidden");
-        if (pedidoId) {
-          const it = itemsDePedido(pedidoId).find((x) => x.id === id);
-          document.getElementById("e-item-pedido").value = it?.id || "";
-          oculto.value = "";
-          input.value = it ? it.glosa : "";
-          onSeleccionarItemPedido?.(it || null);
-        } else {
-          const m = materiales.find((x) => x.id === id);
-          oculto.value = id || "";
-          input.value = m ? m.producto : "";
-          onSeleccionarMaterial?.(m || null);
-        }
-      }
-
-      return {
-        setPedido(id) {
-          pedidoId = id;
-          input.placeholder = id ? "Listado de productos en PM" : "Busca o escribe el nombre del producto…";
-          input.value = "";
-          oculto.value = "";
-          document.getElementById("e-item-pedido").value = "";
-          lista.classList.add("hidden");
-          lista.innerHTML = "";
-        },
-        reset() {
-          input.value = "";
-          oculto.value = "";
-          document.getElementById("e-item-pedido").value = "";
-          lista.classList.add("hidden");
-          lista.innerHTML = "";
-        },
-      };
-    }
-
     function render() {
       const q = buscar.value.trim().toLowerCase();
       const cat = filtroCat.value;
@@ -677,68 +608,164 @@
     const eNuevoProducto = document.getElementById("e-nuevo-producto");
     let modoProductoNuevo = false;
 
-    const avisoSinOrden = document.getElementById("aviso-sin-orden");
+    const bloqueProductoManual = document.getElementById("bloque-producto-manual");
+    const bloqueItemsPedido = document.getElementById("bloque-items-pedido");
+    const campoCantidadManual = document.getElementById("campo-cantidad-manual");
 
-    // Un solo campo "Producto": sin Pedido de Materiales (PM) elegido, es
-    // el buscador manual de siempre -- si lo que se escribe calza exacto
-    // con uno que ya existe (o se elige de la lista), es ese; si no, se
-    // asume que es nuevo y se completan solos los campos para crearlo --
-    // sin botón "producto nuevo/existente" que apretar. Esto cubre la
-    // excepción sin PM de por medio (caja chica, casa matriz...). Con un
-    // PM elegido, el mismo campo lista solo sus ítems (itemsDePedido) y,
-    // al elegir uno, resuelve solo si el producto ya existe o hay que
-    // crearlo -- sin crear ni buscar ninguna orden de compra en pantalla,
-    // solo se anota su número arriba.
-    const buscadorProductoEntrante = crearBuscadorProductoEntrante("e-producto", {
-      onEscribir: (texto) => {
-        texto = texto.trim();
-        if (texto.length < 2) {
-          modoProductoNuevo = false;
-          eNuevoProducto.value = "";
-          actualizarVistaEntrante();
-          return;
-        }
-        const existeExacto = materiales.some((m) => normalizar(m.producto) === normalizar(texto));
-        modoProductoNuevo = !existeExacto;
-        eNuevoProducto.value = modoProductoNuevo ? texto : "";
-        actualizarVistaEntrante();
-      },
-      onSeleccionarMaterial: (m) => {
+    // Sin Pedido de Materiales (PM) elegido: buscador manual de siempre --
+    // si lo que se escribe calza exacto con uno que ya existe (o se elige
+    // de la lista), es ese; si no, se asume que es nuevo y se completan
+    // solos los campos para crearlo -- sin botón "producto nuevo/existente"
+    // que apretar. Esto cubre la excepción sin PM de por medio (caja
+    // chica, casa matriz...).
+    const buscadorEntrante = crearBuscadorProducto("e-producto", {
+      onSeleccionar: (m) => {
         eStockActual.textContent = m ? `Stock actual: ${fmtNum(m.stock)} ${m.unidad}` : "";
-        // Un clic en la lista es siempre un producto que ya existe.
         if (m) { modoProductoNuevo = false; actualizarVistaEntrante(); }
       },
-      onSeleccionarItemPedido: (it) => {
-        eProducto.value = "";
-        if (!it) {
-          modoProductoNuevo = false;
-          actualizarVistaEntrante();
-          return;
-        }
-        document.getElementById("e-cantidad").value = it.cantidad;
-        const existente = materialesTodos.find((m) => normalizar(m.producto) === normalizar(it.glosa));
-        if (existente) {
-          modoProductoNuevo = false;
-          eProducto.value = existente.id;
-          eStockActual.textContent = `Stock actual: ${fmtNum(existente.stock)} ${existente.unidad}`;
-        } else {
-          modoProductoNuevo = true;
-          eStockActual.textContent = "";
-          document.getElementById("e-nuevo-producto").value = it.glosa;
-          document.getElementById("e-nuevo-unidad").value = it.unidad;
-          document.getElementById("e-nuevo-centro-gestion").value = it.centroGestion;
-          document.getElementById("e-nuevo-centro-costo").value = it.centroCosto;
-        }
+    });
+
+    document.getElementById("e-producto-buscar").addEventListener("input", () => {
+      if (document.getElementById("e-pedido").value) return; // con PM elegido, se maneja abajo
+      const texto = document.getElementById("e-producto-buscar").value.trim();
+      if (texto.length < 2) {
+        modoProductoNuevo = false;
+        eNuevoProducto.value = "";
         actualizarVistaEntrante();
-      },
+        return;
+      }
+      const existeExacto = materiales.some((m) => normalizar(m.producto) === normalizar(texto));
+      modoProductoNuevo = !existeExacto;
+      eNuevoProducto.value = modoProductoNuevo ? texto : "";
+      actualizarVistaEntrante();
+    });
+
+    // Con un PM elegido: uno o varios productos de ese pedido a la vez,
+    // cada uno con su propia cantidad -- se eligen en el diálogo
+    // "Elegir productos" (selección múltiple) y quedan en esta lista.
+    // Si alguno no existe todavía como producto, se completa solo para
+    // crearlo (unidad/centro de gestión/costo vienen del propio PM).
+    let itemsPMSeleccionados = []; // [{id, glosa, cantidad, unidad, centroGestion, centroCosto, existenteId}]
+    const itemsPedidoElegidosCont = document.getElementById("items-pedido-elegidos");
+    const btnElegirItems = document.getElementById("btn-elegir-items");
+
+    function renderItemsPedidoElegidos() {
+      btnElegirItems.textContent = itemsPMSeleccionados.length
+        ? `${itemsPMSeleccionados.length} producto${itemsPMSeleccionados.length === 1 ? "" : "s"} elegido${itemsPMSeleccionados.length === 1 ? "" : "s"} — cambiar`
+        : "Elegir productos…";
+      if (!itemsPMSeleccionados.length) {
+        itemsPedidoElegidosCont.innerHTML = "";
+        return;
+      }
+      itemsPedidoElegidosCont.innerHTML = itemsPMSeleccionados.map((item) => {
+        const existente = item.existenteId ? materialesTodos.find((m) => m.id === item.existenteId) : null;
+        return `
+          <div class="item-pedido-fila" data-item-id="${item.id}">
+            <div style="display:flex; justify-content:space-between; align-items:baseline; gap:8px;">
+              <strong>${esc(item.glosa)}</strong>
+              ${existente
+                ? `<span class="text-sm muted">Stock actual: ${fmtNum(existente.stock)} ${esc(existente.unidad)}</span>`
+                : `<span class="badge badge-warn text-sm">Producto nuevo</span>`}
+            </div>
+            <div class="row" style="margin-top:8px;">
+              <div class="field">
+                <label>Cantidad recibida</label>
+                <input type="number" class="ie-cantidad" min="0" step="any" required value="${item.cantidad}" />
+              </div>
+              ${!existente ? `
+              <div class="field">
+                <label>Unidad</label>
+                <input type="text" class="ie-unidad" maxlength="20" value="${esc(item.unidad)}" />
+              </div>` : ""}
+            </div>
+            ${!existente && !modoEpp ? `
+            <div class="field" style="margin-top:10px;">
+              <label>Categoría</label>
+              <select class="ie-categoria">${optsCat}</select>
+            </div>` : ""}
+          </div>`;
+      }).join("");
+    }
+
+    const dlgElegirItems = document.getElementById("dlg-elegir-items");
+    const elegirItemsBuscar = document.getElementById("elegir-items-buscar");
+    const elegirItemsLista = document.getElementById("elegir-items-lista");
+    const elegirItemsContador = document.getElementById("elegir-items-contador");
+    let seleccionTemporal = new Set();
+
+    function pedidoElegidoId() { return document.getElementById("e-pedido").value; }
+
+    function renderElegirItemsLista() {
+      const q = normalizar(elegirItemsBuscar.value);
+      const items = itemsDePedido(pedidoElegidoId())
+        .filter((it) => !q || normalizar(it.glosa).includes(q))
+        .sort((a, b) => (a.glosa || "").localeCompare(b.glosa || "", "es", { sensitivity: "base" }));
+      elegirItemsLista.innerHTML = items.length
+        ? items.map((it) => `
+            <label class="chk-row">
+              <input type="checkbox" data-item-id="${it.id}" ${seleccionTemporal.has(it.id) ? "checked" : ""} />
+              <span>${esc(it.glosa)} <span class="muted text-sm">— pedido ${fmtNum(it.cantidad)} ${esc(it.unidad)}</span></span>
+            </label>`).join("")
+        : `<div class="text-sm muted empty">Sin resultados.</div>`;
+      actualizarContadorElegirItems();
+    }
+
+    function actualizarContadorElegirItems() {
+      const total = itemsDePedido(pedidoElegidoId()).length;
+      elegirItemsContador.textContent = `${seleccionTemporal.size} de ${total}`;
+    }
+
+    elegirItemsBuscar.addEventListener("input", renderElegirItemsLista);
+    elegirItemsLista.addEventListener("change", (e) => {
+      const chk = e.target.closest("input[type=checkbox]");
+      if (!chk) return;
+      const id = chk.getAttribute("data-item-id");
+      if (chk.checked) seleccionTemporal.add(id); else seleccionTemporal.delete(id);
+      actualizarContadorElegirItems();
+    });
+    document.getElementById("btn-elegir-items-todos").addEventListener("click", () => {
+      itemsDePedido(pedidoElegidoId()).forEach((it) => seleccionTemporal.add(it.id));
+      renderElegirItemsLista();
+    });
+    document.getElementById("btn-elegir-items-limpiar").addEventListener("click", () => {
+      seleccionTemporal.clear();
+      renderElegirItemsLista();
+    });
+    btnElegirItems.addEventListener("click", () => {
+      seleccionTemporal = new Set(itemsPMSeleccionados.map((x) => x.id));
+      elegirItemsBuscar.value = "";
+      renderElegirItemsLista();
+      dlgElegirItems.showModal();
+    });
+    document.getElementById("btn-elegir-items-cancelar").addEventListener("click", () => dlgElegirItems.close());
+    document.getElementById("btn-elegir-items-cerrar").addEventListener("click", () => dlgElegirItems.close());
+    document.getElementById("btn-elegir-items-listo").addEventListener("click", () => {
+      const disponibles = itemsDePedido(pedidoElegidoId());
+      const anteriores = new Map(itemsPMSeleccionados.map((x) => [x.id, x]));
+      itemsPMSeleccionados = disponibles
+        .filter((it) => seleccionTemporal.has(it.id))
+        .map((it) => {
+          const previo = anteriores.get(it.id);
+          if (previo) return previo; // conserva cantidad/categoría ya editadas
+          const existente = materialesTodos.find((m) => normalizar(m.producto) === normalizar(it.glosa));
+          return {
+            id: it.id, glosa: it.glosa, cantidad: it.cantidad, unidad: it.unidad,
+            centroGestion: it.centroGestion, centroCosto: it.centroCosto,
+            existenteId: existente ? existente.id : null,
+          };
+        });
+      dlgElegirItems.close();
+      renderItemsPedidoElegidos();
     });
 
     const buscadorPedidoEntrante = crearBuscadorPedido("e-pedido", {
       onSeleccionar: (p) => {
-        buscadorProductoEntrante.setPedido(p?.id || null);
+        itemsPMSeleccionados = [];
+        renderItemsPedidoElegidos();
         modoProductoNuevo = false;
         eStockActual.textContent = "";
         eNuevoProducto.value = "";
+        buscadorEntrante.reset();
         actualizarVistaEntrante();
       },
     });
@@ -746,15 +773,20 @@
     function actualizarVistaEntrante() {
       const hayPedido = !!document.getElementById("e-pedido").value;
       eNuevoCampos.classList.toggle("hidden", !modoProductoNuevo);
-      // El aviso de excepción sin PM solo aplica sin pedido elegido.
-      avisoSinOrden.classList.toggle("hidden", hayPedido);
+      // El buscador manual de producto y el campo de cantidad suelto solo
+      // aplican sin pedido elegido; con pedido, se eligen varios productos
+      // a la vez y la cantidad va por producto.
+      bloqueProductoManual.classList.toggle("hidden", hayPedido);
+      bloqueItemsPedido.classList.toggle("hidden", !hayPedido);
+      campoCantidadManual.classList.toggle("hidden", hayPedido);
     }
 
     document.getElementById("btn-entrante").addEventListener("click", () => {
       formEntrante.reset();
-      buscadorProductoEntrante.reset();
-      buscadorProductoEntrante.setPedido(null);
+      buscadorEntrante.reset();
       buscadorPedidoEntrante.reset();
+      itemsPMSeleccionados = [];
+      renderItemsPedidoElegidos();
       document.getElementById("e-nuevo-categoria").innerHTML = optsCat;
       errEntrante.classList.add("hidden");
       eNuevoProducto.value = "";
@@ -771,54 +803,89 @@
       try {
         const pedidoId = document.getElementById("e-pedido").value;
         const pedidoSeleccionado = pedidoId ? pedidos.find((p) => p.id === pedidoId) : null;
-        const itemPedidoId = document.getElementById("e-item-pedido").value;
-        const itemPedido = pedidoSeleccionado ? itemsDePedido(pedidoId).find((it) => it.id === itemPedidoId) : null;
         const numeroOc = document.getElementById("e-documento").value;
+        const proveedor = document.getElementById("e-proveedor").value;
+        const motivo = document.getElementById("e-motivo").value;
 
-        let ordenAnotada = null;
         if (pedidoSeleccionado) {
-          if (!itemPedido) throw new Error("Selecciona el producto del pedido.");
-          ordenAnotada = await anotarOrdenDeCompra(ordenesCompra, {
-            pmId: pedidoSeleccionado.id,
-            numero: numeroOc,
-            proveedor: document.getElementById("e-proveedor").value,
-            item: itemPedido,
-          });
-          if (!ordenesCompra.some((o) => o.id === ordenAnotada.id)) {
-            ordenesCompra = [...ordenesCompra, ordenAnotada]; // hasta que llegue la actualización en vivo
+          if (!itemsPMSeleccionados.length) throw new Error("Elige al menos un producto del pedido.");
+          let registrados = 0;
+          for (const item of [...itemsPMSeleccionados]) {
+            const fila = itemsPedidoElegidosCont.querySelector(`.item-pedido-fila[data-item-id="${item.id}"]`);
+            const existente = item.existenteId ? materialesTodos.find((m) => m.id === item.existenteId) : null;
+            try {
+              const ordenAnotada = await anotarOrdenDeCompra(ordenesCompra, {
+                pmId: pedidoSeleccionado.id, numero: numeroOc, proveedor, item,
+              });
+              if (!ordenesCompra.some((o) => o.id === ordenAnotada.id)) {
+                ordenesCompra = [...ordenesCompra, ordenAnotada]; // hasta que llegue la actualización en vivo
+              }
+              const datos = {
+                cantidadRecibida: fila.querySelector(".ie-cantidad").value,
+                proveedor,
+                documento: "", // ya queda anotado como ordenCompraNumero, no hace falta repetirlo
+                motivo,
+                ordenCompraId: ordenAnotada.id,
+                ordenCompraNumero: ordenAnotada.numero,
+                pmItemId: item.id,
+              };
+              if (existente) {
+                datos.materialId = existente.id;
+              } else {
+                const campoUnidad = fila.querySelector(".ie-unidad");
+                const campoCategoria = fila.querySelector(".ie-categoria");
+                datos.nuevoMaterial = {
+                  producto: item.glosa,
+                  categoria: modoEpp ? "epp" : (campoCategoria ? campoCategoria.value : "consumible"),
+                  unidad: campoUnidad ? campoUnidad.value : item.unidad,
+                  medida: "",
+                  centroGestion: item.centroGestion,
+                  centroCosto: item.centroCosto,
+                  stockMinimo: 0,
+                  ubicacion: "",
+                  descripcion: "",
+                };
+              }
+              await registrarEntrada(datos);
+              registrados++;
+              itemsPMSeleccionados = itemsPMSeleccionados.filter((x) => x.id !== item.id);
+            } catch (errItem) {
+              renderItemsPedidoElegidos();
+              throw new Error(
+                `${item.glosa}: ${errItem.message}` +
+                (registrados ? ` (ya se registraron ${registrados} producto${registrados === 1 ? "" : "s"} antes de este error, no hace falta repetirlos)` : ""),
+              );
+            }
           }
-        }
-
-        const datos = {
-          cantidadRecibida: document.getElementById("e-cantidad").value,
-          proveedor: document.getElementById("e-proveedor").value,
-          // Con PM elegido, este número ya queda anotado como ordenCompraNumero
-          // (ver más abajo) -- no hace falta repetirlo como "documento" suelto.
-          documento: pedidoSeleccionado ? "" : numeroOc,
-          motivo: document.getElementById("e-motivo").value,
-          ordenCompraId: ordenAnotada?.id || null,
-          ordenCompraNumero: ordenAnotada?.numero || "",
-          pmItemId: ordenAnotada ? itemPedidoId : null,
-        };
-        if (modoProductoNuevo) {
-          datos.nuevoMaterial = {
-            producto: document.getElementById("e-nuevo-producto").value,
-            categoria: modoEpp ? "epp" : document.getElementById("e-nuevo-categoria").value,
-            unidad: document.getElementById("e-nuevo-unidad").value,
-            medida: document.getElementById("e-nuevo-medida").value,
-            centroGestion: document.getElementById("e-nuevo-centro-gestion").value,
-            centroCosto: document.getElementById("e-nuevo-centro-costo").value,
-            stockMinimo: document.getElementById("e-nuevo-minimo").value,
-            ubicacion: document.getElementById("e-nuevo-ubicacion").value,
-            descripcion: document.getElementById("e-nuevo-descripcion").value,
-          };
+          renderItemsPedidoElegidos();
         } else {
-          if (!eProducto.value) {
-            throw new Error(pedidoSeleccionado ? "Selecciona el producto del pedido." : "Selecciona un producto.");
+          const datos = {
+            cantidadRecibida: document.getElementById("e-cantidad").value,
+            proveedor,
+            documento: numeroOc,
+            motivo,
+            ordenCompraId: null,
+            ordenCompraNumero: "",
+            pmItemId: null,
+          };
+          if (modoProductoNuevo) {
+            datos.nuevoMaterial = {
+              producto: document.getElementById("e-nuevo-producto").value,
+              categoria: modoEpp ? "epp" : document.getElementById("e-nuevo-categoria").value,
+              unidad: document.getElementById("e-nuevo-unidad").value,
+              medida: document.getElementById("e-nuevo-medida").value,
+              centroGestion: document.getElementById("e-nuevo-centro-gestion").value,
+              centroCosto: document.getElementById("e-nuevo-centro-costo").value,
+              stockMinimo: document.getElementById("e-nuevo-minimo").value,
+              ubicacion: document.getElementById("e-nuevo-ubicacion").value,
+              descripcion: document.getElementById("e-nuevo-descripcion").value,
+            };
+          } else {
+            if (!eProducto.value) throw new Error("Selecciona un producto.");
+            datos.materialId = eProducto.value;
           }
-          datos.materialId = eProducto.value;
+          await registrarEntrada(datos);
         }
-        await registrarEntrada(datos);
         dlgEntrante.close();
         flash("Material entrante registrado.");
       } catch (err) {
