@@ -287,13 +287,25 @@
         : "Consumibles, equipos y otros materiales de obra. Los EPP tienen su propia sección.";
     }
 
-    // ── Poblar selects de categoría (en modo EPP no aplica: siempre es epp) ─
+    // ── Poblar selects de categoría ─────────────────────────────────────────
+    // El filtro de la LISTA sí queda acotado a la página (en Materiales no
+    // tiene sentido poder filtrar por "EPP": nunca aparece ahí).
     const CATEGORIAS_DISPONIBLES = modoAlertas ? CATEGORIAS : modoEpp ? [] : CATEGORIAS.filter((c) => c.valor !== "epp");
     const optsCat = CATEGORIAS_DISPONIBLES.map((c) => `<option value="${c.valor}">${c.etiqueta}</option>`).join("");
     document.getElementById("filtro-categoria").insertAdjacentHTML("beforeend", optsCat);
-    document.getElementById("e-nuevo-categoria").innerHTML = optsCat;
     document.getElementById("filtro-categoria").classList.toggle("hidden", modoEpp);
-    document.getElementById("campo-nuevo-categoria").classList.toggle("hidden", modoEpp);
+    // Al CREAR un producto nuevo, en cambio, la categoría se elige siempre
+    // completa (incluye EPP) sin importar en qué página estás -- un casco
+    // sigue siendo EPP aunque llegue junto con cemento y se esté
+    // registrando desde "Materiales": no hace falta estar en la página EPP
+    // para poder marcarlo como tal.
+    function optsCategoriaNuevo() {
+      // Preselecciona "EPP" en la página EPP y "Consumible" en las demás,
+      // pero siempre deja elegir cualquiera de las cuatro.
+      const porDefecto = modoEpp ? "epp" : "consumible";
+      return CATEGORIAS.map((c) => `<option value="${c.valor}" ${c.valor === porDefecto ? "selected" : ""}>${c.etiqueta}</option>`).join("");
+    }
+    document.getElementById("e-nuevo-categoria").innerHTML = optsCategoriaNuevo();
     if (modoAlertas) document.getElementById("stat-total-label").textContent = "En alerta";
 
     // ── Estado y render ───────────────────────────────────────────────────
@@ -678,10 +690,10 @@
                 <input type="text" class="ie-unidad" maxlength="20" value="${esc(item.unidad)}" />
               </div>` : ""}
             </div>
-            ${!existente && !modoEpp ? `
+            ${!existente ? `
             <div class="field" style="margin-top:10px;">
               <label>Categoría</label>
-              <select class="ie-categoria">${optsCat}</select>
+              <select class="ie-categoria">${optsCategoriaNuevo()}</select>
             </div>` : ""}
           </div>`;
       }).join("");
@@ -787,7 +799,7 @@
       buscadorPedidoEntrante.reset();
       itemsPMSeleccionados = [];
       renderItemsPedidoElegidos();
-      document.getElementById("e-nuevo-categoria").innerHTML = optsCat;
+      document.getElementById("e-nuevo-categoria").innerHTML = optsCategoriaNuevo();
       errEntrante.classList.add("hidden");
       eNuevoProducto.value = "";
       modoProductoNuevo = false;
@@ -836,7 +848,7 @@
                 const campoCategoria = fila.querySelector(".ie-categoria");
                 datos.nuevoMaterial = {
                   producto: item.glosa,
-                  categoria: modoEpp ? "epp" : (campoCategoria ? campoCategoria.value : "consumible"),
+                  categoria: campoCategoria ? campoCategoria.value : (modoEpp ? "epp" : "consumible"),
                   unidad: campoUnidad ? campoUnidad.value : item.unidad,
                   medida: "",
                   centroGestion: item.centroGestion,
@@ -871,7 +883,7 @@
           if (modoProductoNuevo) {
             datos.nuevoMaterial = {
               producto: document.getElementById("e-nuevo-producto").value,
-              categoria: modoEpp ? "epp" : document.getElementById("e-nuevo-categoria").value,
+              categoria: document.getElementById("e-nuevo-categoria").value,
               unidad: document.getElementById("e-nuevo-unidad").value,
               medida: document.getElementById("e-nuevo-medida").value,
               centroGestion: document.getElementById("e-nuevo-centro-gestion").value,
