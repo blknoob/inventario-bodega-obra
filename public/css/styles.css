@@ -204,6 +204,17 @@ button.stat.active { box-shadow: 0 0 0 2px var(--info) inset, var(--shadow); }
   box-shadow: 0 10px 24px rgba(0, 0, 0, .18);
 }
 
+/* Campo de texto que además abre una lista al enfocarlo (buscador): se
+   le agrega una flechita a la derecha para que se note que hay opciones
+   para elegir, aunque también se pueda escribir libre. */
+.field input.buscador-input {
+  padding-right: 34px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%2352606d' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-size: 14px;
+}
+
 /* Resultados del buscador de producto (Material entrante/saliente):
    flota bajo el campo de búsqueda, no empuja el resto del formulario. */
 .buscador-lista {
