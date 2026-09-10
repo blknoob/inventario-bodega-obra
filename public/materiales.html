@@ -81,8 +81,8 @@
       <div id="err-entrante" class="alert alert-error hidden"></div>
 
       <div class="field">
-        <label for="e-documento">N.º Orden de Compra <span class="muted">(opcional)</span></label>
-        <input type="text" id="e-documento" maxlength="40" placeholder="Tal como viene en el papel" />
+        <label for="e-documento">N.º Orden de Compra</label>
+        <input type="text" id="e-documento" maxlength="40" placeholder="Orden de compra" />
       </div>
 
       <div class="field" style="position:relative;">
@@ -94,8 +94,8 @@
 
       <!-- Con un PM elegido: uno o varios productos de ese pedido a la vez -->
       <div class="field hidden" id="bloque-items-pedido">
-        <label>Productos que llegan</label>
-        <button type="button" class="btn btn-ghost btn-block buscador-input" id="btn-elegir-items">Elegir productos…</button>
+        <label>Productos</label>
+        <button type="button" class="btn btn-ghost btn-block buscador-input" id="btn-elegir-items">Elige productos solicitados en PM...</button>
         <div id="items-pedido-elegidos"></div>
       </div>
 
@@ -300,10 +300,11 @@
     // registrando desde "Materiales": no hace falta estar en la página EPP
     // para poder marcarlo como tal.
     function optsCategoriaNuevo() {
-      // Preselecciona "EPP" en la página EPP y "Consumible" en las demás,
-      // pero siempre deja elegir cualquiera de las cuatro.
-      const porDefecto = modoEpp ? "epp" : "consumible";
-      return CATEGORIAS.map((c) => `<option value="${c.valor}" ${c.valor === porDefecto ? "selected" : ""}>${c.etiqueta}</option>`).join("");
+      // Ninguna categoría viene preseleccionada -- hay que elegirla a
+      // propósito (el "Elegir una categoría" es un placeholder, no una
+      // opción real: no se puede dejar seleccionado).
+      const opciones = CATEGORIAS.map((c) => `<option value="${c.valor}">${c.etiqueta}</option>`).join("");
+      return `<option value="" selected disabled hidden>Elegir una categoría</option>${opciones}`;
     }
     document.getElementById("e-nuevo-categoria").innerHTML = optsCategoriaNuevo();
     if (modoAlertas) document.getElementById("stat-total-label").textContent = "En alerta";
@@ -821,6 +822,16 @@
 
         if (pedidoSeleccionado) {
           if (!itemsPMSeleccionados.length) throw new Error("Elige al menos un producto del pedido.");
+          // Se valida la categoría de los productos nuevos ANTES de anotar
+          // la orden de compra o registrar nada, para no dejar a mitad de
+          // camino un registro por un dato que faltaba desde el principio.
+          for (const item of itemsPMSeleccionados) {
+            if (item.existenteId) continue;
+            const fila = itemsPedidoElegidosCont.querySelector(`.item-pedido-fila[data-item-id="${item.id}"]`);
+            if (!fila.querySelector(".ie-categoria")?.value) {
+              throw new Error(`${item.glosa}: elige una categoría.`);
+            }
+          }
           let registrados = 0;
           for (const item of [...itemsPMSeleccionados]) {
             const fila = itemsPedidoElegidosCont.querySelector(`.item-pedido-fila[data-item-id="${item.id}"]`);
@@ -848,7 +859,7 @@
                 const campoCategoria = fila.querySelector(".ie-categoria");
                 datos.nuevoMaterial = {
                   producto: item.glosa,
-                  categoria: campoCategoria ? campoCategoria.value : (modoEpp ? "epp" : "consumible"),
+                  categoria: campoCategoria.value,
                   unidad: campoUnidad ? campoUnidad.value : item.unidad,
                   medida: "",
                   centroGestion: item.centroGestion,
@@ -881,6 +892,7 @@
             pmItemId: null,
           };
           if (modoProductoNuevo) {
+            if (!document.getElementById("e-nuevo-categoria").value) throw new Error("Elige una categoría para el producto nuevo.");
             datos.nuevoMaterial = {
               producto: document.getElementById("e-nuevo-producto").value,
               categoria: document.getElementById("e-nuevo-categoria").value,
