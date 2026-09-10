@@ -299,12 +299,15 @@
     // sigue siendo EPP aunque llegue junto con cemento y se esté
     // registrando desde "Materiales": no hace falta estar en la página EPP
     // para poder marcarlo como tal.
-    function optsCategoriaNuevo() {
-      // Ninguna categoría viene preseleccionada -- hay que elegirla a
-      // propósito (el "Elegir una categoría" es un placeholder, no una
-      // opción real: no se puede dejar seleccionado).
-      const opciones = CATEGORIAS.map((c) => `<option value="${c.valor}">${c.etiqueta}</option>`).join("");
-      return `<option value="" selected disabled hidden>Elegir una categoría</option>${opciones}`;
+    function optsCategoriaNuevo(valorElegido = "") {
+      // Sin valorElegido, ninguna categoría viene preseleccionada -- hay
+      // que elegirla a propósito (el "Elegir una categoría" es un
+      // placeholder, no una opción real: no se puede dejar seleccionado).
+      // Con valorElegido (p. ej. al redibujar tras un error), se respeta
+      // lo que ya se había elegido en vez de volver a pedirlo de cero.
+      const opciones = CATEGORIAS.map((c) =>
+        `<option value="${c.valor}" ${c.valor === valorElegido ? "selected" : ""}>${c.etiqueta}</option>`).join("");
+      return `<option value="" ${valorElegido ? "" : "selected"} disabled hidden>Elegir una categoría</option>${opciones}`;
     }
     document.getElementById("e-nuevo-categoria").innerHTML = optsCategoriaNuevo();
     if (modoAlertas) document.getElementById("stat-total-label").textContent = "En alerta";
@@ -658,9 +661,27 @@
     // "Elegir productos" (selección múltiple) y quedan en esta lista.
     // Si alguno no existe todavía como producto, se completa solo para
     // crearlo (unidad/centro de gestión/costo vienen del propio PM).
-    let itemsPMSeleccionados = []; // [{id, glosa, cantidad, unidad, centroGestion, centroCosto, existenteId}]
+    let itemsPMSeleccionados = []; // [{id, glosa, cantidad, unidad, centroGestion, centroCosto, existenteId, categoriaElegida}]
     const itemsPedidoElegidosCont = document.getElementById("items-pedido-elegidos");
     const btnElegirItems = document.getElementById("btn-elegir-items");
+
+    // Antes de redibujar las filas (p. ej. tras un error al registrar) hay
+    // que guardar lo que ya se había escrito/elegido en cada una -- si no,
+    // el redibujo las deja en blanco de nuevo (cantidad, unidad y sobre
+    // todo la categoría, que además vuelve a pedirse como si nunca se
+    // hubiera elegido).
+    function sincronizarItemsDesdeDom() {
+      itemsPMSeleccionados.forEach((item) => {
+        const fila = itemsPedidoElegidosCont.querySelector(`.item-pedido-fila[data-item-id="${item.id}"]`);
+        if (!fila) return;
+        const cantidadInput = fila.querySelector(".ie-cantidad");
+        if (cantidadInput) item.cantidad = cantidadInput.value;
+        const unidadInput = fila.querySelector(".ie-unidad");
+        if (unidadInput) item.unidad = unidadInput.value;
+        const categoriaSelect = fila.querySelector(".ie-categoria");
+        if (categoriaSelect) item.categoriaElegida = categoriaSelect.value;
+      });
+    }
 
     function renderItemsPedidoElegidos() {
       btnElegirItems.textContent = itemsPMSeleccionados.length
@@ -694,7 +715,7 @@
             ${!existente ? `
             <div class="field" style="margin-top:10px;">
               <label>Categoría</label>
-              <select class="ie-categoria">${optsCategoriaNuevo()}</select>
+              <select class="ie-categoria">${optsCategoriaNuevo(item.categoriaElegida)}</select>
             </div>` : ""}
           </div>`;
       }).join("");
@@ -873,6 +894,7 @@
               registrados++;
               itemsPMSeleccionados = itemsPMSeleccionados.filter((x) => x.id !== item.id);
             } catch (errItem) {
+              sincronizarItemsDesdeDom();
               renderItemsPedidoElegidos();
               throw new Error(
                 `${item.glosa}: ${errItem.message}` +
