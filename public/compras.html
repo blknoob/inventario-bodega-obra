@@ -221,29 +221,32 @@
           </div>
 
           ${itemsPendientes.length ? `
-          <div class="table-wrap">
-            <table>
-              <thead><tr><th>Línea</th><th>Glosa</th><th>Centro de gestión</th><th>Centro de costo</th><th class="text-right">Cantidad</th><th>Estado</th></tr></thead>
-              <tbody>
-                ${itemsPendientes.map((it) => {
-                  const recibido = cantidadRecibidaDe(ordenes, p.id, it.id);
-                  const pedida = Number(it.cantidad) || 0;
-                  const estado = recibido <= 0
-                    ? `<span class="badge badge-warn">Sin llegar</span>`
-                    : `<span class="badge badge-muted">Parcial: ${fmtNum(recibido)}/${fmtNum(pedida)}</span>`;
-                  return `
-                  <tr>
-                    <td class="muted">${esc(it.linea) || "—"}</td>
-                    <td>${esc(it.glosa)}</td>
-                    <td>${esc(it.centroGestion) || "<span class='muted'>—</span>"}</td>
-                    <td>${esc(it.centroCosto) || "<span class='muted'>—</span>"}</td>
-                    <td class="text-right nowrap">${fmtNum(it.cantidad)} ${esc(it.unidad)}</td>
-                    <td>${estado}</td>
-                  </tr>`;
-                }).join("")}
-              </tbody>
-            </table>
-          </div>
+          <details class="pm-pendientes">
+            <summary>${itemsPendientes.length} ítem${itemsPendientes.length === 1 ? "" : "s"} pendiente${itemsPendientes.length === 1 ? "" : "s"} por llegar</summary>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Línea</th><th>Glosa</th><th>Centro de gestión</th><th>Centro de costo</th><th class="text-right">Cantidad</th><th>Estado</th></tr></thead>
+                <tbody>
+                  ${itemsPendientes.map((it) => {
+                    const recibido = cantidadRecibidaDe(ordenes, p.id, it.id);
+                    const pedida = Number(it.cantidad) || 0;
+                    const estado = recibido <= 0
+                      ? `<span class="badge badge-warn">Sin llegar</span>`
+                      : `<span class="badge badge-muted">Parcial: ${fmtNum(recibido)}/${fmtNum(pedida)}</span>`;
+                    return `
+                    <tr>
+                      <td class="muted">${esc(it.linea) || "—"}</td>
+                      <td>${esc(it.glosa)}</td>
+                      <td>${esc(it.centroGestion) || "<span class='muted'>—</span>"}</td>
+                      <td>${esc(it.centroCosto) || "<span class='muted'>—</span>"}</td>
+                      <td class="text-right nowrap">${fmtNum(it.cantidad)} ${esc(it.unidad)}</td>
+                      <td>${estado}</td>
+                    </tr>`;
+                  }).join("")}
+                </tbody>
+              </table>
+            </div>
+          </details>
           ` : `<p class="text-sm"><span class="badge badge-ok">Completo</span> Todo lo pedido en este PM ya llegó a bodega.</p>`}
 
           ${ocsDelPedido.length ? `
