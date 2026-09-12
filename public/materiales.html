@@ -18,10 +18,10 @@
     </div>
 
     <div class="grid" style="margin-bottom: 18px;">
-      <div class="stat">
+      <button type="button" class="stat" id="stat-total-card" title="Ver todos">
         <div class="label" id="stat-total-label">Tipos de material</div>
         <div class="value" id="stat-total">—</div>
-      </div>
+      </button>
       <button type="button" class="stat" id="stat-bajo-card" title="Ver solo con stock bajo">
         <div class="label">Con stock bajo</div>
         <div class="value stock-bajo" id="stat-bajo">—</div>
@@ -336,16 +336,19 @@
 
     // Filtro por nivel de stock ('' | 'bajo' | 'cero'), activado al tocar
     // las tarjetas "Con stock bajo" / "Sin stock". Tocar la misma de nuevo
-    // lo quita.
+    // (o "Tipos de material") lo quita y vuelve a mostrar todo.
     let filtroStock = "";
+    const statTotalCard = document.getElementById("stat-total-card");
     const statBajoCard = document.getElementById("stat-bajo-card");
     const statCeroCard = document.getElementById("stat-cero-card");
     function setFiltroStock(valor) {
       filtroStock = filtroStock === valor ? "" : valor;
+      statTotalCard.classList.toggle("active", filtroStock === "");
       statBajoCard.classList.toggle("active", filtroStock === "bajo");
       statCeroCard.classList.toggle("active", filtroStock === "cero");
       render();
     }
+    statTotalCard.addEventListener("click", () => setFiltroStock(""));
     statBajoCard.addEventListener("click", () => setFiltroStock("bajo"));
     statCeroCard.addEventListener("click", () => setFiltroStock("cero"));
 
