@@ -187,8 +187,8 @@
         <tr>
           <td class="nowrap text-sm">${fmtFecha(m.fecha)}</td>
           <td><span class="badge ${m.tipo === "entrada" ? "badge-ok" : "badge-info"}">${m.tipo === "entrada" ? "Entrante" : "Saliente"}</span></td>
-          <td>${esc(m.materialProducto)}</td>
-          <td><span class="badge badge-muted">${esc(etiquetaCategoria(m.categoria))}</span></td>
+          <td class="celda-truncar" title="${esc(m.materialProducto)}">${esc(m.materialProducto)}</td>
+          <td>${m.categoria ? `<span class="badge badge-muted">${esc(etiquetaCategoria(m.categoria))}</span>` : `<span class="muted text-sm">—</span>`}</td>
           <td class="text-right nowrap">${fmtNum(m.cantidad)}</td>
           <td class="text-right nowrap">${fmtNum(m.stockResultante)}</td>
           <td class="text-sm nowrap detalle-celda">
