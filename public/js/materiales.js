@@ -63,7 +63,7 @@ export function escucharMateriales(onCambio, onError) {
  * un id existente, solo suma esa cantidad a su stock. En ambos casos deja un
  * movimiento de tipo "entrada" en el historial. Todo en una sola transacción.
  */
-export async function registrarEntrada({ materialId, nuevoMaterial, cantidadRecibida, proveedor, documento, motivo, ordenCompraId, ordenCompraNumero, pmItemId }) {
+export async function registrarEntrada({ materialId, nuevoMaterial, cantidadRecibida, proveedor, documento, motivo, ordenCompraId, ordenCompraNumero, pmItemId, fleteId, fleteEmpresa }) {
   if (MODO_DEMO) bloquearEnDemo();
   const cant = Number(cantidadRecibida);
   if (!(cant > 0)) throw new Error("La cantidad recibida debe ser mayor que cero.");
@@ -135,6 +135,8 @@ export async function registrarEntrada({ materialId, nuevoMaterial, cantidadReci
       ordenCompraId: ordenCompraId || null,
       ordenCompraNumero: ordenCompraNumero?.trim() || "",
       pmItemId: pmItemId || null,
+      fleteId: fleteId || null,
+      fleteEmpresa: fleteEmpresa?.trim() || "",
       responsable: email,
       fecha: serverTimestamp(),
     });

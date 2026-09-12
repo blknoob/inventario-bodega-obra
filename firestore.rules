@@ -61,6 +61,13 @@ service cloud.firestore {
       allow write: if bodega();
     }
 
+    // Fletes: traslados hechos por una empresa externa (llegada de
+    // materiales o retiro de escombros/herramientas), con su factura.
+    match /fletes/{id} {
+      allow read: if true;
+      allow write: if bodega();
+    }
+
     // Todo lo demás queda cerrado por defecto.
     match /{document=**} {
       allow read, write: if false;

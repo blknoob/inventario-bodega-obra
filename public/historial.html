@@ -146,6 +146,7 @@
         if (m.proveedor) partes.push(["Proveedor", esc(m.proveedor)]);
         if (m.documento) partes.push(["Documento", esc(m.documento)]);
         if (m.motivo) partes.push(["Motivo", esc(m.motivo)]);
+        if (m.fleteEmpresa) partes.push(["Flete", `${esc(m.fleteEmpresa)} <a href="fletes.html" class="text-sm">(ver en Fletes)</a>`]);
       } else {
         partes.push(["Retira", esc(m.personaRetira || "—")]);
         if (m.supervisor) partes.push(["Supervisor", esc(m.supervisor)]);

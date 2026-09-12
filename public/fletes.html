@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Fletes | Inventario de Bodega</title>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <header id="topbar"></header>
+
+  <div class="wrap">
+    <div id="flash" class="alert hidden"></div>
+
+    <div class="page-head">
+      <h1>Fletes</h1>
+      <p>Traslados hechos por una empresa externa -- llegada de materiales o retiro de escombros/herramientas -- con su factura.</p>
+    </div>
+
+    <div class="grid" style="margin-bottom: 18px;">
+      <button type="button" class="stat" id="stat-total-card">
+        <div class="label">Fletes</div>
+        <div class="value" id="stat-total">—</div>
+      </button>
+      <button type="button" class="stat" id="stat-entrada-card">
+        <div class="label">Llegadas</div>
+        <div class="value stock-ok" id="stat-entrada">—</div>
+      </button>
+      <button type="button" class="stat" id="stat-salida-card">
+        <div class="label">Retiros</div>
+        <div class="value" id="stat-salida" style="color: var(--info);">—</div>
+      </button>
+    </div>
+
+    <div class="card">
+      <div class="toolbar">
+        <div class="filters">
+          <input type="search" id="buscar" placeholder="Buscar empresa, detalle…" autocomplete="off" />
+        </div>
+        <div class="row-actions only-bodega">
+          <button class="btn btn-primary" id="btn-nuevo-flete">Nuevo flete</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="lista-fletes"></div>
+  </div>
+
+  <!-- ── Modal: nuevo flete ───────────────────────────────────────────────── -->
+  <dialog id="dlg-flete">
+    <div class="modal-head">
+      <h3>Nuevo flete</h3>
+      <button type="button" class="modal-close" data-close>&times;</button>
+    </div>
+    <form id="form-flete">
+      <div id="err-flete" class="alert alert-error hidden"></div>
+
+      <div class="row">
+        <div class="field">
+          <label for="f-empresa">Empresa de transporte</label>
+          <input type="text" id="f-empresa" maxlength="80" placeholder="Transportes Rojas" />
+        </div>
+        <div class="field">
+          <label for="f-tipo">Tipo</label>
+          <select id="f-tipo"></select>
+        </div>
+      </div>
+      <div class="field">
+        <label for="f-detalle">Qué se trasladó <span class="muted">(opcional)</span></label>
+        <input type="text" id="f-detalle" maxlength="160" placeholder="Cemento Portland 25 kg (40 sacos), escombros de demolición…" />
+      </div>
+      <div class="field">
+        <label for="f-factura">Foto o PDF de la factura <span class="muted">(opcional)</span></label>
+        <input type="file" id="f-factura" accept="image/*,.pdf" capture="environment" />
+      </div>
+      <div class="field">
+        <label for="f-observacion">Observación <span class="muted">(opcional)</span></label>
+        <input type="text" id="f-observacion" maxlength="160" />
+      </div>
+
+      <div class="modal-foot">
+        <button type="button" class="btn btn-ghost" data-close>Cancelar</button>
+        <button type="submit" class="btn btn-primary" id="btn-guardar-flete">Guardar flete</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script type="module">
+    import { montarTopbar, flash } from "./js/ui.js";
+    import { escucharFletes, crearFlete, eliminarFlete, TIPOS_FLETE, etiquetaTipoFlete } from "./js/fletes.js";
+    import { escucharMovimientos } from "./js/materiales.js";
+
+    montarTopbar("fletes");
+
+    const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) =>
+      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+    const fmtFecha = (ts) => {
+      const d = ts?.toDate?.();
+      if (!d) return "—";
+      return d.toLocaleDateString("es-CL") + " " +
+        d.toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" });
+    };
+
+    document.getElementById("f-tipo").innerHTML =
+      TIPOS_FLETE.map((t) => `<option value="${t.valor}">${t.etiqueta}</option>`).join("");
+
+    let fletes = [];
+    let movimientos = []; // para mostrar a qué ingreso quedó vinculado cada flete
+    let filtroTipo = "";
+    const lista = document.getElementById("lista-fletes");
+    const buscar = document.getElementById("buscar");
+    const statTotalCard = document.getElementById("stat-total-card");
+    const statEntradaCard = document.getElementById("stat-entrada-card");
+    const statSalidaCard = document.getElementById("stat-salida-card");
+
+    function setFiltroTipo(valor) {
+      filtroTipo = filtroTipo === valor ? "" : valor;
+      statTotalCard.classList.toggle("active", filtroTipo === "");
+      statEntradaCard.classList.toggle("active", filtroTipo === "entrada");
+      statSalidaCard.classList.toggle("active", filtroTipo === "salida");
+      render();
+    }
+    statTotalCard.addEventListener("click", () => setFiltroTipo(""));
+    statEntradaCard.addEventListener("click", () => setFiltroTipo("entrada"));
+    statSalidaCard.addEventListener("click", () => setFiltroTipo("salida"));
+
+    function movimientosDelFlete(fleteId) {
+      return movimientos.filter((m) => m.fleteId === fleteId);
+    }
+
+    function render() {
+      const q = buscar.value.trim().toLowerCase();
+      const vista = fletes.filter((f) =>
+        (!filtroTipo || f.tipo === filtroTipo) &&
+        (!q || [f.empresa, f.detalle, f.observacion].some((v) => (v || "").toLowerCase().includes(q))));
+
+      document.getElementById("stat-total").textContent = fletes.length;
+      document.getElementById("stat-entrada").textContent = fletes.filter((f) => f.tipo === "entrada").length;
+      document.getElementById("stat-salida").textContent = fletes.filter((f) => f.tipo === "salida").length;
+
+      if (!vista.length) {
+        lista.innerHTML = `<div class="card"><p class="empty">${
+          fletes.length ? "Sin resultados para el filtro." : "Aún no hay fletes registrados."
+        }</p></div>`;
+        return;
+      }
+
+      lista.innerHTML = vista.map((f) => {
+        const vinculados = movimientosDelFlete(f.id);
+        return `
+        <div class="card">
+          <div class="row-actions" style="justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
+            <div>
+              <div style="font-weight: 700;">
+                ${esc(f.empresa)}
+                <span class="badge ${f.tipo === "entrada" ? "badge-ok" : "badge-info"}">${esc(etiquetaTipoFlete(f.tipo))}</span>
+              </div>
+              <div class="text-sm muted">${fmtFecha(f.creadoEn)}</div>
+            </div>
+            <div class="row-actions only-bodega">
+              <button class="btn btn-ghost btn-xs btn-danger" data-eliminar-flete="${f.id}">Eliminar</button>
+            </div>
+          </div>
+
+          ${f.detalle ? `<p class="text-sm" style="margin-bottom:4px;">${esc(f.detalle)}</p>` : ""}
+          ${f.observacion ? `<p class="text-sm muted" style="margin-bottom:4px;">${esc(f.observacion)}</p>` : ""}
+          <p class="text-sm">
+            ${f.factura
+              ? `<a href="${esc(f.factura.url)}" target="_blank" rel="noopener">📎 Ver factura (${esc(f.factura.nombre)})</a>`
+              : `<span class="badge badge-warn">Sin factura</span>`}
+          </p>
+          ${vinculados.length ? `
+            <p class="text-sm muted" style="margin-top:6px;">
+              Vinculado a: ${vinculados.map((m) => `${esc(m.materialProducto)} (${fmtFecha(m.fecha)})`).join(", ")}
+            </p>
+          ` : ""}
+        </div>`;
+      }).join("");
+    }
+
+    buscar.addEventListener("input", render);
+
+    escucharFletes(
+      (items) => { fletes = items; render(); },
+      (err) => { lista.innerHTML = `<div class="card"><p class="empty">Error al cargar: ${esc(err.message)}</p></div>`; },
+    );
+    escucharMovimientos(
+      (items) => { movimientos = items; render(); },
+      () => {},
+    );
+
+    // ── Modales: apertura/cierre comunes ────────────────────────────────
+    document.querySelectorAll("dialog [data-close]").forEach((b) =>
+      b.addEventListener("click", () => b.closest("dialog").close()));
+
+    const dlgFlete = document.getElementById("dlg-flete");
+    const formFlete = document.getElementById("form-flete");
+    const errFlete = document.getElementById("err-flete");
+
+    document.getElementById("btn-nuevo-flete").addEventListener("click", () => {
+      formFlete.reset();
+      errFlete.classList.add("hidden");
+      dlgFlete.showModal();
+    });
+
+    formFlete.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      errFlete.classList.add("hidden");
+      const btn = document.getElementById("btn-guardar-flete");
+      btn.disabled = true; btn.textContent = "Guardando…";
+      try {
+        await crearFlete({
+          empresa: document.getElementById("f-empresa").value,
+          tipo: document.getElementById("f-tipo").value,
+          detalle: document.getElementById("f-detalle").value,
+          observacion: document.getElementById("f-observacion").value,
+          factura: document.getElementById("f-factura").files[0] || null,
+        });
+        dlgFlete.close();
+        flash("Flete registrado.");
+      } catch (err) {
+        errFlete.textContent = err.message;
+        errFlete.classList.remove("hidden");
+      } finally {
+        btn.disabled = false; btn.textContent = "Guardar flete";
+      }
+    });
+
+    // ── Eliminar flete ───────────────────────────────────────────────────
+    lista.addEventListener("click", async (e) => {
+      const idEliminar = e.target.getAttribute?.("data-eliminar-flete");
+      if (!idEliminar) return;
+      const f = fletes.find((x) => x.id === idEliminar);
+      if (!f) return;
+      if (!confirm(`¿Eliminar el flete de "${f.empresa}"? Si estaba vinculado a un ingreso, ese ingreso queda igual (solo se borra el registro del flete y su factura).`)) return;
+      try {
+        await eliminarFlete(f);
+        flash("Flete eliminado.");
+      } catch (err) { flash(err.message, "error"); }
+    });
+  </script>
+</body>
+</html>

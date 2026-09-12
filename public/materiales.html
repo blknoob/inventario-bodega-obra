@@ -167,7 +167,15 @@
         <label for="e-motivo">Observación <span class="muted">(opcional)</span></label>
         <input type="text" id="e-motivo" maxlength="120" placeholder="Llegada de material" />
       </div>
-      <p class="text-sm muted">La foto de la guía se agrega en el Tramo 3.</p>
+
+      <div class="field" style="position:relative;">
+        <label for="e-flete-buscar">Flete asociado <span class="muted">(opcional)</span></label>
+        <input type="text" id="e-flete-buscar" class="buscador-input" placeholder="Empresa que hizo el traslado…" autocomplete="off" />
+        <input type="hidden" id="e-flete" />
+        <div id="e-flete-lista" class="buscador-lista hidden"></div>
+        <p class="text-sm muted" style="margin-top:6px;">Si vino con flete de una empresa externa y no lo has registrado, créalo primero en <a href="fletes.html" target="_blank" rel="noopener">Fletes</a> (con su factura) y elígelo acá.</p>
+      </div>
+
       <div class="modal-foot">
         <button type="button" class="btn btn-ghost" data-close>Cancelar</button>
         <button type="submit" class="btn btn-primary" id="btn-guardar-entrante">Registrar</button>
@@ -263,6 +271,7 @@
       escucharMateriales, registrarEntrada, registrarSalida, eliminarMaterial, marcarSinReposicion,
     } from "./js/materiales.js";
     import { escucharPedidos, escucharOrdenes, anotarOrdenDeCompra, cantidadRecibidaDe } from "./js/compras.js";
+    import { escucharFletes, etiquetaTipoFlete } from "./js/fletes.js";
 
     // Esta misma página sirve para cuatro vistas: "Materiales" (todo menos
     // EPP/Herramientas), "EPPs" (?categoria=epp), "Herramientas"
@@ -571,6 +580,11 @@
     escucharPedidos((items) => { pedidos = items; }, () => {});
     escucharOrdenes((items) => { ordenesCompra = items; }, () => {});
 
+    // Fletes: para poder vincular un "Material entrante" al traslado (y su
+    // factura) que lo trajo. Se crean en la página Fletes, acá solo se eligen.
+    let fletes = [];
+    escucharFletes((items) => { fletes = items; }, () => {});
+
     /**
      * Ítems pendientes (de órdenes de compra aún no recibidas), con los
      * datos del ítem original del pedido (unidad, centro de gestión/costo)
@@ -837,6 +851,40 @@
       },
     });
 
+    // ── Flete asociado (opcional): buscador simple, igual patrón que el
+    // de Pedido de Materiales -- se crea/edita aparte, en Fletes. ─────────
+    const eFleteBuscar = document.getElementById("e-flete-buscar");
+    const eFleteHidden = document.getElementById("e-flete");
+    const eFleteLista = document.getElementById("e-flete-lista");
+
+    function renderFleteLista() {
+      const q = normalizar(eFleteBuscar.value);
+      const items = fletes
+        .filter((f) => !q || normalizar(f.empresa).includes(q))
+        .slice(0, 20);
+      eFleteLista.innerHTML = items.length
+        ? items.map((f) => `
+            <button type="button" class="btn btn-ghost btn-xs" data-id="${f.id}">
+              ${esc(f.empresa)} <span class="muted text-sm">— ${esc(etiquetaTipoFlete(f.tipo))}</span>
+            </button>`).join("")
+        : `<div class="text-sm muted empty">Sin resultados. Créalo en Fletes.</div>`;
+      eFleteLista.classList.remove("hidden");
+    }
+    eFleteBuscar.addEventListener("focus", renderFleteLista);
+    eFleteBuscar.addEventListener("input", () => { eFleteHidden.value = ""; renderFleteLista(); });
+    eFleteBuscar.addEventListener("keydown", (e) => { if (e.key === "Escape") eFleteLista.classList.add("hidden"); });
+    eFleteLista.addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-id]");
+      if (!btn) return;
+      const f = fletes.find((x) => x.id === btn.getAttribute("data-id"));
+      eFleteHidden.value = f?.id || "";
+      eFleteBuscar.value = f ? `${f.empresa} — ${etiquetaTipoFlete(f.tipo)}` : "";
+      eFleteLista.classList.add("hidden");
+    });
+    document.addEventListener("click", (e) => {
+      if (e.target !== eFleteBuscar && !eFleteLista.contains(e.target)) eFleteLista.classList.add("hidden");
+    });
+
     function actualizarVistaEntrante() {
       const hayPedido = !!document.getElementById("e-pedido").value;
       eNuevoCampos.classList.toggle("hidden", !modoProductoNuevo);
@@ -873,6 +921,8 @@
         const numeroOc = document.getElementById("e-documento").value;
         const proveedor = document.getElementById("e-proveedor").value;
         const motivo = document.getElementById("e-motivo").value;
+        const fleteId = eFleteHidden.value || null;
+        const fleteEmpresa = fleteId ? (fletes.find((f) => f.id === fleteId)?.empresa || "") : "";
 
         if (pedidoSeleccionado) {
           if (!itemsPMSeleccionados.length) throw new Error("Elige al menos un producto del pedido.");
@@ -922,6 +972,8 @@
                 ordenCompraId: ordenAnotada.id,
                 ordenCompraNumero: ordenAnotada.numero,
                 pmItemId: item.id,
+                fleteId,
+                fleteEmpresa,
               };
               if (existente) {
                 datos.materialId = existente.id;
@@ -962,6 +1014,8 @@
             ordenCompraId: null,
             ordenCompraNumero: "",
             pmItemId: null,
+            fleteId,
+            fleteEmpresa,
           };
           if (modoProductoNuevo) {
             if (!document.getElementById("e-nuevo-categoria").value) throw new Error("Elige una categoría para el producto nuevo.");
