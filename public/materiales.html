@@ -533,7 +533,9 @@
             <td>${esc(m.ubicacion) || "<span class='muted'>—</span>"}</td>
             <td class="nowrap text-sm muted">${fmtFecha(m.actualizadoEn)}</td>
             <td class="only-bodega nowrap">
-              <button class="btn btn-ghost btn-xs" data-sin-reposicion="${m.id}" data-valor="${m.sinReposicion ? "0" : "1"}">${m.sinReposicion ? "Reponer" : "No reponer"}</button>
+              ${!m.sinReposicion && (Number(m.stock) || 0) <= 0
+                ? `<button class="btn btn-ghost btn-xs" data-sin-reposicion="${m.id}">No reponer</button>`
+                : ""}
               <button class="btn btn-ghost btn-xs btn-danger" data-eliminar="${m.id}">Eliminar</button>
             </td>
           </tr>`;
@@ -611,12 +613,9 @@
       }
 
       if (idSinReposicion) {
-        const nuevoValor = e.target.getAttribute("data-valor") === "1";
         try {
-          await marcarSinReposicion(idSinReposicion, nuevoValor);
-          flash(nuevoValor
-            ? "Producto marcado como 'no se repone': ya no cuenta como alerta de stock."
-            : "Producto vuelve a contar para las alertas de stock.");
+          await marcarSinReposicion(idSinReposicion, true);
+          flash("Producto marcado como 'no se repone': ya no cuenta como alerta de stock.");
         } catch (err) {
           flash(err.message, "error");
         }
