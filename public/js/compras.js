@@ -15,6 +15,7 @@ import {
   onSnapshot,
   serverTimestamp,
   updateDoc,
+  runTransaction,
 } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
 import {
   ref,
@@ -198,9 +199,23 @@ export async function anotarOrdenDeCompra(ordenes, { pmId, numero, proveedor, it
   const itemNuevo = { pmItemId: item.id, glosa: item.glosa, cantidad: Number(item.cantidad) || 0, recibido: 0 };
 
   if (existente) {
-    if (existente.itemsCubiertos.some((it) => it.pmItemId === item.id)) return existente;
-    const itemsCubiertos = [...existente.itemsCubiertos, itemNuevo];
-    await updateDoc(doc(db, "ordenes_compra", existente.id), { itemsCubiertos });
+    // Se agrega el ítem dentro de una transacción (no con un updateDoc
+    // suelto sobre `existente`, que puede venir del caché local ya
+    // desactualizado) porque al registrar varios productos de un mismo
+    // pedido de una vez, esta función se llama en cascada varias veces
+    // seguidas sobre la MISMA orden: si cada llamada escribe el arreglo
+    // completo a partir de una copia que no alcanzó a refrescarse, pisa lo
+    // que la llamada anterior (o su registrarEntrada) acababa de guardar,
+    // incluido lo ya recibido de otro ítem.
+    const ordenDoc = doc(db, "ordenes_compra", existente.id);
+    const itemsCubiertos = await runTransaction(db, async (tx) => {
+      const snap = await tx.get(ordenDoc);
+      const actuales = snap.exists() ? (snap.data().itemsCubiertos || []) : existente.itemsCubiertos;
+      if (actuales.some((it) => it.pmItemId === item.id)) return actuales;
+      const nuevos = [...actuales, itemNuevo];
+      tx.update(ordenDoc, { itemsCubiertos: nuevos });
+      return nuevos;
+    });
     return { ...existente, itemsCubiertos };
   }
 
