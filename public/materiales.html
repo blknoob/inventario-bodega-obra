@@ -262,7 +262,7 @@
       CATEGORIAS, etiquetaCategoria, nivelStock,
       escucharMateriales, registrarEntrada, registrarSalida, eliminarMaterial, marcarSinReposicion,
     } from "./js/materiales.js";
-    import { escucharPedidos, escucharOrdenes, anotarOrdenDeCompra } from "./js/compras.js";
+    import { escucharPedidos, escucharOrdenes, anotarOrdenDeCompra, cantidadRecibidaDe } from "./js/compras.js";
 
     // Esta misma página sirve para cuatro vistas: "Materiales" (todo menos
     // EPP/Herramientas), "EPPs" (?categoria=epp), "Herramientas"
@@ -593,7 +593,17 @@
           return categoriaPagina
             ? existente.categoria === categoriaPagina
             : !["epp", "herramienta"].includes(existente.categoria);
-        });
+        })
+        // Lo que ya llegó completo no hace falta seguir ofreciéndolo acá; y
+        // si llegó solo una parte (p. ej. pidieron 2 y ya hay 1 en stock),
+        // se descuenta esa parte para que la cantidad a registrar por
+        // defecto sea la que realmente falta, no la pedida original.
+        .map((it) => {
+          const recibido = cantidadRecibidaDe(ordenesCompra, pedidoId, it.id);
+          const pendiente = Math.max((Number(it.cantidad) || 0) - recibido, 0);
+          return { ...it, recibido, pendiente };
+        })
+        .filter((it) => it.pendiente > 0);
     }
 
     // ── Eliminar material ───────────────────────────────────────────────
@@ -755,7 +765,9 @@
         ? items.map((it) => `
             <label class="chk-row">
               <input type="checkbox" data-item-id="${it.id}" ${seleccionTemporal.has(it.id) ? "checked" : ""} />
-              <span>${esc(it.glosa)} <span class="muted text-sm">— pedido ${fmtNum(it.cantidad)} ${esc(it.unidad)}</span></span>
+              <span>${esc(it.glosa)} <span class="muted text-sm">— ${it.recibido > 0
+                ? `faltan ${fmtNum(it.pendiente)} de ${fmtNum(it.cantidad)} ${esc(it.unidad)}`
+                : `pedido ${fmtNum(it.cantidad)} ${esc(it.unidad)}`}</span></span>
             </label>`).join("")
         : `<div class="text-sm muted empty">Sin resultados.</div>`;
       actualizarContadorElegirItems();
@@ -800,7 +812,11 @@
           if (previo) return previo; // conserva cantidad/categoría ya editadas
           const existente = materialesTodos.find((m) => normalizar(m.producto) === normalizar(it.glosa));
           return {
-            id: it.id, glosa: it.glosa, cantidad: it.cantidad, unidad: it.unidad,
+            // La cantidad por defecto es lo que TODAVÍA falta (pedido menos
+            // lo ya recibido en otras entradas), no el total pedido -- así
+            // no se vuelve a contar como recibido algo que ya está en
+            // stock.
+            id: it.id, glosa: it.glosa, cantidad: it.pendiente, unidad: it.unidad,
             centroGestion: it.centroGestion, centroCosto: it.centroCosto,
             existenteId: existente ? existente.id : null,
           };
