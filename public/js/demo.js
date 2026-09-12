@@ -79,7 +79,7 @@ export const ORDENES_DEMO = [
   },
 ];
 
-const FACTURA_DEMO = { nombre: "factura-demo.svg", url: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='260'%3E%3Crect width='200' height='260' fill='white' stroke='%23ccc'/%3E%3Ctext x='20' y='40' font-size='16'%3EFactura demo%3C/text%3E%3C/svg%3E", path: "" };
+const FACTURA_DEMO = { nombre: "factura-demo.jpg", url: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='260'%3E%3Crect width='200' height='260' fill='white' stroke='%23ccc'/%3E%3Ctext x='20' y='40' font-size='16'%3EFactura demo%3C/text%3E%3C/svg%3E", path: "" };
 
 export const FLETES_DEMO = [
   {

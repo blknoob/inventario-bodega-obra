@@ -131,6 +131,23 @@
     statIngresoCard.addEventListener("click", () => setFiltroTipo("ingreso"));
     statTrasladoCard.addEventListener("click", () => setFiltroTipo("traslado"));
 
+    // Si es una foto, se ve la miniatura ahí mismo (no solo un link que
+    // manda a otra pestaña) y se agrega "download" al link para que el
+    // navegador la baje directo en vez de solo mostrarla.
+    const esImagen = (nombre) => /\.(jpe?g|png|gif|webp|heic|heif|bmp)$/i.test(nombre || "");
+    function bloqueFactura(factura) {
+      const nombre = esc(factura.nombre);
+      const url = esc(factura.url);
+      if (esImagen(factura.nombre)) {
+        return `
+          <a href="${url}" download="${nombre}" target="_blank" rel="noopener" style="display:inline-block;">
+            <img src="${url}" alt="Factura" style="display:block; max-width:160px; max-height:160px; border-radius:8px; border:1px solid var(--line); object-fit:cover;" />
+          </a>
+          <p class="text-sm"><a href="${url}" download="${nombre}" target="_blank" rel="noopener">⬇ Descargar (${nombre})</a></p>`;
+      }
+      return `<p class="text-sm"><a href="${url}" download="${nombre}" target="_blank" rel="noopener">📎 Ver/descargar (${nombre})</a></p>`;
+    }
+
     // Une en un solo listado, ordenado por fecha:
     //  - "ingreso": la factura/guía que se sube directo en Material entrante
     //    (materiales, EPPs, herramientas), venga o no con un flete.
@@ -191,11 +208,7 @@
 
           ${d.sub ? `<p class="text-sm" style="margin-bottom:4px;">${esc(d.sub)}</p>` : ""}
           ${d.observacion ? `<p class="text-sm muted" style="margin-bottom:4px;">${esc(d.observacion)}</p>` : ""}
-          <p class="text-sm">
-            ${d.factura
-              ? `<a href="${esc(d.factura.url)}" target="_blank" rel="noopener">📎 Ver factura/guía (${esc(d.factura.nombre)})</a>`
-              : `<span class="badge badge-warn">Sin factura</span>`}
-          </p>
+          ${d.factura ? bloqueFactura(d.factura) : `<p class="text-sm"><span class="badge badge-warn">Sin factura</span></p>`}
           ${d.tipo === "ingreso" && d.fleteEmpresa ? `<p class="text-sm muted" style="margin-top:6px;">Traslado: ${esc(d.fleteEmpresa)}</p>` : ""}
           ${d.tipo === "traslado" && d.vinculados?.length ? `
             <p class="text-sm muted" style="margin-top:6px;">

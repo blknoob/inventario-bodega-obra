@@ -127,6 +127,21 @@
     const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) =>
       ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
+    // Si la factura es una foto, se ve la miniatura ahí mismo (no solo un
+    // link que manda a otra pestaña); "download" hace que el navegador la
+    // baje directo en vez de solo mostrarla.
+    const esImagen = (nombre) => /\.(jpe?g|png|gif|webp|heic|heif|bmp)$/i.test(nombre || "");
+    function vistaFactura(factura) {
+      const nombre = esc(factura.nombre);
+      const url = esc(factura.url);
+      if (esImagen(factura.nombre)) {
+        return `<a href="${url}" download="${nombre}" target="_blank" rel="noopener" style="display:inline-block;">
+          <img src="${url}" alt="Factura" style="display:block; max-width:80px; max-height:80px; border-radius:6px; border:1px solid var(--line); object-fit:cover;" />
+        </a>`;
+      }
+      return `<a href="${url}" download="${nombre}" target="_blank" rel="noopener">📎 ${nombre}</a>`;
+    }
+
     /** Resumen corto de detalle, visible directo en la fila (lo esencial de
      *  un vistazo: si tiene OC o quién retira). El resto (proveedor,
      *  documento, motivo / supervisor, actividad, zona, vale, observación,
@@ -146,7 +161,7 @@
         if (m.proveedor) partes.push(["Proveedor", esc(m.proveedor)]);
         if (m.documento) partes.push(["Documento", esc(m.documento)]);
         if (m.motivo) partes.push(["Motivo", esc(m.motivo)]);
-        if (m.factura) partes.push(["Factura/guía", `<a href="${esc(m.factura.url)}" target="_blank" rel="noopener">📎 ${esc(m.factura.nombre)}</a>`]);
+        if (m.factura) partes.push(["Factura/guía", vistaFactura(m.factura)]);
         if (m.fleteEmpresa) partes.push(["Traslado (flete)", `${esc(m.fleteEmpresa)} <a href="guias.html" class="text-sm">(ver en Guías)</a>`]);
       } else {
         partes.push(["Retira", esc(m.personaRetira || "—")]);
