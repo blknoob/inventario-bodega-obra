@@ -77,18 +77,6 @@
     </div>
   </div>
 
-  <!-- ── Modal: detalle completo de un movimiento ────────────────────────── -->
-  <dialog id="dlg-detalle">
-    <div class="modal-head">
-      <h3>Detalle del movimiento</h3>
-      <button type="button" class="modal-close" data-close>&times;</button>
-    </div>
-    <div id="detalle-cuerpo"></div>
-    <div class="modal-foot">
-      <button type="button" class="btn btn-ghost" data-close>Cerrar</button>
-    </div>
-  </dialog>
-
   <script type="module">
     import { montarTopbar } from "./js/ui.js";
     import { CATEGORIAS, etiquetaCategoria, escucharMovimientos } from "./js/materiales.js";
@@ -203,9 +191,22 @@
           <td><span class="badge badge-muted">${esc(etiquetaCategoria(m.categoria))}</span></td>
           <td class="text-right nowrap">${fmtNum(m.cantidad)}</td>
           <td class="text-right nowrap">${fmtNum(m.stockResultante)}</td>
-          <td class="text-sm nowrap">
+          <td class="text-sm nowrap detalle-celda">
             ${resumenDetalle(m)}
-            <button type="button" class="btn btn-ghost btn-xs" data-ver-detalle="${m.id}">Detalle</button>
+            <button type="button" class="btn btn-ghost btn-xs" data-toggle-detalle="${m.id}">Detalle</button>
+            <div class="detalle-panel hidden" data-panel-detalle="${m.id}">
+              <p class="text-sm muted" style="margin-bottom:8px;">
+                ${fmtFecha(m.fecha)} ·
+                <span class="badge ${m.tipo === "entrada" ? "badge-ok" : "badge-info"}">${m.tipo === "entrada" ? "Entrante" : "Saliente"}</span>
+              </p>
+              <div class="detalle-lista">
+                ${detalleItems(m).map(([etiqueta, valor]) => `
+                  <div class="detalle-fila">
+                    <span class="muted text-sm">${esc(etiqueta)}</span>
+                    <span class="text-sm">${valor}</span>
+                  </div>`).join("")}
+              </div>
+            </div>
           </td>
         </tr>`).join("");
     }
@@ -216,30 +217,24 @@
     filtroFecha.addEventListener("change", render);
     filtroSinOC.addEventListener("change", render);
 
-    // ── Modal de detalle ─────────────────────────────────────────────────
-    const dlgDetalle = document.getElementById("dlg-detalle");
-    const detalleCuerpo = document.getElementById("detalle-cuerpo");
-    document.querySelectorAll("dialog [data-close]").forEach((b) =>
-      b.addEventListener("click", () => b.closest("dialog").close()));
-
+    // ── Desplegable de detalle: abre justo bajo el botón "Detalle" de la
+    // fila, como un menú -- no un modal aparte. ────────────────────────────
+    function cerrarPaneles(exceptoId) {
+      document.querySelectorAll(".detalle-panel").forEach((p) => {
+        if (p.getAttribute("data-panel-detalle") !== exceptoId) p.classList.add("hidden");
+      });
+    }
     tbody.addEventListener("click", (e) => {
-      const id = e.target.getAttribute?.("data-ver-detalle");
+      const id = e.target.getAttribute?.("data-toggle-detalle");
       if (!id) return;
-      const m = movimientos.find((x) => x.id === id);
-      if (!m) return;
-      detalleCuerpo.innerHTML = `
-        <p class="text-sm muted" style="margin-bottom:12px;">
-          ${fmtFecha(m.fecha)} · ${esc(m.materialProducto)} ·
-          <span class="badge ${m.tipo === "entrada" ? "badge-ok" : "badge-info"}">${m.tipo === "entrada" ? "Entrante" : "Saliente"}</span>
-        </p>
-        <div class="detalle-lista">
-          ${detalleItems(m).map(([etiqueta, valor]) => `
-            <div class="detalle-fila">
-              <span class="muted text-sm">${esc(etiqueta)}</span>
-              <span class="text-sm">${valor}</span>
-            </div>`).join("")}
-        </div>`;
-      dlgDetalle.showModal();
+      const panel = tbody.querySelector(`.detalle-panel[data-panel-detalle="${id}"]`);
+      if (!panel) return;
+      const yaAbierto = !panel.classList.contains("hidden");
+      cerrarPaneles(null);
+      panel.classList.toggle("hidden", yaAbierto);
+    });
+    document.addEventListener("click", (e) => {
+      if (!e.target.closest(".detalle-celda")) cerrarPaneles(null);
     });
 
     escucharMovimientos(

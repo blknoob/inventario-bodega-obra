@@ -245,11 +245,27 @@ details.pm-pendientes summary::before {
 details.pm-pendientes[open] summary::before { transform: rotate(90deg); }
 details.pm-pendientes .table-wrap { margin-top: 8px; }
 
-/* Modal de detalle de un movimiento (Historial): pares etiqueta/valor,
-   una fila por dato, en vez del texto todo junto que iba antes en la
-   columna "Detalle" de la tabla. */
-.detalle-lista { display: flex; flex-direction: column; gap: 10px; }
-.detalle-fila { display: flex; justify-content: space-between; gap: 16px; border-bottom: 1px solid var(--line); padding-bottom: 8px; }
+/* Detalle de un movimiento (Historial): en vez de modal, un desplegable
+   tipo menú justo debajo del botón "Detalle" de la fila. */
+.detalle-celda { position: relative; }
+.detalle-panel {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  z-index: 30;
+  margin-top: 4px;
+  width: 280px;
+  max-width: calc(100vw - 32px);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, .18);
+  padding: 12px;
+  white-space: normal;
+  text-align: left;
+}
+.detalle-lista { display: flex; flex-direction: column; gap: 8px; }
+.detalle-fila { display: flex; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--line); padding-bottom: 6px; }
 .detalle-fila:last-child { border-bottom: none; padding-bottom: 0; }
 .detalle-fila > span:first-child { flex-shrink: 0; }
 .detalle-fila > span:last-child { text-align: right; }
