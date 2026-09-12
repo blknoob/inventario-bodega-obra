@@ -169,14 +169,14 @@
       </div>
 
       <div class="field">
-        <label for="e-factura">Foto de la factura o guía <span class="muted">(opcional)</span></label>
-        <input type="file" id="e-factura" accept="image/*" capture="environment" />
+        <label>Foto de la factura o guía <span class="muted">(opcional)</span></label>
+        <div class="row-actions">
+          <button type="button" class="btn btn-ghost" id="btn-e-factura-camara">📷 Tomar foto</button>
+          <button type="button" class="btn btn-ghost" id="btn-e-factura-archivo">📁 Elegir archivo</button>
+        </div>
+        <input type="file" id="e-factura" accept="image/*" capture="environment" class="hidden" />
         <input type="file" id="e-factura-archivo" accept="image/*,.pdf" class="hidden" />
-        <p class="text-sm" style="margin-top:6px;">
-          <span class="muted" id="e-factura-ayuda">Toca para tomar la foto con la cámara.</span>
-          <span class="text-sm" id="e-factura-elegida"></span>
-          <button type="button" class="btn btn-ghost btn-xs" id="btn-e-factura-archivo">o elegir un archivo (PDF, foto ya guardada…)</button>
-        </p>
+        <p class="text-sm" id="e-factura-elegida" style="margin-top:6px;"></p>
         <p class="text-sm muted">Queda disponible para descargar después en <a href="guias.html" target="_blank" rel="noopener">Guías</a>. Si es más de un producto del mismo PM, la misma foto se guarda para todos.</p>
       </div>
 
@@ -864,12 +864,12 @@
       },
     });
 
-    // ── Foto de la factura/guía (opcional): dos entradas de archivo, no
-    // una sola -- así el botón principal SIEMPRE abre la cámara directo
-    // (accept="image/*" a secas, sin mezclar con PDF, que en varios
-    // celulares hace que ya no salte la cámara sola) y queda un botón
-    // aparte para el caso de subir algo que ya se tenía guardado. Con
-    // cuál de las dos haya quedado el archivo, esa es la elegida.
+    // ── Foto de la factura/guía (opcional): dos botones, "Tomar foto" y
+    // "Elegir archivo", cada uno con su propia entrada de archivo oculta
+    // -- separados porque mezclar accept="image/*,.pdf" con
+    // capture="environment" en un solo campo hace que en varios celulares
+    // ya no salte la cámara sola. Con cuál de las dos haya quedado el
+    // archivo, esa es la elegida.
     const eFacturaCamara = document.getElementById("e-factura");
     const eFacturaArchivo = document.getElementById("e-factura-archivo");
     const eFacturaElegida = document.getElementById("e-factura-elegida");
@@ -881,6 +881,7 @@
     }
     eFacturaCamara.addEventListener("change", () => elegirFacturaEntrante(eFacturaCamara.files[0] || null));
     eFacturaArchivo.addEventListener("change", () => elegirFacturaEntrante(eFacturaArchivo.files[0] || null));
+    document.getElementById("btn-e-factura-camara").addEventListener("click", () => eFacturaCamara.click());
     document.getElementById("btn-e-factura-archivo").addEventListener("click", () => eFacturaArchivo.click());
 
     // ── Flete asociado (opcional): buscador simple, igual patrón que el

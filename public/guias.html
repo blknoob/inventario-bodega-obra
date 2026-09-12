@@ -70,14 +70,14 @@
         <input type="text" id="f-detalle" maxlength="160" placeholder="Cemento Portland 25 kg (40 sacos), escombros de demolición…" />
       </div>
       <div class="field">
-        <label for="f-factura">Foto de la factura <span class="muted">(opcional)</span></label>
-        <input type="file" id="f-factura" accept="image/*" capture="environment" />
+        <label>Foto de la factura <span class="muted">(opcional)</span></label>
+        <div class="row-actions">
+          <button type="button" class="btn btn-ghost" id="btn-f-factura-camara">📷 Tomar foto</button>
+          <button type="button" class="btn btn-ghost" id="btn-f-factura-archivo">📁 Elegir archivo</button>
+        </div>
+        <input type="file" id="f-factura" accept="image/*" capture="environment" class="hidden" />
         <input type="file" id="f-factura-archivo" accept="image/*,.pdf" class="hidden" />
-        <p class="text-sm" style="margin-top:6px;">
-          <span class="muted" id="f-factura-ayuda">Toca para tomar la foto con la cámara.</span>
-          <span class="text-sm" id="f-factura-elegida"></span>
-          <button type="button" class="btn btn-ghost btn-xs" id="btn-f-factura-archivo">o elegir un archivo (PDF, foto ya guardada…)</button>
-        </p>
+        <p class="text-sm" id="f-factura-elegida" style="margin-top:6px;"></p>
       </div>
       <div class="field">
         <label for="f-observacion">Observación <span class="muted">(opcional)</span></label>
@@ -238,6 +238,7 @@
     }
     fFacturaCamara.addEventListener("change", () => elegirFacturaFlete(fFacturaCamara.files[0] || null));
     fFacturaArchivo.addEventListener("change", () => elegirFacturaFlete(fFacturaArchivo.files[0] || null));
+    document.getElementById("btn-f-factura-camara").addEventListener("click", () => fFacturaCamara.click());
     document.getElementById("btn-f-factura-archivo").addEventListener("click", () => fFacturaArchivo.click());
 
     document.getElementById("btn-nuevo-flete").addEventListener("click", () => {
