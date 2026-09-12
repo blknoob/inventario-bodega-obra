@@ -717,7 +717,7 @@
             <div class="row" style="margin-top:8px;">
               <div class="field">
                 <label>Cantidad recibida</label>
-                <input type="number" class="ie-cantidad" min="0" step="any" required value="${item.cantidad}" />
+                <input type="number" class="ie-cantidad" min="0" step="any" value="${item.cantidad}" />
               </div>
               ${!existente ? `
               <div class="field">
@@ -856,13 +856,30 @@
 
         if (pedidoSeleccionado) {
           if (!itemsPMSeleccionados.length) throw new Error("Elige al menos un producto del pedido.");
-          // Se valida la categoría de los productos nuevos ANTES de anotar
-          // la orden de compra o registrar nada, para no dejar a mitad de
-          // camino un registro por un dato que faltaba desde el principio.
+          // Se valida cantidad y categoría de todos los productos ANTES de
+          // anotar la orden de compra o registrar nada, para no dejar a
+          // mitad de camino un registro por un dato que faltaba desde el
+          // principio. Se hace a mano (no con "required" del navegador)
+          // porque con una lista larga y dentro de un <dialog> que
+          // scrollea, el aviso nativo del navegador puede no verse y da
+          // la impresión de que el botón "no hace nada" -- acá, en
+          // cambio, se lleva la vista directo a la fila con el problema.
+          const llevarVistaA = (campo) => {
+            campo.scrollIntoView({ behavior: "smooth", block: "center" });
+            campo.focus();
+          };
           for (const item of itemsPMSeleccionados) {
-            if (item.existenteId) continue;
             const fila = itemsPedidoElegidosCont.querySelector(`.item-pedido-fila[data-item-id="${item.id}"]`);
-            if (!fila.querySelector(".ie-categoria")?.value) {
+            const campoCantidad = fila.querySelector(".ie-cantidad");
+            const cantidadValor = campoCantidad.value;
+            if (cantidadValor === "" || Number.isNaN(Number(cantidadValor)) || Number(cantidadValor) < 0) {
+              llevarVistaA(campoCantidad);
+              throw new Error(`${item.glosa}: ingresa la cantidad recibida.`);
+            }
+            if (item.existenteId) continue;
+            const campoCategoria = fila.querySelector(".ie-categoria");
+            if (!campoCategoria?.value) {
+              llevarVistaA(campoCategoria);
               throw new Error(`${item.glosa}: elige una categoría.`);
             }
           }
