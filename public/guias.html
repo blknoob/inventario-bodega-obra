@@ -70,8 +70,14 @@
         <input type="text" id="f-detalle" maxlength="160" placeholder="Cemento Portland 25 kg (40 sacos), escombros de demolición…" />
       </div>
       <div class="field">
-        <label for="f-factura">Foto o PDF de la factura <span class="muted">(opcional)</span></label>
-        <input type="file" id="f-factura" accept="image/*,.pdf" capture="environment" />
+        <label for="f-factura">Foto de la factura <span class="muted">(opcional)</span></label>
+        <input type="file" id="f-factura" accept="image/*" capture="environment" />
+        <input type="file" id="f-factura-archivo" accept="image/*,.pdf" class="hidden" />
+        <p class="text-sm" style="margin-top:6px;">
+          <span class="muted" id="f-factura-ayuda">Toca para tomar la foto con la cámara.</span>
+          <span class="text-sm" id="f-factura-elegida"></span>
+          <button type="button" class="btn btn-ghost btn-xs" id="btn-f-factura-archivo">o elegir un archivo (PDF, foto ya guardada…)</button>
+        </p>
       </div>
       <div class="field">
         <label for="f-observacion">Observación <span class="muted">(opcional)</span></label>
@@ -218,8 +224,25 @@
     const formFlete = document.getElementById("form-flete");
     const errFlete = document.getElementById("err-flete");
 
+    // Dos entradas de archivo, no una sola: la principal abre la cámara
+    // directo (accept="image/*" a secas), y una aparte para subir algo
+    // ya guardado (PDF u otra foto).
+    const fFacturaCamara = document.getElementById("f-factura");
+    const fFacturaArchivo = document.getElementById("f-factura-archivo");
+    const fFacturaElegida = document.getElementById("f-factura-elegida");
+    let facturaElegidaFlete = null;
+
+    function elegirFacturaFlete(archivo) {
+      facturaElegidaFlete = archivo;
+      fFacturaElegida.textContent = archivo ? `📎 ${archivo.name}` : "";
+    }
+    fFacturaCamara.addEventListener("change", () => elegirFacturaFlete(fFacturaCamara.files[0] || null));
+    fFacturaArchivo.addEventListener("change", () => elegirFacturaFlete(fFacturaArchivo.files[0] || null));
+    document.getElementById("btn-f-factura-archivo").addEventListener("click", () => fFacturaArchivo.click());
+
     document.getElementById("btn-nuevo-flete").addEventListener("click", () => {
       formFlete.reset();
+      elegirFacturaFlete(null);
       errFlete.classList.add("hidden");
       dlgFlete.showModal();
     });
@@ -235,7 +258,7 @@
           tipo: document.getElementById("f-tipo").value,
           detalle: document.getElementById("f-detalle").value,
           observacion: document.getElementById("f-observacion").value,
-          factura: document.getElementById("f-factura").files[0] || null,
+          factura: facturaElegidaFlete,
         });
         dlgFlete.close();
         flash("Traslado registrado.");

@@ -170,8 +170,14 @@
 
       <div class="field">
         <label for="e-factura">Foto de la factura o guía <span class="muted">(opcional)</span></label>
-        <input type="file" id="e-factura" accept="image/*,.pdf" capture="environment" />
-        <p class="text-sm muted" style="margin-top:6px;">Queda disponible para descargar después en <a href="guias.html" target="_blank" rel="noopener">Guías</a>. Si es más de un producto del mismo PM, la misma foto se guarda para todos.</p>
+        <input type="file" id="e-factura" accept="image/*" capture="environment" />
+        <input type="file" id="e-factura-archivo" accept="image/*,.pdf" class="hidden" />
+        <p class="text-sm" style="margin-top:6px;">
+          <span class="muted" id="e-factura-ayuda">Toca para tomar la foto con la cámara.</span>
+          <span class="text-sm" id="e-factura-elegida"></span>
+          <button type="button" class="btn btn-ghost btn-xs" id="btn-e-factura-archivo">o elegir un archivo (PDF, foto ya guardada…)</button>
+        </p>
+        <p class="text-sm muted">Queda disponible para descargar después en <a href="guias.html" target="_blank" rel="noopener">Guías</a>. Si es más de un producto del mismo PM, la misma foto se guarda para todos.</p>
       </div>
 
       <div class="field" style="position:relative;">
@@ -858,6 +864,25 @@
       },
     });
 
+    // ── Foto de la factura/guía (opcional): dos entradas de archivo, no
+    // una sola -- así el botón principal SIEMPRE abre la cámara directo
+    // (accept="image/*" a secas, sin mezclar con PDF, que en varios
+    // celulares hace que ya no salte la cámara sola) y queda un botón
+    // aparte para el caso de subir algo que ya se tenía guardado. Con
+    // cuál de las dos haya quedado el archivo, esa es la elegida.
+    const eFacturaCamara = document.getElementById("e-factura");
+    const eFacturaArchivo = document.getElementById("e-factura-archivo");
+    const eFacturaElegida = document.getElementById("e-factura-elegida");
+    let facturaElegidaEntrante = null;
+
+    function elegirFacturaEntrante(archivo) {
+      facturaElegidaEntrante = archivo;
+      eFacturaElegida.textContent = archivo ? `📎 ${archivo.name}` : "";
+    }
+    eFacturaCamara.addEventListener("change", () => elegirFacturaEntrante(eFacturaCamara.files[0] || null));
+    eFacturaArchivo.addEventListener("change", () => elegirFacturaEntrante(eFacturaArchivo.files[0] || null));
+    document.getElementById("btn-e-factura-archivo").addEventListener("click", () => eFacturaArchivo.click());
+
     // ── Flete asociado (opcional): buscador simple, igual patrón que el
     // de Pedido de Materiales -- se crea/edita aparte, en Fletes. ─────────
     const eFleteBuscar = document.getElementById("e-flete-buscar");
@@ -913,6 +938,7 @@
       errEntrante.classList.add("hidden");
       eNuevoProducto.value = "";
       modoProductoNuevo = false;
+      elegirFacturaEntrante(null);
       actualizarVistaEntrante();
       dlgEntrante.showModal();
     });
@@ -933,8 +959,7 @@
         // Una sola foto de factura/guía por registro, aunque sean varios
         // productos del mismo PM a la vez -- es el mismo documento para
         // todos, no hace falta subirlo más de una vez.
-        const archivoFactura = document.getElementById("e-factura").files[0] || null;
-        const factura = await subirFacturaEntrada(archivoFactura);
+        const factura = await subirFacturaEntrada(facturaElegidaEntrante);
 
         if (pedidoSeleccionado) {
           if (!itemsPMSeleccionados.length) throw new Error("Elige al menos un producto del pedido.");
