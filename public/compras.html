@@ -196,6 +196,13 @@
 
       lista.innerHTML = vista.map((p) => {
         const ocsDelPedido = ordenes.filter((o) => o.pmId === p.id);
+        // Solo interesa ver acá lo que todavía falta por llegar -- una vez
+        // completo, el ítem ya cumplió su parte y no hace falta seguir
+        // viéndolo en el seguimiento.
+        const itemsPendientes = (p.items || []).filter((it) => {
+          const recibido = cantidadRecibidaDe(ordenes, p.id, it.id);
+          return recibido < (Number(it.cantidad) || 0);
+        });
         return `
         <div class="card">
           <div class="row-actions" style="justify-content: space-between; align-items: flex-start; margin-bottom: 10px;">
@@ -213,18 +220,17 @@
             </div>
           </div>
 
+          ${itemsPendientes.length ? `
           <div class="table-wrap">
             <table>
               <thead><tr><th>Línea</th><th>Glosa</th><th>Centro de gestión</th><th>Centro de costo</th><th class="text-right">Cantidad</th><th>Estado</th></tr></thead>
               <tbody>
-                ${(p.items || []).map((it) => {
+                ${itemsPendientes.map((it) => {
                   const recibido = cantidadRecibidaDe(ordenes, p.id, it.id);
                   const pedida = Number(it.cantidad) || 0;
                   const estado = recibido <= 0
                     ? `<span class="badge badge-warn">Sin llegar</span>`
-                    : recibido >= pedida
-                      ? `<span class="badge badge-ok">Completo</span>`
-                      : `<span class="badge badge-muted">Parcial: ${fmtNum(recibido)}/${fmtNum(pedida)}</span>`;
+                    : `<span class="badge badge-muted">Parcial: ${fmtNum(recibido)}/${fmtNum(pedida)}</span>`;
                   return `
                   <tr>
                     <td class="muted">${esc(it.linea) || "—"}</td>
@@ -238,6 +244,7 @@
               </tbody>
             </table>
           </div>
+          ` : `<p class="text-sm"><span class="badge badge-ok">Completo</span> Todo lo pedido en este PM ya llegó a bodega.</p>`}
 
           ${ocsDelPedido.length ? `
             <div style="margin-top: 14px;">
