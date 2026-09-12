@@ -16,7 +16,7 @@
 
     <div class="page-head">
       <h1>Seguimiento de compra</h1>
-      <p>Pedido de Materiales (PM) → llegada a bodega. El N.º de orden de compra queda en el Historial.</p>
+      <p>Pedido de Materiales (PM)</p>
     </div>
 
     <div class="grid" style="margin-bottom: 18px;">
@@ -181,7 +181,7 @@
                     const pedida = Number(it.cantidad) || 0;
                     const estado = recibido <= 0
                       ? `<span class="badge badge-warn">Sin llegar</span>`
-                      : `<span class="badge badge-muted">Parcial: ${fmtNum(recibido)}/${fmtNum(pedida)}</span>`;
+                      : `<span class="badge badge-muted">Incompleto: ${fmtNum(recibido)}/${fmtNum(pedida)}</span>`;
                     return `
                     <tr>
                       <td class="muted">${esc(it.linea) || "—"}</td>
