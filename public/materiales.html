@@ -322,7 +322,9 @@
       return `<option value="" ${valorElegido ? "" : "selected"} disabled hidden>Elegir una categoría</option>${opciones}`;
     }
     document.getElementById("e-nuevo-categoria").innerHTML = optsCategoriaNuevo();
-    if (modoAlertas) document.getElementById("stat-total-label").textContent = "En alerta";
+    document.getElementById("stat-total-label").textContent = modoAlertas
+      ? "En alerta"
+      : TITULOS_PAGINA[categoriaPagina]?.[0] || "Tipos de material";
 
     // ── Estado y render ───────────────────────────────────────────────────
     let materiales = [];
