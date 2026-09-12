@@ -14,7 +14,8 @@ import {
   serverTimestamp,
   updateDoc,
 } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
-import { db } from "./firebase-config.js";
+import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-storage.js";
+import { db, storage } from "./firebase-config.js";
 import { usuarioActual } from "./auth.js";
 import { MODO_DEMO, MATERIALES_DEMO, MOVIMIENTOS_DEMO, bloquearEnDemo } from "./demo.js";
 
@@ -57,13 +58,40 @@ export function escucharMateriales(onCambio, onError) {
   );
 }
 
+function conTope(promesa, ms, mensaje) {
+  return Promise.race([
+    promesa,
+    new Promise((_, reject) => setTimeout(() => reject(new Error(mensaje)), ms)),
+  ]);
+}
+
+/**
+ * Sube la foto (o PDF) de la factura/guía de un ingreso a Storage y devuelve
+ * sus datos para guardar junto al movimiento. Se sube UNA vez por lo que se
+ * registra en el diálogo de "Material entrante" (aunque sean varios
+ * productos del mismo pedido a la vez: es la misma guía para todos), así que
+ * se llama antes de crear los movimientos, no dentro de registrarEntrada.
+ */
+export async function subirFacturaEntrada(archivo) {
+  if (!archivo) return null;
+  const path = `entradas/${crypto.randomUUID()}/${archivo.name}`;
+  const archivoRef = ref(storage, path);
+  await conTope(
+    uploadBytes(archivoRef, archivo),
+    20000,
+    "No se pudo subir la factura (se demoró demasiado). Revisa que Firebase Storage esté activado para este proyecto.",
+  );
+  const url = await getDownloadURL(archivoRef);
+  return { nombre: archivo.name, url, path };
+}
+
 /**
  * Registra material entrante: si `materialId` viene vacío, crea el producto
  * (con correlativo automático "item") con el stock inicial recibido; si viene
  * un id existente, solo suma esa cantidad a su stock. En ambos casos deja un
  * movimiento de tipo "entrada" en el historial. Todo en una sola transacción.
  */
-export async function registrarEntrada({ materialId, nuevoMaterial, cantidadRecibida, proveedor, documento, motivo, ordenCompraId, ordenCompraNumero, pmItemId, fleteId, fleteEmpresa }) {
+export async function registrarEntrada({ materialId, nuevoMaterial, cantidadRecibida, proveedor, documento, motivo, ordenCompraId, ordenCompraNumero, pmItemId, fleteId, fleteEmpresa, factura }) {
   if (MODO_DEMO) bloquearEnDemo();
   const cant = Number(cantidadRecibida);
   if (!(cant > 0)) throw new Error("La cantidad recibida debe ser mayor que cero.");
@@ -137,6 +165,7 @@ export async function registrarEntrada({ materialId, nuevoMaterial, cantidadReci
       pmItemId: pmItemId || null,
       fleteId: fleteId || null,
       fleteEmpresa: fleteEmpresa?.trim() || "",
+      factura: factura || null,
       responsable: email,
       fecha: serverTimestamp(),
     });

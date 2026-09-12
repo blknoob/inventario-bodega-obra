@@ -31,8 +31,14 @@ service firebase.storage {
       allow write: if bodega() && tamanoOk();
     }
 
-    // Foto o PDF de la factura de un flete.
+    // Foto o PDF de la factura de un flete (traslado).
     match /fletes/{fleteId}/{archivo} {
+      allow read: if true;
+      allow write: if bodega() && tamanoOk();
+    }
+
+    // Foto o PDF de la factura/guía de un ingreso (Material entrante).
+    match /entradas/{carpetaId}/{archivo} {
       allow read: if true;
       allow write: if bodega() && tamanoOk();
     }

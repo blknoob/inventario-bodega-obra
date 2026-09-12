@@ -146,7 +146,8 @@
         if (m.proveedor) partes.push(["Proveedor", esc(m.proveedor)]);
         if (m.documento) partes.push(["Documento", esc(m.documento)]);
         if (m.motivo) partes.push(["Motivo", esc(m.motivo)]);
-        if (m.fleteEmpresa) partes.push(["Flete", `${esc(m.fleteEmpresa)} <a href="fletes.html" class="text-sm">(ver en Fletes)</a>`]);
+        if (m.factura) partes.push(["Factura/guía", `<a href="${esc(m.factura.url)}" target="_blank" rel="noopener">📎 ${esc(m.factura.nombre)}</a>`]);
+        if (m.fleteEmpresa) partes.push(["Traslado (flete)", `${esc(m.fleteEmpresa)} <a href="guias.html" class="text-sm">(ver en Guías)</a>`]);
       } else {
         partes.push(["Retira", esc(m.personaRetira || "—")]);
         if (m.supervisor) partes.push(["Supervisor", esc(m.supervisor)]);

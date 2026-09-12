@@ -168,12 +168,18 @@
         <input type="text" id="e-motivo" maxlength="120" placeholder="Llegada de material" />
       </div>
 
+      <div class="field">
+        <label for="e-factura">Foto de la factura o guía <span class="muted">(opcional)</span></label>
+        <input type="file" id="e-factura" accept="image/*,.pdf" capture="environment" />
+        <p class="text-sm muted" style="margin-top:6px;">Queda disponible para descargar después en <a href="guias.html" target="_blank" rel="noopener">Guías</a>. Si es más de un producto del mismo PM, la misma foto se guarda para todos.</p>
+      </div>
+
       <div class="field" style="position:relative;">
-        <label for="e-flete-buscar">Flete asociado <span class="muted">(opcional)</span></label>
+        <label for="e-flete-buscar">Traslado (flete) asociado <span class="muted">(opcional)</span></label>
         <input type="text" id="e-flete-buscar" class="buscador-input" placeholder="Empresa que hizo el traslado…" autocomplete="off" />
         <input type="hidden" id="e-flete" />
         <div id="e-flete-lista" class="buscador-lista hidden"></div>
-        <p class="text-sm muted" style="margin-top:6px;">Si vino con flete de una empresa externa y no lo has registrado, créalo primero en <a href="fletes.html" target="_blank" rel="noopener">Fletes</a> (con su factura) y elígelo acá.</p>
+        <p class="text-sm muted" style="margin-top:6px;">Si vino con flete de una empresa externa y no lo has registrado, créalo primero en <a href="guias.html" target="_blank" rel="noopener">Guías</a> (con su factura) y elígelo acá.</p>
       </div>
 
       <div class="modal-foot">
@@ -269,6 +275,7 @@
     import {
       CATEGORIAS, etiquetaCategoria, nivelStock,
       escucharMateriales, registrarEntrada, registrarSalida, eliminarMaterial, marcarSinReposicion,
+      subirFacturaEntrada,
     } from "./js/materiales.js";
     import { escucharPedidos, escucharOrdenes, anotarOrdenDeCompra, cantidadRecibidaDe } from "./js/compras.js";
     import { escucharFletes, etiquetaTipoFlete } from "./js/fletes.js";
@@ -923,6 +930,11 @@
         const motivo = document.getElementById("e-motivo").value;
         const fleteId = eFleteHidden.value || null;
         const fleteEmpresa = fleteId ? (fletes.find((f) => f.id === fleteId)?.empresa || "") : "";
+        // Una sola foto de factura/guía por registro, aunque sean varios
+        // productos del mismo PM a la vez -- es el mismo documento para
+        // todos, no hace falta subirlo más de una vez.
+        const archivoFactura = document.getElementById("e-factura").files[0] || null;
+        const factura = await subirFacturaEntrada(archivoFactura);
 
         if (pedidoSeleccionado) {
           if (!itemsPMSeleccionados.length) throw new Error("Elige al menos un producto del pedido.");
@@ -974,6 +986,7 @@
                 pmItemId: item.id,
                 fleteId,
                 fleteEmpresa,
+                factura,
               };
               if (existente) {
                 datos.materialId = existente.id;
@@ -1016,6 +1029,7 @@
             pmItemId: null,
             fleteId,
             fleteEmpresa,
+            factura,
           };
           if (modoProductoNuevo) {
             if (!document.getElementById("e-nuevo-categoria").value) throw new Error("Elige una categoría para el producto nuevo.");

@@ -79,11 +79,13 @@ export const ORDENES_DEMO = [
   },
 ];
 
+const FACTURA_DEMO = { nombre: "factura-demo.svg", url: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='260'%3E%3Crect width='200' height='260' fill='white' stroke='%23ccc'/%3E%3Ctext x='20' y='40' font-size='16'%3EFactura demo%3C/text%3E%3C/svg%3E", path: "" };
+
 export const FLETES_DEMO = [
   {
     id: "f1", empresa: "Transportes Rojas", tipo: "entrada",
     detalle: "Cemento Portland 25 kg (40 sacos)", observacion: "",
-    factura: null, creadoPor: "bodega@demo.cl", creadoEn: hace(3600),
+    factura: FACTURA_DEMO, creadoPor: "bodega@demo.cl", creadoEn: hace(3600),
   },
   {
     id: "f2", empresa: "Retiros y Áridos SPA", tipo: "salida",
@@ -93,7 +95,7 @@ export const FLETES_DEMO = [
 ];
 
 export const MOVIMIENTOS_DEMO = [
-  { id: "m1", materialId: "d1", materialProducto: "Cemento Portland 25 kg", categoria: "consumible", tipo: "entrada", cantidad: 20, stockResultante: 42, proveedor: "Cementos Melón", documento: "F-1023", fleteId: "f1", fleteEmpresa: "Transportes Rojas", motivo: "Llegada de material", responsable: "bodega@demo.cl", fecha: hace(3600) },
+  { id: "m1", materialId: "d1", materialProducto: "Cemento Portland 25 kg", categoria: "consumible", tipo: "entrada", cantidad: 20, stockResultante: 42, proveedor: "Cementos Melón", documento: "F-1023", fleteId: "f1", fleteEmpresa: "Transportes Rojas", factura: FACTURA_DEMO, motivo: "Llegada de material", responsable: "bodega@demo.cl", fecha: hace(3600) },
   { id: "m2", materialId: "d2", materialProducto: "Guantes de cabritilla", categoria: "epp", tipo: "salida", cantidad: 4, stockResultante: 8, supervisor: "J. Soto", actividad: "Enfierradura", zona: "Torre B, nivel 3", personaRetira: "P. Muñoz", numeroVale: "V-0087", observacion: "", responsable: "bodega@demo.cl", fecha: hace(7200) },
   { id: "m3", materialId: "d4", materialProducto: "Casco de seguridad", categoria: "epp", tipo: "entrada", cantidad: 10, stockResultante: 25, proveedor: "3M Chile", documento: "F-1019", ordenCompraId: "o2", ordenCompraNumero: "OC-1002", motivo: "Llegada de material", responsable: "bodega@demo.cl", fecha: hace(90000) },
   { id: "m4", materialId: "d6", materialProducto: "Fierro estriado Ø10", categoria: "consumible", tipo: "salida", cantidad: 30, stockResultante: 120, supervisor: "R. Díaz", actividad: "Fundaciones", zona: "Sector Patio A", personaRetira: "L. Vera", numeroVale: "V-0086", observacion: "Urgente", responsable: "bodega@demo.cl", fecha: hace(260000) },
