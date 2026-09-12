@@ -180,11 +180,17 @@ export async function crearOrdenCompra({ pmId, numero, proveedor, itemsCubiertos
  * este ítem. `ordenes` es la lista de órdenes ya cargada en la página (no
  * hace falta volver a leerla de Firestore). Devuelve la orden con su id
  * definitivo, lista para usar en registrarEntrada.
+ *
+ * El N.º de orden de compra puede venir vacío -- hay materiales, equipos o
+ * herramientas que llegan sin OC (caja chica, casa matriz). En ese caso se
+ * agrupan igual bajo una orden "sin número" propia de cada pedido, para
+ * que se sigan descontando de lo solicitado en el PM y no queden como
+ * "sin llegar" para siempre; en Seguimiento de Compras y el Historial esa
+ * orden se ve con su N.º en blanco ("—" / "Sin OC").
  */
 export async function anotarOrdenDeCompra(ordenes, { pmId, numero, proveedor, item }) {
   if (MODO_DEMO) bloquearEnDemo();
   const numeroLimpio = (numero || "").trim();
-  if (!numeroLimpio) throw new Error("Escribe el N.º de la orden de compra.");
 
   const existente = ordenes.find(
     (o) => o.pmId === pmId && (o.numero || "").trim().toLowerCase() === numeroLimpio.toLowerCase(),
