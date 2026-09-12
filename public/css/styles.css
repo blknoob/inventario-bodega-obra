@@ -245,6 +245,15 @@ details.pm-pendientes summary::before {
 details.pm-pendientes[open] summary::before { transform: rotate(90deg); }
 details.pm-pendientes .table-wrap { margin-top: 8px; }
 
+/* Modal de detalle de un movimiento (Historial): pares etiqueta/valor,
+   una fila por dato, en vez del texto todo junto que iba antes en la
+   columna "Detalle" de la tabla. */
+.detalle-lista { display: flex; flex-direction: column; gap: 10px; }
+.detalle-fila { display: flex; justify-content: space-between; gap: 16px; border-bottom: 1px solid var(--line); padding-bottom: 8px; }
+.detalle-fila:last-child { border-bottom: none; padding-bottom: 0; }
+.detalle-fila > span:first-child { flex-shrink: 0; }
+.detalle-fila > span:last-child { text-align: right; }
+
 /* Resultados del buscador de producto (Material entrante/saliente):
    flota bajo el campo de búsqueda, no empuja el resto del formulario. */
 .buscador-lista {

@@ -62,11 +62,10 @@
               <th class="text-right">Cantidad</th>
               <th class="text-right">Stock resultante</th>
               <th>Detalle</th>
-              <th>Responsable</th>
             </tr>
           </thead>
           <tbody id="tbody">
-            <tr><td colspan="8" class="empty">Cargando…</td></tr>
+            <tr><td colspan="7" class="empty">Cargando…</td></tr>
           </tbody>
         </table>
       </div>
@@ -77,6 +76,18 @@
       <p class="text-sm muted">Aún no hay movimientos de herramientas. Esta parte del historial se activa en el Tramo 4.</p>
     </div>
   </div>
+
+  <!-- ── Modal: detalle completo de un movimiento ────────────────────────── -->
+  <dialog id="dlg-detalle">
+    <div class="modal-head">
+      <h3>Detalle del movimiento</h3>
+      <button type="button" class="modal-close" data-close>&times;</button>
+    </div>
+    <div id="detalle-cuerpo"></div>
+    <div class="modal-foot">
+      <button type="button" class="btn btn-ghost" data-close>Cerrar</button>
+    </div>
+  </dialog>
 
   <script type="module">
     import { montarTopbar } from "./js/ui.js";
@@ -125,24 +136,35 @@
     const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) =>
       ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
-    /** Línea de detalle: varía según sea entrada (proveedor/doc) o salida (retiro). */
-    function detalle(m) {
+    /** Resumen corto de detalle, visible directo en la fila (lo esencial de
+     *  un vistazo: si tiene OC o quién retira). El resto (proveedor,
+     *  documento, motivo / supervisor, actividad, zona, vale, observación,
+     *  responsable) queda en el modal para no desordenar la lista. */
+    function resumenDetalle(m) {
       if (m.tipo === "entrada") {
-        const partes = [];
-        if (m.ordenCompraNumero) partes.push(`OC: ${esc(m.ordenCompraNumero)}`);
-        else partes.push(`<span class="badge badge-warn">Sin OC</span>`);
-        if (m.proveedor) partes.push(`Proveedor: ${esc(m.proveedor)}`);
-        if (m.documento) partes.push(`Doc: ${esc(m.documento)}`);
-        if (m.motivo) partes.push(esc(m.motivo));
-        return partes.join(" · ");
+        return m.ordenCompraNumero ? `OC: ${esc(m.ordenCompraNumero)}` : `<span class="badge badge-warn">Sin OC</span>`;
       }
-      const partes = [`Retira: ${esc(m.personaRetira || "—")}`];
-      if (m.supervisor) partes.push(`Supervisor: ${esc(m.supervisor)}`);
-      if (m.actividad) partes.push(`Actividad: ${esc(m.actividad)}`);
-      if (m.zona) partes.push(`Zona: ${esc(m.zona)}`);
-      if (m.numeroVale) partes.push(`Vale: ${esc(m.numeroVale)}`);
-      if (m.observacion) partes.push(esc(m.observacion));
-      return partes.join(" · ");
+      return `Retira: ${esc(m.personaRetira || "—")}`;
+    }
+
+    /** Detalle completo, como pares [etiqueta, valor], para el modal. */
+    function detalleItems(m) {
+      const partes = [];
+      if (m.tipo === "entrada") {
+        partes.push(["N.º de orden de compra", m.ordenCompraNumero ? esc(m.ordenCompraNumero) : `<span class="badge badge-warn">Sin OC</span>`]);
+        if (m.proveedor) partes.push(["Proveedor", esc(m.proveedor)]);
+        if (m.documento) partes.push(["Documento", esc(m.documento)]);
+        if (m.motivo) partes.push(["Motivo", esc(m.motivo)]);
+      } else {
+        partes.push(["Retira", esc(m.personaRetira || "—")]);
+        if (m.supervisor) partes.push(["Supervisor", esc(m.supervisor)]);
+        if (m.actividad) partes.push(["Actividad", esc(m.actividad)]);
+        if (m.zona) partes.push(["Zona", esc(m.zona)]);
+        if (m.numeroVale) partes.push(["Vale", esc(m.numeroVale)]);
+        if (m.observacion) partes.push(["Observación", esc(m.observacion)]);
+      }
+      partes.push(["Responsable", esc(m.responsable) || "—"]);
+      return partes;
     }
 
     function render() {
@@ -167,7 +189,7 @@
         entradas.filter((m) => !m.ordenCompraNumero).length;
 
       if (!vista.length) {
-        tbody.innerHTML = `<tr><td colspan="8" class="empty">${
+        tbody.innerHTML = `<tr><td colspan="7" class="empty">${
           movimientos.length ? "Sin resultados para el filtro." : "Aún no hay movimientos registrados."
         }</td></tr>`;
         return;
@@ -181,8 +203,10 @@
           <td><span class="badge badge-muted">${esc(etiquetaCategoria(m.categoria))}</span></td>
           <td class="text-right nowrap">${fmtNum(m.cantidad)}</td>
           <td class="text-right nowrap">${fmtNum(m.stockResultante)}</td>
-          <td class="text-sm">${detalle(m)}</td>
-          <td class="text-sm muted">${esc(m.responsable) || "—"}</td>
+          <td class="text-sm nowrap">
+            ${resumenDetalle(m)}
+            <button type="button" class="btn btn-ghost btn-xs" data-ver-detalle="${m.id}">Detalle</button>
+          </td>
         </tr>`).join("");
     }
 
@@ -191,6 +215,32 @@
     filtroCat.addEventListener("change", render);
     filtroFecha.addEventListener("change", render);
     filtroSinOC.addEventListener("change", render);
+
+    // ── Modal de detalle ─────────────────────────────────────────────────
+    const dlgDetalle = document.getElementById("dlg-detalle");
+    const detalleCuerpo = document.getElementById("detalle-cuerpo");
+    document.querySelectorAll("dialog [data-close]").forEach((b) =>
+      b.addEventListener("click", () => b.closest("dialog").close()));
+
+    tbody.addEventListener("click", (e) => {
+      const id = e.target.getAttribute?.("data-ver-detalle");
+      if (!id) return;
+      const m = movimientos.find((x) => x.id === id);
+      if (!m) return;
+      detalleCuerpo.innerHTML = `
+        <p class="text-sm muted" style="margin-bottom:12px;">
+          ${fmtFecha(m.fecha)} · ${esc(m.materialProducto)} ·
+          <span class="badge ${m.tipo === "entrada" ? "badge-ok" : "badge-info"}">${m.tipo === "entrada" ? "Entrante" : "Saliente"}</span>
+        </p>
+        <div class="detalle-lista">
+          ${detalleItems(m).map(([etiqueta, valor]) => `
+            <div class="detalle-fila">
+              <span class="muted text-sm">${esc(etiqueta)}</span>
+              <span class="text-sm">${valor}</span>
+            </div>`).join("")}
+        </div>`;
+      dlgDetalle.showModal();
+    });
 
     escucharMovimientos(
       (items) => { movimientos = items; render(); },
