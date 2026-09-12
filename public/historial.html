@@ -16,18 +16,18 @@
     </div>
 
     <div class="grid" style="margin-bottom: 18px;">
-      <div class="stat">
+      <button type="button" class="stat" id="stat-entradas-card">
         <div class="label">Entrantes</div>
         <div class="value stock-ok" id="stat-entradas">—</div>
-      </div>
-      <div class="stat">
+      </button>
+      <button type="button" class="stat" id="stat-salidas-card">
         <div class="label">Salientes</div>
         <div class="value" id="stat-salidas" style="color: var(--info);">—</div>
-      </div>
-      <div class="stat">
+      </button>
+      <button type="button" class="stat" id="stat-sin-oc-card">
         <div class="label">Entradas sin orden de compra</div>
         <div class="value stock-bajo" id="stat-sin-oc">—</div>
-      </div>
+      </button>
     </div>
 
     <div class="card">
@@ -94,6 +94,9 @@
     const filtroFecha = document.getElementById("filtro-fecha");
     const btnFechaHoy = document.getElementById("btn-fecha-hoy");
     const filtroSinOC = document.getElementById("filtro-sin-oc");
+    const statEntradasCard = document.getElementById("stat-entradas-card");
+    const statSalidasCard = document.getElementById("stat-salidas-card");
+    const statSinOcCard = document.getElementById("stat-sin-oc-card");
 
     // "YYYY-MM-DD" en horario local, para comparar contra <input type="date">.
     const fechaISO = (d) => {
@@ -176,6 +179,10 @@
       document.getElementById("stat-sin-oc").textContent =
         entradas.filter((m) => !m.ordenCompraNumero).length;
 
+      statEntradasCard.classList.toggle("active", tipo === "entrada");
+      statSalidasCard.classList.toggle("active", tipo === "salida");
+      statSinOcCard.classList.toggle("active", soloSinOC);
+
       if (!vista.length) {
         tbody.innerHTML = `<tr><td colspan="7" class="empty">${
           movimientos.length ? "Sin resultados para el filtro." : "Aún no hay movimientos registrados."
@@ -218,6 +225,21 @@
     filtroCat.addEventListener("change", render);
     filtroFecha.addEventListener("change", render);
     filtroSinOC.addEventListener("change", render);
+
+    // Las tarjetas también filtran: un clic aplica el filtro (o lo quita si
+    // ya estaba aplicado), igual que el select/checkbox equivalente.
+    statEntradasCard.addEventListener("click", () => {
+      filtroTipo.value = filtroTipo.value === "entrada" ? "" : "entrada";
+      render();
+    });
+    statSalidasCard.addEventListener("click", () => {
+      filtroTipo.value = filtroTipo.value === "salida" ? "" : "salida";
+      render();
+    });
+    statSinOcCard.addEventListener("click", () => {
+      filtroSinOC.checked = !filtroSinOC.checked;
+      render();
+    });
 
     // ── Desplegable de detalle: abre justo bajo el botón "Detalle" de la
     // fila, como un menú -- no un modal aparte. ────────────────────────────
