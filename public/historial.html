@@ -192,8 +192,10 @@
           <td class="text-right nowrap">${fmtNum(m.cantidad)}</td>
           <td class="text-right nowrap">${fmtNum(m.stockResultante)}</td>
           <td class="text-sm nowrap detalle-celda">
-            ${resumenDetalle(m)}
-            <button type="button" class="btn btn-ghost btn-xs" data-toggle-detalle="${m.id}">Detalle</button>
+            <div class="detalle-resumen">
+              <span>${resumenDetalle(m)}</span>
+              <button type="button" class="btn btn-ghost btn-xs" data-toggle-detalle="${m.id}">Detalle</button>
+            </div>
             <div class="detalle-panel hidden" data-panel-detalle="${m.id}">
               <p class="text-sm muted" style="margin-bottom:8px;">
                 ${fmtFecha(m.fecha)} ·

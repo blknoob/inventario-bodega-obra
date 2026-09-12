@@ -248,6 +248,10 @@ details.pm-pendientes .table-wrap { margin-top: 8px; }
 /* Detalle de un movimiento (Historial): en vez de modal, un desplegable
    tipo menú justo debajo del botón "Detalle" de la fila. */
 .detalle-celda { position: relative; }
+/* El resumen queda a la izquierda y el botón "Detalle" siempre pegado a
+   la derecha de la columna (no del texto) -- así los botones quedan en
+   línea recta de fila en fila, aunque el resumen cambie de ancho. */
+.detalle-resumen { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .detalle-panel {
   position: absolute;
   top: 100%;
