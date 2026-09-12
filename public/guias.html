@@ -159,7 +159,7 @@
         .map((m) => ({
           tipo: "ingreso", fecha: m.fecha, factura: m.factura,
           titulo: m.materialProducto, categoria: m.categoria,
-          sub: [`${fmtNum(m.cantidad)} recibido${m.cantidad === 1 ? "" : "s"}`, m.proveedor].filter(Boolean).join(" · "),
+          sub: [`Cantidad recibida: ${fmtNum(m.cantidad)}`, m.proveedor].filter(Boolean).join(" · "),
           fleteEmpresa: m.fleteEmpresa || "",
         }));
       const traslados = fletes.map((f) => ({
