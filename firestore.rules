@@ -68,6 +68,14 @@ service cloud.firestore {
       allow write: if bodega();
     }
 
+    // Arriendos de herramientas: registro de qué herramienta llegó
+    // arrendada (no comprada) y sigue pendiente por devolver a la empresa
+    // arrendadora. Se cierra (no se borra) al devolverla.
+    match /arriendos_herramienta/{id} {
+      allow read: if true;
+      allow write: if bodega();
+    }
+
     // Todo lo demás queda cerrado por defecto.
     match /{document=**} {
       allow read, write: if false;

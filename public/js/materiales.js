@@ -91,14 +91,15 @@ export async function subirFacturaEntrada(archivo) {
  * un id existente, solo suma esa cantidad a su stock. En ambos casos deja un
  * movimiento de tipo "entrada" en el historial. Todo en una sola transacción.
  */
-export async function registrarEntrada({ materialId, nuevoMaterial, cantidadRecibida, proveedor, documento, motivo, ordenCompraId, ordenCompraNumero, pmItemId, fleteId, fleteEmpresa, factura }) {
+export async function registrarEntrada({ materialId, nuevoMaterial, cantidadRecibida, proveedor, documento, motivo, ordenCompraId, ordenCompraNumero, pmItemId, fleteId, fleteEmpresa, factura, tipoAdquisicion, empresaArriendo }) {
   if (MODO_DEMO) bloquearEnDemo();
   const cant = Number(cantidadRecibida);
   if (!(cant > 0)) throw new Error("La cantidad recibida debe ser mayor que cero.");
 
   const email = usuarioActual()?.email ?? null;
+  const nuevoMovRef = doc(movimientosRef);
 
-  await runTransaction(db, async (tx) => {
+  const resultado = await runTransaction(db, async (tx) => {
     let materialDoc, productoNombre, categoriaMovimiento, resultante;
 
     // Si este ingreso viene de un ítem puntual de una orden de compra, hay
@@ -149,8 +150,7 @@ export async function registrarEntrada({ materialId, nuevoMaterial, cantidadReci
       });
     }
 
-    const nuevoMov = doc(movimientosRef);
-    tx.set(nuevoMov, {
+    tx.set(nuevoMovRef, {
       materialId: materialDoc.id,
       materialProducto: productoNombre,
       categoria: categoriaMovimiento,
@@ -166,6 +166,12 @@ export async function registrarEntrada({ materialId, nuevoMaterial, cantidadReci
       fleteId: fleteId || null,
       fleteEmpresa: fleteEmpresa?.trim() || "",
       factura: factura || null,
+      // Solo aplica a herramientas: si esta llegada es de una herramienta
+      // arrendada (no comprada), hay que poder verla después como
+      // "pendiente por devolver" -- ver herramientas.js/crearArriendo, que
+      // se llama aparte con el id de este movimiento (movimientoEntradaId).
+      tipoAdquisicion: tipoAdquisicion || null,
+      empresaArriendo: tipoAdquisicion === "arrendada" ? (empresaArriendo?.trim() || "") : "",
       responsable: email,
       fecha: serverTimestamp(),
     });
@@ -180,7 +186,14 @@ export async function registrarEntrada({ materialId, nuevoMaterial, cantidadReci
       );
       tx.update(ordenDoc, { itemsCubiertos });
     }
+
+    return { materialId: materialDoc.id, materialProducto: productoNombre };
   });
+
+  // Id del material y del movimiento recién creados: los necesita el
+  // llamador para, si esto era una herramienta arrendada, dejar registrado
+  // aparte que queda pendiente por devolver (ver herramientas.js).
+  return { ...resultado, movimientoId: nuevoMovRef.id };
 }
 
 /**

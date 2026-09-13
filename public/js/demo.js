@@ -98,6 +98,24 @@ export const MOVIMIENTOS_DEMO = [
   { id: "m1", materialId: "d1", materialProducto: "Cemento Portland 25 kg", categoria: "consumible", tipo: "entrada", cantidad: 20, stockResultante: 42, proveedor: "Cementos Melón", documento: "F-1023", fleteId: "f1", fleteEmpresa: "Transportes Rojas", factura: FACTURA_DEMO, motivo: "Llegada de material", responsable: "bodega@demo.cl", fecha: hace(3600) },
   { id: "m2", materialId: "d2", materialProducto: "Guantes de cabritilla", categoria: "epp", tipo: "salida", cantidad: 4, stockResultante: 8, supervisor: "J. Soto", actividad: "Enfierradura", zona: "Torre B, nivel 3", personaRetira: "P. Muñoz", numeroVale: "V-0087", observacion: "", responsable: "bodega@demo.cl", fecha: hace(7200) },
   { id: "m3", materialId: "d4", materialProducto: "Casco de seguridad", categoria: "epp", tipo: "entrada", cantidad: 10, stockResultante: 25, proveedor: "3M Chile", documento: "F-1019", ordenCompraId: "o2", ordenCompraNumero: "OC-1002", motivo: "Llegada de material", responsable: "bodega@demo.cl", fecha: hace(90000) },
-  { id: "m4", materialId: "d6", materialProducto: "Fierro estriado Ø10", categoria: "consumible", tipo: "salida", cantidad: 30, stockResultante: 120, supervisor: "R. Díaz", actividad: "Fundaciones", zona: "Sector Patio A", personaRetira: "L. Vera", numeroVale: "V-0086", observacion: "Urgente", responsable: "bodega@demo.cl", fecha: hace(260000) },
+  { id: "m4", materialId: "d6", materialProducto: "Fierro estriado Ø10", categoria: "consumible", tipo: "salida", cantidad: 30, stockResultante: 120, supervisor: "R. Díaz", actividad: "Fundaciones", zona: "Sector Patio A", personaRetira: "L. Vera", numeroVale: "V-0086", observacion: "Urgente", responsable: "bodega@demo.cl", fecha: hace(400000) },
   { id: "m5", materialId: "d5", materialProducto: "Andamio marco 1.5 m", categoria: "equipo", tipo: "entrada", cantidad: 16, stockResultante: 16, proveedor: "Arriendos Layher", documento: "G-334", motivo: "Llegada de material", responsable: "bodega@demo.cl", fecha: hace(400000) },
+  { id: "m6", materialId: "d8", materialProducto: "Taladro percutor Bosch", categoria: "herramienta", tipo: "entrada", cantidad: 2, stockResultante: 4, proveedor: "Arriendos Layher", documento: "G-410", tipoAdquisicion: "arrendada", empresaArriendo: "Arriendos Layher", motivo: "Llegada de material", responsable: "bodega@demo.cl", fecha: hace(50000) },
+];
+
+// Herramientas arrendadas: pendientes por devolver (o ya devueltas) a la
+// empresa arrendadora -- ver herramientas.js.
+export const ARRIENDOS_DEMO = [
+  {
+    id: "a1", materialId: "d8", materialProducto: "Taladro percutor Bosch", cantidad: 2,
+    empresa: "Arriendos Layher", fechaEstimadaDevolucion: "", movimientoEntradaId: "m6", observacion: "",
+    devuelto: false, fechaDevolucion: null, movimientoSalidaId: null,
+    creadoPor: "bodega@demo.cl", creadoEn: hace(50000),
+  },
+  {
+    id: "a2", materialId: "d8", materialProducto: "Amoladora angular inalámbrica", cantidad: 1,
+    empresa: "Hilti Chile", fechaEstimadaDevolucion: "", movimientoEntradaId: "m0", observacion: "",
+    devuelto: true, fechaDevolucion: hace(20000), movimientoSalidaId: "m0s",
+    creadoPor: "bodega@demo.cl", creadoEn: hace(300000),
+  },
 ];

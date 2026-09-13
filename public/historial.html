@@ -163,6 +163,7 @@
         if (m.motivo) partes.push(["Motivo", esc(m.motivo)]);
         if (m.factura) partes.push(["Factura/guía", vistaFactura(m.factura)]);
         if (m.fleteEmpresa) partes.push(["Traslado (flete)", `${esc(m.fleteEmpresa)} <a href="guias.html" class="text-sm">(ver en Guías)</a>`]);
+        if (m.tipoAdquisicion === "arrendada") partes.push(["Adquisición", `Arrendada — ${esc(m.empresaArriendo)}`]);
       } else {
         partes.push(["Retira", esc(m.personaRetira || "—")]);
         if (m.supervisor) partes.push(["Supervisor", esc(m.supervisor)]);

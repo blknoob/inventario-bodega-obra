@@ -34,6 +34,11 @@
 
     <div id="alerta-stock" class="alert alert-info hidden"></div>
 
+    <div id="bloque-arriendos" class="card hidden" style="margin-bottom:18px;">
+      <h3 style="margin:0 0 10px;">Herramientas arrendadas por devolver</h3>
+      <div id="lista-arriendos"></div>
+    </div>
+
     <div class="card">
       <div class="toolbar">
         <div class="filters">
@@ -168,6 +173,24 @@
         <input type="text" id="e-motivo" maxlength="120" placeholder="Llegada de material" />
       </div>
 
+      <div class="field hidden" id="bloque-tipo-adquisicion">
+        <label for="e-tipo-adquisicion">Tipo de adquisición</label>
+        <select id="e-tipo-adquisicion">
+          <option value="comprada">Comprada</option>
+          <option value="arrendada">Arrendada (hay que devolverla)</option>
+        </select>
+      </div>
+      <div class="row hidden" id="campos-arriendo">
+        <div class="field">
+          <label for="e-arriendo-empresa">Empresa arrendadora</label>
+          <input type="text" id="e-arriendo-empresa" maxlength="80" placeholder="Quién la arrendó" />
+        </div>
+        <div class="field">
+          <label for="e-arriendo-fecha">Devolver antes de <span class="muted">(opcional)</span></label>
+          <input type="date" id="e-arriendo-fecha" />
+        </div>
+      </div>
+
       <div class="field">
         <label>Foto de la factura o guía <span class="muted">(opcional)</span></label>
         <div class="row-actions">
@@ -285,6 +308,7 @@
     } from "./js/materiales.js";
     import { escucharPedidos, escucharOrdenes, anotarOrdenDeCompra, cantidadRecibidaDe } from "./js/compras.js";
     import { escucharFletes, etiquetaTipoFlete } from "./js/fletes.js";
+    import { escucharArriendos, crearArriendo, devolverHerramienta } from "./js/herramientas.js";
 
     // Esta misma página sirve para cuatro vistas: "Materiales" (todo menos
     // EPP/Herramientas), "EPPs" (?categoria=epp), "Herramientas"
@@ -597,6 +621,42 @@
     // factura) que lo trajo. Se crean en la página Fletes, acá solo se eligen.
     let fletes = [];
     escucharFletes((items) => { fletes = items; }, () => {});
+
+    // Arriendos de herramientas: solo importa en esta página (Herramientas)
+    // -- ahí se muestra la lista de lo que sigue pendiente por devolver.
+    let arriendos = [];
+    const bloqueArriendos = document.getElementById("bloque-arriendos");
+    const listaArriendos = document.getElementById("lista-arriendos");
+    function renderArriendos() {
+      if (!modoHerramienta) return;
+      const pendientes = arriendos.filter((a) => !a.devuelto);
+      bloqueArriendos.classList.toggle("hidden", !pendientes.length);
+      listaArriendos.innerHTML = pendientes.map((a) => `
+        <div class="item-pedido-fila" data-arriendo-id="${a.id}">
+          <div style="display:flex; justify-content:space-between; align-items:baseline; gap:8px; flex-wrap:wrap;">
+            <div>
+              <strong>${esc(a.materialProducto)}</strong>
+              <span class="muted text-sm"> — ${fmtNum(a.cantidad)} unidad${a.cantidad === 1 ? "" : "es"} · ${esc(a.empresa)}</span>
+              ${a.fechaEstimadaDevolucion ? `<div class="text-sm muted">Devolver antes de ${esc(a.fechaEstimadaDevolucion)}</div>` : ""}
+            </div>
+            <button type="button" class="btn btn-ghost btn-xs only-bodega" data-devolver="${a.id}">Marcar devuelta</button>
+          </div>
+        </div>`).join("");
+    }
+    escucharArriendos((items) => { arriendos = items; renderArriendos(); }, () => {});
+    listaArriendos.addEventListener("click", async (e) => {
+      const id = e.target.getAttribute?.("data-devolver");
+      if (!id) return;
+      const a = arriendos.find((x) => x.id === id);
+      if (!a) return;
+      if (!confirm(`¿Marcar "${a.materialProducto}" (${fmtNum(a.cantidad)} unidad${a.cantidad === 1 ? "" : "es"}) como devuelta a ${a.empresa}? Se descuenta del stock.`)) return;
+      try {
+        await devolverHerramienta(a);
+        flash("Herramienta marcada como devuelta.");
+      } catch (err) {
+        flash(err.message, "error");
+      }
+    });
 
     /**
      * Ítems pendientes (de órdenes de compra aún no recibidas), con los
@@ -918,6 +978,17 @@
       if (e.target !== eFleteBuscar && !eFleteLista.contains(e.target)) eFleteLista.classList.add("hidden");
     });
 
+    // ── Tipo de adquisición (solo en la página Herramientas): comprada o
+    // arrendada -- si es arrendada, se pide la empresa (y opcionalmente
+    // hasta cuándo) para poder dejarla pendiente por devolver. ───────────
+    const bloqueTipoAdquisicion = document.getElementById("bloque-tipo-adquisicion");
+    const camposArriendo = document.getElementById("campos-arriendo");
+    const eTipoAdquisicion = document.getElementById("e-tipo-adquisicion");
+    bloqueTipoAdquisicion.classList.toggle("hidden", !modoHerramienta);
+    eTipoAdquisicion.addEventListener("change", () => {
+      camposArriendo.classList.toggle("hidden", eTipoAdquisicion.value !== "arrendada");
+    });
+
     function actualizarVistaEntrante() {
       const hayPedido = !!document.getElementById("e-pedido").value;
       eNuevoCampos.classList.toggle("hidden", !modoProductoNuevo);
@@ -940,6 +1011,7 @@
       eNuevoProducto.value = "";
       modoProductoNuevo = false;
       elegirFacturaEntrante(null);
+      camposArriendo.classList.add("hidden");
       actualizarVistaEntrante();
       dlgEntrante.showModal();
     });
@@ -961,6 +1033,16 @@
         // productos del mismo PM a la vez -- es el mismo documento para
         // todos, no hace falta subirlo más de una vez.
         const factura = await subirFacturaEntrada(facturaElegidaEntrante);
+
+        // Tipo de adquisición (solo aplica en la página Herramientas): si
+        // es arrendada, es la misma empresa/plazo para todos los productos
+        // de este registro (igual que la factura/flete).
+        const tipoAdquisicion = modoHerramienta ? eTipoAdquisicion.value : null;
+        const empresaArriendo = tipoAdquisicion === "arrendada" ? document.getElementById("e-arriendo-empresa").value : "";
+        const fechaEstimadaDevolucion = tipoAdquisicion === "arrendada" ? document.getElementById("e-arriendo-fecha").value : "";
+        if (tipoAdquisicion === "arrendada" && !empresaArriendo.trim()) {
+          throw new Error("Indica la empresa arrendadora.");
+        }
 
         if (pedidoSeleccionado) {
           if (!itemsPMSeleccionados.length) throw new Error("Elige al menos un producto del pedido.");
@@ -1013,6 +1095,8 @@
                 fleteId,
                 fleteEmpresa,
                 factura,
+                tipoAdquisicion,
+                empresaArriendo,
               };
               if (existente) {
                 datos.materialId = existente.id;
@@ -1031,7 +1115,17 @@
                   descripcion: "",
                 };
               }
-              await registrarEntrada(datos);
+              const resultado = await registrarEntrada(datos);
+              if (tipoAdquisicion === "arrendada") {
+                await crearArriendo({
+                  materialId: resultado.materialId,
+                  materialProducto: resultado.materialProducto,
+                  cantidad: datos.cantidadRecibida,
+                  empresa: empresaArriendo,
+                  fechaEstimadaDevolucion,
+                  movimientoEntradaId: resultado.movimientoId,
+                });
+              }
               registrados++;
               itemsPMSeleccionados = itemsPMSeleccionados.filter((x) => x.id !== item.id);
             } catch (errItem) {
@@ -1056,6 +1150,8 @@
             fleteId,
             fleteEmpresa,
             factura,
+            tipoAdquisicion,
+            empresaArriendo,
           };
           if (modoProductoNuevo) {
             if (!document.getElementById("e-nuevo-categoria").value) throw new Error("Elige una categoría para el producto nuevo.");
@@ -1074,7 +1170,17 @@
             if (!eProducto.value) throw new Error("Selecciona un producto.");
             datos.materialId = eProducto.value;
           }
-          await registrarEntrada(datos);
+          const resultado = await registrarEntrada(datos);
+          if (tipoAdquisicion === "arrendada") {
+            await crearArriendo({
+              materialId: resultado.materialId,
+              materialProducto: resultado.materialProducto,
+              cantidad: datos.cantidadRecibida,
+              empresa: empresaArriendo,
+              fechaEstimadaDevolucion,
+              movimientoEntradaId: resultado.movimientoId,
+            });
+          }
         }
         dlgEntrante.close();
         flash("Material entrante registrado.");
