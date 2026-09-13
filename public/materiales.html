@@ -30,6 +30,10 @@
         <div class="label">Sin stock</div>
         <div class="value stock-cero" id="stat-cero">—</div>
       </button>
+      <button type="button" class="stat hidden" id="stat-arrendadas-card" title="Ver solo las arrendadas">
+        <div class="label">Arrendadas</div>
+        <div class="value" id="stat-arrendadas">—</div>
+      </button>
     </div>
 
     <div id="alerta-stock" class="alert alert-info hidden"></div>
@@ -378,17 +382,30 @@
     // saber a qué categoría pertenece un ítem esperado, sin mezclarlo en la
     // vista de esta página.
     let materialesTodos = [];
+    // Arriendos de herramientas pendientes por devolver -- se declara acá
+    // (antes del primer render()) para que la tarjeta/filtro de
+    // "Arrendadas" y el conteo puedan usarlo desde el principio; se llena
+    // más abajo, junto con el resto del bloque de arriendos.
+    let arriendos = [];
     const tbody = document.getElementById("tbody");
     const buscar = document.getElementById("buscar");
     const filtroCat = document.getElementById("filtro-categoria");
 
     // Filtro por nivel de stock ('' | 'bajo' | 'cero'), activado al tocar
     // las tarjetas "Con stock bajo" / "Sin stock". Tocar la misma de nuevo
-    // (o "Tipos de material") lo quita y vuelve a mostrar todo.
+    // (o "Tipos de material") lo quita y vuelve a mostrar todo. En
+    // Herramientas esas dos tarjetas no aplican (importa más si está
+    // arrendada que si el stock está bajo) -- se reemplazan por
+    // "Arrendadas".
     let filtroStock = "";
+    let filtroArrendadas = false;
     const statTotalCard = document.getElementById("stat-total-card");
     const statBajoCard = document.getElementById("stat-bajo-card");
     const statCeroCard = document.getElementById("stat-cero-card");
+    const statArrendadasCard = document.getElementById("stat-arrendadas-card");
+    statBajoCard.classList.toggle("hidden", modoHerramienta);
+    statCeroCard.classList.toggle("hidden", modoHerramienta);
+    statArrendadasCard.classList.toggle("hidden", !modoHerramienta);
     function setFiltroStock(valor) {
       filtroStock = filtroStock === valor ? "" : valor;
       statTotalCard.classList.toggle("active", filtroStock === "");
@@ -399,6 +416,11 @@
     statTotalCard.addEventListener("click", () => setFiltroStock(""));
     statBajoCard.addEventListener("click", () => setFiltroStock("bajo"));
     statCeroCard.addEventListener("click", () => setFiltroStock("cero"));
+    statArrendadasCard.addEventListener("click", () => {
+      filtroArrendadas = !filtroArrendadas;
+      statArrendadasCard.classList.toggle("active", filtroArrendadas);
+      render();
+    });
 
     const fmtNum = (n) => (Number(n) || 0).toLocaleString("es-CL", { maximumFractionDigits: 3 });
     const fmtFecha = (ts) => {
@@ -532,9 +554,14 @@
     function render() {
       const q = buscar.value.trim().toLowerCase();
       const cat = filtroCat.value;
+      // Ids de productos con al menos un arriendo aún pendiente por
+      // devolver -- solo se usa (y solo se calcula lo pendiente) en
+      // Herramientas.
+      const idsArrendadas = new Set(arriendos.filter((a) => !a.devuelto).map((a) => a.materialId));
       const vista = materiales.filter((m) =>
         (!cat || m.categoria === cat) &&
         (!filtroStock || nivelStock(m) === filtroStock) &&
+        (!filtroArrendadas || idsArrendadas.has(m.id)) &&
         (!q || (m.producto || "").toLowerCase().includes(q)));
 
       // Estadísticas (sobre todo el inventario, no la vista filtrada)
@@ -543,6 +570,7 @@
       document.getElementById("stat-total").textContent = materiales.length;
       document.getElementById("stat-bajo").textContent = bajos.length;
       document.getElementById("stat-cero").textContent = ceros.length;
+      if (modoHerramienta) document.getElementById("stat-arrendadas").textContent = idsArrendadas.size;
 
       const alerta = document.getElementById("alerta-stock");
       const enAlerta = [...ceros, ...bajos];
@@ -624,7 +652,9 @@
 
     // Arriendos de herramientas: solo importa en esta página (Herramientas)
     // -- ahí se muestra la lista de lo que sigue pendiente por devolver.
-    let arriendos = [];
+    // (el arreglo "arriendos" ya se declaró más arriba, junto al resto del
+    // estado, para que la tarjeta "Arrendadas" lo pueda usar desde el
+    // primer render()).
     const bloqueArriendos = document.getElementById("bloque-arriendos");
     const listaArriendos = document.getElementById("lista-arriendos");
     function renderArriendos() {
@@ -643,7 +673,7 @@
           </div>
         </div>`).join("");
     }
-    escucharArriendos((items) => { arriendos = items; renderArriendos(); }, () => {});
+    escucharArriendos((items) => { arriendos = items; renderArriendos(); render(); }, () => {});
     listaArriendos.addEventListener("click", async (e) => {
       const id = e.target.getAttribute?.("data-devolver");
       if (!id) return;
