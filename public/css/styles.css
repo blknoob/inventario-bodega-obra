@@ -108,6 +108,17 @@ a { color: var(--info); }
 .page-head h1 { font-size: 20px; }
 .page-head p { color: var(--ink-soft); font-size: 14px; margin-top: 4px; }
 
+/* Encabezado de día en un listado agrupado por fecha (p. ej. Guías). */
+.fecha-separador {
+  margin: 22px 0 8px;
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .4px;
+  color: var(--ink-soft);
+}
+.fecha-separador:first-child { margin-top: 0; }
+
 /* ── Tarjetas ───────────────────────────────────────────────────────────── */
 .card {
   background: var(--surface);
@@ -271,6 +282,32 @@ details.arriendos-desplegable summary::before {
 }
 details.arriendos-desplegable[open] summary::before { transform: rotate(90deg); }
 details.arriendos-desplegable #lista-arriendos { margin-top: 10px; }
+
+/* Mismo listado desplegable, pero en gris neutro (no es una alerta, solo
+   información) -- p. ej. los productos que llegaron con una guía. */
+details.lista-desplegable summary {
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-soft);
+  padding: 4px 0;
+}
+details.lista-desplegable summary::-webkit-details-marker { display: none; }
+details.lista-desplegable summary::before {
+  content: "";
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%2352606d' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='9 6 15 12 9 18'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-size: 14px;
+  transition: transform .15s;
+}
+details.lista-desplegable[open] summary::before { transform: rotate(90deg); }
 
 /* Detalle de un movimiento (Historial): en vez de modal, un desplegable
    tipo menú justo debajo del botón "Detalle" de la fila. */
