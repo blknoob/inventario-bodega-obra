@@ -15,6 +15,8 @@
       <p>Control de materiales y herramientas.</p>
     </div>
 
+    <div id="error-conexion" class="alert alert-error hidden"></div>
+
     <div class="grid">
       <a class="stat" href="materiales.html">
         <div class="label">Materiales</div>
@@ -33,16 +35,6 @@
         <div class="value" id="stat-alertas">—</div>
       </a>
     </div>
-
-    <div class="card">
-      <h2>Estado</h2>
-      <p class="text-sm muted" id="estado-conexion">Conectando con la base de datos…</p>
-      <p class="text-sm mt">
-        <a href="materiales.html">Materiales</a>,
-        <a href="materiales.html?categoria=epp">EPPs</a> y
-        <a href="materiales.html?categoria=herramienta">Herramientas</a> ya están activos.
-      </p>
-    </div>
   </div>
 
   <script type="module">
@@ -50,11 +42,10 @@
     import { escucharMateriales, nivelStock } from "./js/materiales.js";
 
     montarTopbar("inicio");
-    const estado = document.getElementById("estado-conexion");
+    const errorConexion = document.getElementById("error-conexion");
 
     escucharMateriales(
       (items) => {
-        estado.textContent = "Base de datos conectada.";
         const materiales = items.filter((m) => !["epp", "herramienta"].includes(m.categoria));
         const epps = items.filter((m) => m.categoria === "epp");
         const herramientas = items.filter((m) => m.categoria === "herramienta");
@@ -64,7 +55,10 @@
         const alertas = items.filter((m) => nivelStock(m) !== "ok").length;
         document.getElementById("stat-alertas").textContent = alertas;
       },
-      (err) => { estado.textContent = "Error de conexión: " + err.message; },
+      (err) => {
+        errorConexion.textContent = "Error de conexión: " + err.message;
+        errorConexion.classList.remove("hidden");
+      },
     );
   </script>
 </body>
