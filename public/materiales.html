@@ -82,7 +82,7 @@
 
       <div class="field">
         <label for="e-documento">N.º Orden de Compra <span class="muted">(opcional)</span></label>
-        <input type="text" id="e-documento" maxlength="40" placeholder="Vacío si llegó por caja chica o casa matriz" />
+        <input type="text" id="e-documento" maxlength="40" placeholder="" />
       </div>
 
       <div class="field" style="position:relative;">
@@ -101,7 +101,7 @@
 
       <!-- Sin PM (excepción sin pedido detrás): un producto a la vez -->
       <div id="bloque-producto-manual">
-        <p class="text-sm muted" id="aviso-sin-orden" style="margin-top:0;">Si esto es una excepción sin pedido detrás (caja chica, casa matriz…), escribe el producto acá: si ya existe lo eliges de la lista, si no, se completa solo para crearlo.</p>
+        <!-- <p class="text-sm muted" id="aviso-sin-orden" style="margin-top:0;">Si esto es una excepción sin pedido detrás (caja chica, casa matriz…), escribe el producto acá: si ya existe lo eliges de la lista, si no, se completa solo para crearlo.</p> -->
         <div class="field" style="position:relative;">
           <label for="e-producto-buscar">Producto</label>
           <input type="text" id="e-producto-buscar" class="buscador-input" placeholder="Busca o escribe el nombre del producto…" autocomplete="off" />
@@ -137,15 +137,9 @@
             <input type="text" id="e-nuevo-centro-costo" maxlength="60" />
           </div>
         </div>
-        <div class="row">
-          <div class="field">
-            <label for="e-nuevo-minimo">Stock mínimo (alerta)</label>
-            <input type="number" id="e-nuevo-minimo" min="0" step="any" value="0" />
-          </div>
-          <div class="field">
-            <label for="e-nuevo-ubicacion">Ubicación <span class="muted">(opcional)</span></label>
-            <input type="text" id="e-nuevo-ubicacion" maxlength="60" placeholder="Bodega, Patio 1..." />
-          </div>
+        <div class="field">
+          <label for="e-nuevo-minimo">Stock mínimo (alerta)</label>
+          <input type="number" id="e-nuevo-minimo" min="0" step="any" value="0" />
         </div>
         <div class="field">
           <label for="e-nuevo-descripcion">Descripción <span class="muted">(opcional)</span></label>
@@ -163,11 +157,17 @@
           <input type="text" id="e-proveedor" maxlength="80" />
         </div>
       </div>
-      <div class="field">
-        <label for="e-motivo">Observación <span class="muted">(opcional)</span></label>
-        <input type="text" id="e-motivo" maxlength="120" placeholder="Llegada de material" />
+      <div class="row">
+        <div class="field">
+          <label for="e-ubicacion">Ubicación <span class="muted">(opcional)</span></label>
+          <input type="text" id="e-ubicacion" maxlength="60"/>
+        </div>
+        <div class="field">
+          <label for="e-motivo">Observación <span class="muted">(opcional)</span></label>
+          <input type="text" id="e-motivo" maxlength="120"/>
+        </div>
       </div>
-      <p class="text-sm muted">La foto de la guía se agrega en el Tramo 3.</p>
+      
       <div class="modal-foot">
         <button type="button" class="btn btn-ghost" data-close>Cancelar</button>
         <button type="submit" class="btn btn-primary" id="btn-guardar-entrante">Registrar</button>
@@ -661,9 +661,13 @@
     // solos los campos para crearlo -- sin botón "producto nuevo/existente"
     // que apretar. Esto cubre la excepción sin PM de por medio (caja
     // chica, casa matriz...).
+    const eUbicacion = document.getElementById("e-ubicacion");
     const buscadorEntrante = crearBuscadorProducto("e-producto", {
       onSeleccionar: (m) => {
         eStockActual.textContent = m ? `Stock actual: ${fmtNum(m.stock)} ${m.unidad}` : "";
+        // Se precarga con la ubicación que ya tenía, para no dejarla en
+        // blanco por accidente -- si se cambia acá, se actualiza.
+        eUbicacion.value = m?.ubicacion || "";
         if (m) { modoProductoNuevo = false; actualizarVistaEntrante(); }
       },
     });
@@ -873,6 +877,7 @@
         const numeroOc = document.getElementById("e-documento").value;
         const proveedor = document.getElementById("e-proveedor").value;
         const motivo = document.getElementById("e-motivo").value;
+        const ubicacion = eUbicacion.value;
 
         if (pedidoSeleccionado) {
           if (!itemsPMSeleccionados.length) throw new Error("Elige al menos un producto del pedido.");
@@ -919,6 +924,7 @@
                 proveedor,
                 documento: "", // ya queda anotado como ordenCompraNumero, no hace falta repetirlo
                 motivo,
+                ubicacion,
                 ordenCompraId: ordenAnotada.id,
                 ordenCompraNumero: ordenAnotada.numero,
                 pmItemId: item.id,
@@ -936,7 +942,7 @@
                   centroGestion: item.centroGestion,
                   centroCosto: item.centroCosto,
                   stockMinimo: 0,
-                  ubicacion: "",
+                  ubicacion,
                   descripcion: "",
                 };
               }
@@ -959,6 +965,7 @@
             proveedor,
             documento: numeroOc,
             motivo,
+            ubicacion,
             ordenCompraId: null,
             ordenCompraNumero: "",
             pmItemId: null,
@@ -973,7 +980,7 @@
               centroGestion: document.getElementById("e-nuevo-centro-gestion").value,
               centroCosto: document.getElementById("e-nuevo-centro-costo").value,
               stockMinimo: document.getElementById("e-nuevo-minimo").value,
-              ubicacion: document.getElementById("e-nuevo-ubicacion").value,
+              ubicacion,
               descripcion: document.getElementById("e-nuevo-descripcion").value,
             };
           } else {

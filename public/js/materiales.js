@@ -63,7 +63,7 @@ export function escucharMateriales(onCambio, onError) {
  * un id existente, solo suma esa cantidad a su stock. En ambos casos deja un
  * movimiento de tipo "entrada" en el historial. Todo en una sola transacción.
  */
-export async function registrarEntrada({ materialId, nuevoMaterial, cantidadRecibida, proveedor, documento, motivo, ordenCompraId, ordenCompraNumero, pmItemId }) {
+export async function registrarEntrada({ materialId, nuevoMaterial, cantidadRecibida, proveedor, documento, motivo, ubicacion, ordenCompraId, ordenCompraNumero, pmItemId }) {
   if (MODO_DEMO) bloquearEnDemo();
   const cant = Number(cantidadRecibida);
   if (!(cant > 0)) throw new Error("La cantidad recibida debe ser mayor que cero.");
@@ -92,7 +92,13 @@ export async function registrarEntrada({ materialId, nuevoMaterial, cantidadReci
       categoriaMovimiento = snap.data().categoria;
       const actual = Number(snap.data().stock) || 0;
       resultante = Math.round((actual + cant) * 1000) / 1000;
-      tx.update(materialDoc, { stock: resultante, actualizadoEn: serverTimestamp() });
+      // La ubicación solo se toca si se indicó una -- si se deja en blanco
+      // (p. ej. no se sabía en ese momento), no borra la que ya tenía.
+      tx.update(materialDoc, {
+        stock: resultante,
+        actualizadoEn: serverTimestamp(),
+        ...(ubicacion?.trim() ? { ubicacion: ubicacion.trim() } : {}),
+      });
     } else {
       if (!nuevoMaterial?.producto?.trim()) throw new Error("Indica el nombre del producto.");
       const contadorSnap = await tx.get(contadorMaterialesDoc);
