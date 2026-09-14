@@ -107,6 +107,23 @@
       return d.toLocaleDateString("es-CL") + " " +
         d.toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" });
     };
+    // Para agrupar el listado por día (el encabezado ya dice el día, así
+    // que en la tarjeta alcanza con la hora).
+    const fmtHora = (ts) => {
+      const d = ts?.toDate?.();
+      if (!d) return "—";
+      return d.toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" });
+    };
+    const claveDia = (ts) => {
+      const d = ts?.toDate?.();
+      return d ? `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}` : "sin-fecha";
+    };
+    const fmtFechaLarga = (ts) => {
+      const d = ts?.toDate?.();
+      if (!d) return "Sin fecha";
+      const texto = d.toLocaleDateString("es-CL", { weekday: "long", day: "2-digit", month: "long", year: "numeric" });
+      return texto.charAt(0).toUpperCase() + texto.slice(1);
+    };
 
     document.getElementById("f-tipo").innerHTML =
       TIPOS_FLETE.map((t) => `<option value="${t.valor}">${t.etiqueta}</option>`).join("");
@@ -150,18 +167,34 @@
 
     // Une en un solo listado, ordenado por fecha:
     //  - "ingreso": la factura/guía que se sube directo en Material entrante
-    //    (materiales, EPPs, herramientas), venga o no con un flete.
+    //    (materiales, EPPs, herramientas), venga o no con un flete. Si esa
+    //    guía trajo varios productos a la vez (mismo PM, registrados
+    //    juntos), quedan agrupados en UNA sola tarjeta -- se suben con la
+    //    misma foto de factura, así que agrupar por esa factura basta.
     //  - "traslado": los fletes (empresa externa), tengan o no un ingreso
     //    vinculado -- un retiro de escombros, por ejemplo, no tiene ninguno.
     function documentos() {
-      const ingresos = movimientos
+      const gruposIngreso = new Map();
+      movimientos
         .filter((m) => m.tipo === "entrada" && m.factura)
-        .map((m) => ({
-          tipo: "ingreso", fecha: m.fecha, factura: m.factura,
-          titulo: m.materialProducto, categoria: m.categoria,
-          sub: [`Cantidad recibida: ${fmtNum(m.cantidad)}`, m.proveedor].filter(Boolean).join(" · "),
-          fleteEmpresa: m.fleteEmpresa || "",
-        }));
+        .forEach((m) => {
+          const clave = m.factura.path || m.factura.url;
+          if (!gruposIngreso.has(clave)) {
+            gruposIngreso.set(clave, {
+              tipo: "ingreso", fecha: m.fecha, factura: m.factura,
+              proveedor: m.proveedor || "",
+              ordenCompra: m.ordenCompraNumero || m.documento || "",
+              fleteEmpresa: m.fleteEmpresa || "",
+              productos: [],
+            });
+          }
+          gruposIngreso.get(clave).productos.push({ producto: m.materialProducto, cantidad: m.cantidad });
+        });
+      const ingresos = [...gruposIngreso.values()].map((g) => ({
+        ...g,
+        titulo: `${g.productos.length} producto${g.productos.length === 1 ? "" : "s"}`,
+        sub: [g.proveedor, g.ordenCompra ? `OC ${g.ordenCompra}` : ""].filter(Boolean).join(" · "),
+      }));
       const traslados = fletes.map((f) => ({
         tipo: "traslado", fecha: f.creadoEn, factura: f.factura,
         titulo: f.empresa, tipoFlete: f.tipo, sub: f.detalle,
@@ -181,7 +214,8 @@
 
       const vista = todos.filter((d) =>
         (!filtroTipo || d.tipo === filtroTipo) &&
-        (!q || [d.titulo, d.sub, d.observacion].some((v) => (v || "").toLowerCase().includes(q))));
+        (!q || [d.titulo, d.sub, d.observacion, ...(d.productos || []).map((p) => p.producto)]
+          .some((v) => (v || "").toLowerCase().includes(q))));
 
       if (!vista.length) {
         lista.innerHTML = `<div class="card"><p class="empty">${
@@ -190,7 +224,12 @@
         return;
       }
 
-      lista.innerHTML = vista.map((d) => `
+      let claveDiaAnterior = null;
+      lista.innerHTML = vista.map((d) => {
+        const clave = claveDia(d.fecha);
+        const encabezadoDia = clave !== claveDiaAnterior ? `<h3 class="fecha-separador">${fmtFechaLarga(d.fecha)}</h3>` : "";
+        claveDiaAnterior = clave;
+        return `${encabezadoDia}
         <div class="card">
           <div class="row-actions" style="justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
             <div>
@@ -198,7 +237,7 @@
                 ${esc(d.titulo)}
                 <span class="badge ${d.tipo === "ingreso" ? "badge-ok" : "badge-info"}">${d.tipo === "ingreso" ? "Ingreso" : etiquetaTipoFlete(d.tipoFlete)}</span>
               </div>
-              <div class="text-sm muted">${fmtFecha(d.fecha)}</div>
+              <div class="text-sm muted">${fmtHora(d.fecha)}</div>
             </div>
             ${d.tipo === "traslado" ? `
             <div class="row-actions only-bodega">
@@ -208,14 +247,26 @@
 
           ${d.sub ? `<p class="text-sm" style="margin-bottom:4px;">${esc(d.sub)}</p>` : ""}
           ${d.observacion ? `<p class="text-sm muted" style="margin-bottom:4px;">${esc(d.observacion)}</p>` : ""}
-          ${d.factura ? bloqueFactura(d.factura) : `<p class="text-sm"><span class="badge badge-warn">Sin factura</span></p>`}
+          ${d.productos ? `
+          <details class="lista-desplegable" style="margin-bottom:8px;">
+            <summary>${d.productos.length} producto${d.productos.length === 1 ? "" : "s"} recibido${d.productos.length === 1 ? "" : "s"}</summary>
+            <ul style="margin:6px 0 0; padding-left:18px;">
+              ${d.productos.map((p) => `<li class="text-sm">${esc(p.producto)} — Cantidad recibida: ${fmtNum(p.cantidad)}</li>`).join("")}
+            </ul>
+          </details>` : ""}
+          ${d.factura ? `
+          <details class="lista-desplegable">
+            <summary>Foto de la guía</summary>
+            <div style="margin-top:6px;">${bloqueFactura(d.factura)}</div>
+          </details>` : `<p class="text-sm"><span class="badge badge-warn">Sin factura</span></p>`}
           ${d.tipo === "ingreso" && d.fleteEmpresa ? `<p class="text-sm muted" style="margin-top:6px;">Traslado: ${esc(d.fleteEmpresa)}</p>` : ""}
           ${d.tipo === "traslado" && d.vinculados?.length ? `
             <p class="text-sm muted" style="margin-top:6px;">
               Vinculado a: ${d.vinculados.map((m) => `${esc(m.materialProducto)} (${fmtFecha(m.fecha)})`).join(", ")}
             </p>
           ` : ""}
-        </div>`).join("");
+        </div>`;
+      }).join("");
     }
 
     buscar.addEventListener("input", render);

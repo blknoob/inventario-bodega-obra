@@ -1,5 +1,15 @@
 {
   "projects": {
     "default": "inventario-bodega-obra"
-  }
+  },
+  "targets": {
+    "inventario-bodega-obra": {
+      "hosting": {
+        "principal": [
+          "control-inventario-dpc"
+        ]
+      }
+    }
+  },
+  "etags": {}
 }
