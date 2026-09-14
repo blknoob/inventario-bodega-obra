@@ -55,7 +55,7 @@ export function escucharArriendos(onCambio, onError) {
  * pendiente por devolver). Se llama aparte, después de registrarEntrada --
  * no en la misma transacción, igual que la factura/flete asociados.
  */
-export async function crearArriendo({ materialId, materialProducto, cantidad, empresa, fechaEstimadaDevolucion, movimientoEntradaId, observacion }) {
+export async function crearArriendo({ materialId, materialProducto, cantidad, empresa, movimientoEntradaId, observacion }) {
   if (MODO_DEMO) bloquearEnDemo();
   const cant = Number(cantidad);
   if (!(cant > 0)) throw new Error("La cantidad arrendada debe ser mayor que cero.");
@@ -68,7 +68,6 @@ export async function crearArriendo({ materialId, materialProducto, cantidad, em
     materialProducto,
     cantidad: cant,
     empresa: empresa.trim(),
-    fechaEstimadaDevolucion: fechaEstimadaDevolucion || "",
     movimientoEntradaId: movimientoEntradaId || null,
     observacion: observacion?.trim() || "",
     devuelto: false,

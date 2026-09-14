@@ -38,10 +38,10 @@
 
     <div id="alerta-stock" class="alert alert-info hidden"></div>
 
-    <div id="bloque-arriendos" class="card hidden" style="margin-bottom:18px;">
-      <h3 style="margin:0 0 10px;">Herramientas arrendadas por devolver</h3>
+    <details id="bloque-arriendos" class="card hidden arriendos-desplegable" style="margin-bottom:18px;">
+      <summary id="resumen-arriendos">Herramientas arrendadas por devolver</summary>
       <div id="lista-arriendos"></div>
-    </div>
+    </details>
 
     <div class="card">
       <div class="toolbar">
@@ -49,6 +49,14 @@
           <input type="search" id="buscar" placeholder="Buscar material…" autocomplete="off" />
           <select id="filtro-categoria" class="hidden">
             <option value="">Todas las categorías</option>
+          </select>
+          <select id="filtro-tipo-herramienta" class="hidden">
+            <option value="">Todos los tipos</option>
+          </select>
+          <select id="filtro-adquisicion" class="hidden">
+            <option value="">Compradas y arrendadas</option>
+            <option value="comprada">Compradas</option>
+            <option value="arrendada">Arrendadas</option>
           </select>
         </div>
         <div class="row-actions only-bodega">
@@ -63,6 +71,8 @@
             <tr>
               <th>Producto</th>
               <th>Categoría</th>
+              <th class="hidden" id="th-tipo-herramienta">Tipo</th>
+              <th class="hidden" id="th-adquisicion">Adquisición</th>
               <th>Medida</th>
               <th>Centro de gestión</th>
               <th>Centro de costo</th>
@@ -132,6 +142,10 @@
             <input type="text" id="e-nuevo-unidad" maxlength="20" placeholder="piezas, unidades, m, kg…" />
           </div>
         </div>
+        <div class="field hidden" id="campo-nuevo-tipo-herramienta">
+          <label for="e-nuevo-tipo-herramienta">Tipo de herramienta</label>
+          <select id="e-nuevo-tipo-herramienta"></select>
+        </div>
         <div class="field">
           <label for="e-nuevo-medida">Medida <span class="muted">(opcional)</span></label>
           <input type="text" id="e-nuevo-medida" maxlength="40" placeholder="Ej: 1/2 pulgada, 25 kg…" />
@@ -188,10 +202,6 @@
         <div class="field">
           <label for="e-arriendo-empresa">Empresa arrendadora</label>
           <input type="text" id="e-arriendo-empresa" maxlength="80" placeholder="Quién la arrendó" />
-        </div>
-        <div class="field">
-          <label for="e-arriendo-fecha">Devolver antes de <span class="muted">(opcional)</span></label>
-          <input type="date" id="e-arriendo-fecha" />
         </div>
       </div>
 
@@ -307,6 +317,7 @@
     import { montarTopbar, flash } from "./js/ui.js";
     import {
       CATEGORIAS, etiquetaCategoria, nivelStock,
+      TIPOS_HERRAMIENTA, etiquetaTipoHerramienta,
       escucharMateriales, registrarEntrada, registrarSalida, eliminarMaterial, marcarSinReposicion,
       subirFacturaEntrada,
     } from "./js/materiales.js";
@@ -356,6 +367,18 @@
     const optsCat = CATEGORIAS_DISPONIBLES.map((c) => `<option value="${c.valor}">${c.etiqueta}</option>`).join("");
     document.getElementById("filtro-categoria").insertAdjacentHTML("beforeend", optsCat);
     document.getElementById("filtro-categoria").classList.toggle("hidden", !!categoriaPagina);
+
+    // Filtros propios de Herramientas: por tipo (manual/eléctrica/
+    // inalámbrica) y por si está comprada o arrendada.
+    const optsTipoHerramienta = TIPOS_HERRAMIENTA.map((t) => `<option value="${t.valor}">${t.etiqueta}</option>`).join("");
+    document.getElementById("filtro-tipo-herramienta").insertAdjacentHTML("beforeend", optsTipoHerramienta);
+    document.getElementById("filtro-tipo-herramienta").classList.toggle("hidden", !modoHerramienta);
+    document.getElementById("filtro-adquisicion").classList.toggle("hidden", !modoHerramienta);
+    document.getElementById("e-nuevo-tipo-herramienta").innerHTML =
+      `<option value="" selected disabled hidden>Elegir un tipo</option>${optsTipoHerramienta}`;
+    document.getElementById("campo-nuevo-tipo-herramienta").classList.toggle("hidden", !modoHerramienta);
+    document.getElementById("th-tipo-herramienta").classList.toggle("hidden", !modoHerramienta);
+    document.getElementById("th-adquisicion").classList.toggle("hidden", !modoHerramienta);
     // Al CREAR un producto nuevo, en cambio, la categoría se elige siempre
     // completa (incluye EPP) sin importar en qué página estás -- un casco
     // sigue siendo EPP aunque llegue junto con cemento y se esté
@@ -390,6 +413,8 @@
     const tbody = document.getElementById("tbody");
     const buscar = document.getElementById("buscar");
     const filtroCat = document.getElementById("filtro-categoria");
+    const filtroTipoHerramienta = document.getElementById("filtro-tipo-herramienta");
+    const filtroAdquisicionSel = document.getElementById("filtro-adquisicion");
 
     // Filtro por nivel de stock ('' | 'bajo' | 'cero'), activado al tocar
     // las tarjetas "Con stock bajo" / "Sin stock". Tocar la misma de nuevo
@@ -398,7 +423,10 @@
     // arrendada que si el stock está bajo) -- se reemplazan por
     // "Arrendadas".
     let filtroStock = "";
-    let filtroArrendadas = false;
+    // '' | 'comprada' | 'arrendada' -- se controla desde la tarjeta
+    // "Arrendadas" (atajo) y desde el select del mismo nombre; ambos
+    // quedan sincronizados entre sí.
+    let filtroAdquisicion = "";
     const statTotalCard = document.getElementById("stat-total-card");
     const statBajoCard = document.getElementById("stat-bajo-card");
     const statCeroCard = document.getElementById("stat-cero-card");
@@ -413,14 +441,20 @@
       statCeroCard.classList.toggle("active", filtroStock === "cero");
       render();
     }
+    function setFiltroAdquisicion(valor) {
+      filtroAdquisicion = valor;
+      filtroAdquisicionSel.value = filtroAdquisicion;
+      statArrendadasCard.classList.toggle("active", filtroAdquisicion === "arrendada");
+      render();
+    }
     statTotalCard.addEventListener("click", () => setFiltroStock(""));
     statBajoCard.addEventListener("click", () => setFiltroStock("bajo"));
     statCeroCard.addEventListener("click", () => setFiltroStock("cero"));
     statArrendadasCard.addEventListener("click", () => {
-      filtroArrendadas = !filtroArrendadas;
-      statArrendadasCard.classList.toggle("active", filtroArrendadas);
-      render();
+      setFiltroAdquisicion(filtroAdquisicion === "arrendada" ? "" : "arrendada");
     });
+    filtroAdquisicionSel.addEventListener("change", () => setFiltroAdquisicion(filtroAdquisicionSel.value));
+    filtroTipoHerramienta.addEventListener("change", render);
 
     const fmtNum = (n) => (Number(n) || 0).toLocaleString("es-CL", { maximumFractionDigits: 3 });
     const fmtFecha = (ts) => {
@@ -561,7 +595,8 @@
       const vista = materiales.filter((m) =>
         (!cat || m.categoria === cat) &&
         (!filtroStock || nivelStock(m) === filtroStock) &&
-        (!filtroArrendadas || idsArrendadas.has(m.id)) &&
+        (!filtroTipoHerramienta.value || m.tipoHerramienta === filtroTipoHerramienta.value) &&
+        (!filtroAdquisicion || (filtroAdquisicion === "arrendada") === idsArrendadas.has(m.id)) &&
         (!q || (m.producto || "").toLowerCase().includes(q)));
 
       // Estadísticas (sobre todo el inventario, no la vista filtrada)
@@ -601,6 +636,8 @@
               ${m.sinReposicion ? `<div class="text-sm muted">No se repone</div>` : ""}
             </td>
             <td><span class="badge badge-muted">${esc(etiquetaCategoria(m.categoria))}</span></td>
+            <td class="${modoHerramienta ? "" : "hidden"}">${m.tipoHerramienta ? esc(etiquetaTipoHerramienta(m.tipoHerramienta)) : "<span class='muted'>—</span>"}</td>
+            <td class="${modoHerramienta ? "" : "hidden"}">${idsArrendadas.has(m.id) ? `<span class="badge badge-muted">Arrendada</span>` : `<span class="badge badge-muted">Comprada</span>`}</td>
             <td>${esc(m.medida) || "<span class='muted'>—</span>"}</td>
             <td>${esc(m.centroGestion) || "<span class='muted'>—</span>"}</td>
             <td>${esc(m.centroCosto) || "<span class='muted'>—</span>"}</td>
@@ -656,18 +693,19 @@
     // estado, para que la tarjeta "Arrendadas" lo pueda usar desde el
     // primer render()).
     const bloqueArriendos = document.getElementById("bloque-arriendos");
+    const resumenArriendos = document.getElementById("resumen-arriendos");
     const listaArriendos = document.getElementById("lista-arriendos");
     function renderArriendos() {
       if (!modoHerramienta) return;
       const pendientes = arriendos.filter((a) => !a.devuelto);
       bloqueArriendos.classList.toggle("hidden", !pendientes.length);
+      resumenArriendos.textContent = `${pendientes.length} herramienta${pendientes.length === 1 ? "" : "s"} arrendada${pendientes.length === 1 ? "" : "s"} por devolver`;
       listaArriendos.innerHTML = pendientes.map((a) => `
         <div class="item-pedido-fila" data-arriendo-id="${a.id}">
           <div style="display:flex; justify-content:space-between; align-items:baseline; gap:8px; flex-wrap:wrap;">
             <div>
               <strong>${esc(a.materialProducto)}</strong>
               <span class="muted text-sm"> — ${fmtNum(a.cantidad)} unidad${a.cantidad === 1 ? "" : "es"} · ${esc(a.empresa)}</span>
-              ${a.fechaEstimadaDevolucion ? `<div class="text-sm muted">Devolver antes de ${esc(a.fechaEstimadaDevolucion)}</div>` : ""}
             </div>
             <button type="button" class="btn btn-ghost btn-xs only-bodega" data-devolver="${a.id}">Marcar devuelta</button>
           </div>
@@ -1065,11 +1103,10 @@
         const factura = await subirFacturaEntrada(facturaElegidaEntrante);
 
         // Tipo de adquisición (solo aplica en la página Herramientas): si
-        // es arrendada, es la misma empresa/plazo para todos los productos
-        // de este registro (igual que la factura/flete).
+        // es arrendada, es la misma empresa para todos los productos de
+        // este registro (igual que la factura/flete).
         const tipoAdquisicion = modoHerramienta ? eTipoAdquisicion.value : null;
         const empresaArriendo = tipoAdquisicion === "arrendada" ? document.getElementById("e-arriendo-empresa").value : "";
-        const fechaEstimadaDevolucion = tipoAdquisicion === "arrendada" ? document.getElementById("e-arriendo-fecha").value : "";
         if (tipoAdquisicion === "arrendada" && !empresaArriendo.trim()) {
           throw new Error("Indica la empresa arrendadora.");
         }
@@ -1152,7 +1189,6 @@
                   materialProducto: resultado.materialProducto,
                   cantidad: datos.cantidadRecibida,
                   empresa: empresaArriendo,
-                  fechaEstimadaDevolucion,
                   movimientoEntradaId: resultado.movimientoId,
                 });
               }
@@ -1195,6 +1231,7 @@
               stockMinimo: document.getElementById("e-nuevo-minimo").value,
               ubicacion: document.getElementById("e-nuevo-ubicacion").value,
               descripcion: document.getElementById("e-nuevo-descripcion").value,
+              tipoHerramienta: modoHerramienta ? document.getElementById("e-nuevo-tipo-herramienta").value : "",
             };
           } else {
             if (!eProducto.value) throw new Error("Selecciona un producto.");
@@ -1207,7 +1244,6 @@
               materialProducto: resultado.materialProducto,
               cantidad: datos.cantidadRecibida,
               empresa: empresaArriendo,
-              fechaEstimadaDevolucion,
               movimientoEntradaId: resultado.movimientoId,
             });
           }

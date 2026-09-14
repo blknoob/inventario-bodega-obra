@@ -35,6 +35,17 @@ export function etiquetaCategoria(valor) {
   return CATEGORIAS.find((c) => c.valor === valor)?.etiqueta ?? valor;
 }
 
+// Solo aplica a herramientas (ver materiales.html, bloque "e-nuevo-campos").
+export const TIPOS_HERRAMIENTA = [
+  { valor: "manual", etiqueta: "Manual" },
+  { valor: "electrica", etiqueta: "Eléctrica" },
+  { valor: "inalambrica", etiqueta: "Inalámbrica" },
+];
+
+export function etiquetaTipoHerramienta(valor) {
+  return TIPOS_HERRAMIENTA.find((t) => t.valor === valor)?.etiqueta ?? valor;
+}
+
 /**
  * Escucha en tiempo real toda la colección de materiales.
  * Entrega un array ordenado por producto. Devuelve la función para desuscribirse.
@@ -144,6 +155,7 @@ export async function registrarEntrada({ materialId, nuevoMaterial, cantidadReci
         stockMinimo: Number(nuevoMaterial.stockMinimo) || 0,
         ubicacion: nuevoMaterial.ubicacion?.trim() || "",
         descripcion: nuevoMaterial.descripcion?.trim() || "",
+        tipoHerramienta: nuevoMaterial.categoria === "herramienta" ? (nuevoMaterial.tipoHerramienta?.trim() || "") : "",
         creadoPor: email,
         creadoEn: serverTimestamp(),
         actualizadoEn: serverTimestamp(),

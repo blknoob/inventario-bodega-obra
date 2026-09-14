@@ -108,13 +108,13 @@ export const MOVIMIENTOS_DEMO = [
 export const ARRIENDOS_DEMO = [
   {
     id: "a1", materialId: "d8", materialProducto: "Taladro percutor Bosch", cantidad: 2,
-    empresa: "Arriendos Layher", fechaEstimadaDevolucion: "", movimientoEntradaId: "m6", observacion: "",
+    empresa: "Arriendos Layher", movimientoEntradaId: "m6", observacion: "",
     devuelto: false, fechaDevolucion: null, movimientoSalidaId: null,
     creadoPor: "bodega@demo.cl", creadoEn: hace(50000),
   },
   {
     id: "a2", materialId: "d8", materialProducto: "Amoladora angular inalámbrica", cantidad: 1,
-    empresa: "Hilti Chile", fechaEstimadaDevolucion: "", movimientoEntradaId: "m0", observacion: "",
+    empresa: "Hilti Chile", movimientoEntradaId: "m0", observacion: "",
     devuelto: true, fechaDevolucion: hace(20000), movimientoSalidaId: "m0s",
     creadoPor: "bodega@demo.cl", creadoEn: hace(300000),
   },

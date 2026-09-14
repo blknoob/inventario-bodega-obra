@@ -245,6 +245,33 @@ details.pm-pendientes summary::before {
 details.pm-pendientes[open] summary::before { transform: rotate(90deg); }
 details.pm-pendientes .table-wrap { margin-top: 8px; }
 
+/* Mismo listado desplegable, pero para un bloque de la página (no una
+   fila) -- p. ej. "Herramientas arrendadas por devolver". Sin el tono de
+   alerta: acá no es algo pendiente por un error, es solo información. */
+details.arriendos-desplegable summary {
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ink);
+}
+details.arriendos-desplegable summary::-webkit-details-marker { display: none; }
+details.arriendos-desplegable summary::before {
+  content: "";
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%2352606d' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='9 6 15 12 9 18'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-size: 14px;
+  transition: transform .15s;
+}
+details.arriendos-desplegable[open] summary::before { transform: rotate(90deg); }
+details.arriendos-desplegable #lista-arriendos { margin-top: 10px; }
+
 /* Detalle de un movimiento (Historial): en vez de modal, un desplegable
    tipo menú justo debajo del botón "Detalle" de la fila. */
 .detalle-celda { position: relative; }
