@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Guías | Inventario de Bodega</title>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <header id="topbar"></header>
+
+  <div class="wrap">
+    <div id="flash" class="alert hidden"></div>
+
+    <div class="page-head">
+      <h1>Guías</h1>
+      <p>Fotos de facturas y guías de despacho descargables: materiales, EPPs y herramientas entrantes, y los traslados (fletes) de una empresa externa.</p>
+    </div>
+
+    <div class="grid" style="margin-bottom: 18px;">
+      <button type="button" class="stat" id="stat-total-card">
+        <div class="label">Documentos</div>
+        <div class="value" id="stat-total">—</div>
+      </button>
+      <button type="button" class="stat" id="stat-ingreso-card">
+        <div class="label">Ingresos</div>
+        <div class="value stock-ok" id="stat-ingreso">—</div>
+      </button>
+      <button type="button" class="stat" id="stat-traslado-card">
+        <div class="label">Traslados</div>
+        <div class="value" id="stat-traslado" style="color: var(--info);">—</div>
+      </button>
+    </div>
+
+    <div class="card">
+      <div class="toolbar">
+        <div class="filters">
+          <input type="search" id="buscar" placeholder="Buscar producto, empresa, detalle…" autocomplete="off" />
+        </div>
+        <div class="row-actions only-bodega">
+          <button class="btn btn-primary" id="btn-nuevo-flete">Nuevo traslado</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="lista-guias"></div>
+  </div>
+
+  <!-- ── Modal: nuevo traslado (flete) ────────────────────────────────────── -->
+  <dialog id="dlg-flete">
+    <div class="modal-head">
+      <h3>Nuevo traslado (flete)</h3>
+      <button type="button" class="modal-close" data-close>&times;</button>
+    </div>
+    <form id="form-flete">
+      <div id="err-flete" class="alert alert-error hidden"></div>
+
+      <div class="row">
+        <div class="field">
+          <label for="f-empresa">Empresa de transporte</label>
+          <input type="text" id="f-empresa" maxlength="80" placeholder="Transportes Rojas" />
+        </div>
+        <div class="field">
+          <label for="f-tipo">Tipo</label>
+          <select id="f-tipo"></select>
+        </div>
+      </div>
+      <div class="field">
+        <label for="f-detalle">Qué se trasladó <span class="muted">(opcional)</span></label>
+        <input type="text" id="f-detalle" maxlength="160" placeholder="Cemento Portland 25 kg (40 sacos), escombros de demolición…" />
+      </div>
+      <div class="field">
+        <label>Foto de la factura <span class="muted">(opcional)</span></label>
+        <div class="row-actions">
+          <button type="button" class="btn btn-ghost" id="btn-f-factura-camara">📷 Tomar foto</button>
+          <button type="button" class="btn btn-ghost" id="btn-f-factura-archivo">📁 Elegir archivo</button>
+        </div>
+        <input type="file" id="f-factura" accept="image/*" capture="environment" class="hidden" />
+        <input type="file" id="f-factura-archivo" accept="image/*,.pdf" class="hidden" />
+        <p class="text-sm" id="f-factura-elegida" style="margin-top:6px;"></p>
+      </div>
+      <div class="field">
+        <label for="f-observacion">Observación <span class="muted">(opcional)</span></label>
+        <input type="text" id="f-observacion" maxlength="160" />
+      </div>
+
+      <div class="modal-foot">
+        <button type="button" class="btn btn-ghost" data-close>Cancelar</button>
+        <button type="submit" class="btn btn-primary" id="btn-guardar-flete">Guardar traslado</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script type="module">
+    import { montarTopbar, flash } from "./js/ui.js";
+    import { escucharFletes, crearFlete, eliminarFlete, TIPOS_FLETE, etiquetaTipoFlete } from "./js/fletes.js";
+    import { escucharMovimientos } from "./js/materiales.js";
+
+    montarTopbar("guias");
+
+    const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) =>
+      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+    const fmtNum = (n) => (Number(n) || 0).toLocaleString("es-CL", { maximumFractionDigits: 3 });
+    const fmtFecha = (ts) => {
+      const d = ts?.toDate?.();
+      if (!d) return "—";
+      return d.toLocaleDateString("es-CL") + " " +
+        d.toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" });
+    };
+
+    document.getElementById("f-tipo").innerHTML =
+      TIPOS_FLETE.map((t) => `<option value="${t.valor}">${t.etiqueta}</option>`).join("");
+
+    let fletes = [];
+    let movimientos = [];
+    let filtroTipo = ""; // "" | "ingreso" | "traslado"
+    const lista = document.getElementById("lista-guias");
+    const buscar = document.getElementById("buscar");
+    const statTotalCard = document.getElementById("stat-total-card");
+    const statIngresoCard = document.getElementById("stat-ingreso-card");
+    const statTrasladoCard = document.getElementById("stat-traslado-card");
+
+    function setFiltroTipo(valor) {
+      filtroTipo = filtroTipo === valor ? "" : valor;
+      statTotalCard.classList.toggle("active", filtroTipo === "");
+      statIngresoCard.classList.toggle("active", filtroTipo === "ingreso");
+      statTrasladoCard.classList.toggle("active", filtroTipo === "traslado");
+      render();
+    }
+    statTotalCard.addEventListener("click", () => setFiltroTipo(""));
+    statIngresoCard.addEventListener("click", () => setFiltroTipo("ingreso"));
+    statTrasladoCard.addEventListener("click", () => setFiltroTipo("traslado"));
+
+    // Si es una foto, se ve la miniatura ahí mismo (no solo un link que
+    // manda a otra pestaña) y se agrega "download" al link para que el
+    // navegador la baje directo en vez de solo mostrarla.
+    const esImagen = (nombre) => /\.(jpe?g|png|gif|webp|heic|heif|bmp)$/i.test(nombre || "");
+    function bloqueFactura(factura) {
+      const nombre = esc(factura.nombre);
+      const url = esc(factura.url);
+      if (esImagen(factura.nombre)) {
+        return `
+          <a href="${url}" download="${nombre}" target="_blank" rel="noopener" style="display:inline-block;">
+            <img src="${url}" alt="Factura" style="display:block; max-width:160px; max-height:160px; border-radius:8px; border:1px solid var(--line); object-fit:cover;" />
+          </a>
+          <p class="text-sm"><a href="${url}" download="${nombre}" target="_blank" rel="noopener">⬇ Descargar (${nombre})</a></p>`;
+      }
+      return `<p class="text-sm"><a href="${url}" download="${nombre}" target="_blank" rel="noopener">📎 Ver/descargar (${nombre})</a></p>`;
+    }
+
+    // Une en un solo listado, ordenado por fecha:
+    //  - "ingreso": la factura/guía que se sube directo en Material entrante
+    //    (materiales, EPPs, herramientas), venga o no con un flete.
+    //  - "traslado": los fletes (empresa externa), tengan o no un ingreso
+    //    vinculado -- un retiro de escombros, por ejemplo, no tiene ninguno.
+    function documentos() {
+      const ingresos = movimientos
+        .filter((m) => m.tipo === "entrada" && m.factura)
+        .map((m) => ({
+          tipo: "ingreso", fecha: m.fecha, factura: m.factura,
+          titulo: m.materialProducto, categoria: m.categoria,
+          sub: [`Cantidad recibida: ${fmtNum(m.cantidad)}`, m.proveedor].filter(Boolean).join(" · "),
+          fleteEmpresa: m.fleteEmpresa || "",
+        }));
+      const traslados = fletes.map((f) => ({
+        tipo: "traslado", fecha: f.creadoEn, factura: f.factura,
+        titulo: f.empresa, tipoFlete: f.tipo, sub: f.detalle,
+        observacion: f.observacion, id: f.id,
+        vinculados: movimientos.filter((m) => m.fleteId === f.id),
+      }));
+      return [...ingresos, ...traslados].sort((a, b) =>
+        (b.fecha?.toDate?.() || 0) - (a.fecha?.toDate?.() || 0));
+    }
+
+    function render() {
+      const q = buscar.value.trim().toLowerCase();
+      const todos = documentos();
+      document.getElementById("stat-total").textContent = todos.length;
+      document.getElementById("stat-ingreso").textContent = todos.filter((d) => d.tipo === "ingreso").length;
+      document.getElementById("stat-traslado").textContent = todos.filter((d) => d.tipo === "traslado").length;
+
+      const vista = todos.filter((d) =>
+        (!filtroTipo || d.tipo === filtroTipo) &&
+        (!q || [d.titulo, d.sub, d.observacion].some((v) => (v || "").toLowerCase().includes(q))));
+
+      if (!vista.length) {
+        lista.innerHTML = `<div class="card"><p class="empty">${
+          todos.length ? "Sin resultados para el filtro." : "Aún no hay guías registradas."
+        }</p></div>`;
+        return;
+      }
+
+      lista.innerHTML = vista.map((d) => `
+        <div class="card">
+          <div class="row-actions" style="justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
+            <div>
+              <div style="font-weight: 700;">
+                ${esc(d.titulo)}
+                <span class="badge ${d.tipo === "ingreso" ? "badge-ok" : "badge-info"}">${d.tipo === "ingreso" ? "Ingreso" : etiquetaTipoFlete(d.tipoFlete)}</span>
+              </div>
+              <div class="text-sm muted">${fmtFecha(d.fecha)}</div>
+            </div>
+            ${d.tipo === "traslado" ? `
+            <div class="row-actions only-bodega">
+              <button class="btn btn-ghost btn-xs btn-danger" data-eliminar-flete="${d.id}">Eliminar</button>
+            </div>` : ""}
+          </div>
+
+          ${d.sub ? `<p class="text-sm" style="margin-bottom:4px;">${esc(d.sub)}</p>` : ""}
+          ${d.observacion ? `<p class="text-sm muted" style="margin-bottom:4px;">${esc(d.observacion)}</p>` : ""}
+          ${d.factura ? bloqueFactura(d.factura) : `<p class="text-sm"><span class="badge badge-warn">Sin factura</span></p>`}
+          ${d.tipo === "ingreso" && d.fleteEmpresa ? `<p class="text-sm muted" style="margin-top:6px;">Traslado: ${esc(d.fleteEmpresa)}</p>` : ""}
+          ${d.tipo === "traslado" && d.vinculados?.length ? `
+            <p class="text-sm muted" style="margin-top:6px;">
+              Vinculado a: ${d.vinculados.map((m) => `${esc(m.materialProducto)} (${fmtFecha(m.fecha)})`).join(", ")}
+            </p>
+          ` : ""}
+        </div>`).join("");
+    }
+
+    buscar.addEventListener("input", render);
+
+    escucharFletes(
+      (items) => { fletes = items; render(); },
+      (err) => { lista.innerHTML = `<div class="card"><p class="empty">Error al cargar: ${esc(err.message)}</p></div>`; },
+    );
+    escucharMovimientos(
+      (items) => { movimientos = items; render(); },
+      () => {},
+    );
+
+    // ── Modales: apertura/cierre comunes ────────────────────────────────
+    document.querySelectorAll("dialog [data-close]").forEach((b) =>
+      b.addEventListener("click", () => b.closest("dialog").close()));
+
+    const dlgFlete = document.getElementById("dlg-flete");
+    const formFlete = document.getElementById("form-flete");
+    const errFlete = document.getElementById("err-flete");
+
+    // Dos entradas de archivo, no una sola: la principal abre la cámara
+    // directo (accept="image/*" a secas), y una aparte para subir algo
+    // ya guardado (PDF u otra foto).
+    const fFacturaCamara = document.getElementById("f-factura");
+    const fFacturaArchivo = document.getElementById("f-factura-archivo");
+    const fFacturaElegida = document.getElementById("f-factura-elegida");
+    let facturaElegidaFlete = null;
+
+    function elegirFacturaFlete(archivo) {
+      facturaElegidaFlete = archivo;
+      fFacturaElegida.textContent = archivo ? `📎 ${archivo.name}` : "";
+    }
+    fFacturaCamara.addEventListener("change", () => elegirFacturaFlete(fFacturaCamara.files[0] || null));
+    fFacturaArchivo.addEventListener("change", () => elegirFacturaFlete(fFacturaArchivo.files[0] || null));
+    document.getElementById("btn-f-factura-camara").addEventListener("click", () => fFacturaCamara.click());
+    document.getElementById("btn-f-factura-archivo").addEventListener("click", () => fFacturaArchivo.click());
+
+    document.getElementById("btn-nuevo-flete").addEventListener("click", () => {
+      formFlete.reset();
+      elegirFacturaFlete(null);
+      errFlete.classList.add("hidden");
+      dlgFlete.showModal();
+    });
+
+    formFlete.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      errFlete.classList.add("hidden");
+      const btn = document.getElementById("btn-guardar-flete");
+      btn.disabled = true; btn.textContent = "Guardando…";
+      try {
+        await crearFlete({
+          empresa: document.getElementById("f-empresa").value,
+          tipo: document.getElementById("f-tipo").value,
+          detalle: document.getElementById("f-detalle").value,
+          observacion: document.getElementById("f-observacion").value,
+          factura: facturaElegidaFlete,
+        });
+        dlgFlete.close();
+        flash("Traslado registrado.");
+      } catch (err) {
+        errFlete.textContent = err.message;
+        errFlete.classList.remove("hidden");
+      } finally {
+        btn.disabled = false; btn.textContent = "Guardar traslado";
+      }
+    });
+
+    // ── Eliminar traslado (flete) ────────────────────────────────────────
+    lista.addEventListener("click", async (e) => {
+      const idEliminar = e.target.getAttribute?.("data-eliminar-flete");
+      if (!idEliminar) return;
+      const f = fletes.find((x) => x.id === idEliminar);
+      if (!f) return;
+      if (!confirm(`¿Eliminar el traslado de "${f.empresa}"? Si estaba vinculado a un ingreso, ese ingreso queda igual (solo se borra el registro del traslado y su factura).`)) return;
+      try {
+        await eliminarFlete(f);
+        flash("Traslado eliminado.");
+      } catch (err) { flash(err.message, "error"); }
+    });
+  </script>
+</body>
+</html>

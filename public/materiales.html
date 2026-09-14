@@ -30,9 +30,18 @@
         <div class="label">Sin stock</div>
         <div class="value stock-cero" id="stat-cero">—</div>
       </button>
+      <button type="button" class="stat hidden" id="stat-arrendadas-card" title="Ver solo las arrendadas">
+        <div class="label">Arrendadas</div>
+        <div class="value" id="stat-arrendadas">—</div>
+      </button>
     </div>
 
     <div id="alerta-stock" class="alert alert-info hidden"></div>
+
+    <details id="bloque-arriendos" class="card hidden arriendos-desplegable" style="margin-bottom:18px;">
+      <summary id="resumen-arriendos">Herramientas arrendadas por devolver</summary>
+      <div id="lista-arriendos"></div>
+    </details>
 
     <div class="card">
       <div class="toolbar">
@@ -40,6 +49,14 @@
           <input type="search" id="buscar" placeholder="Buscar material…" autocomplete="off" />
           <select id="filtro-categoria" class="hidden">
             <option value="">Todas las categorías</option>
+          </select>
+          <select id="filtro-tipo-herramienta" class="hidden">
+            <option value="">Todos los tipos</option>
+          </select>
+          <select id="filtro-adquisicion" class="hidden">
+            <option value="">Compradas y arrendadas</option>
+            <option value="comprada">Compradas</option>
+            <option value="arrendada">Arrendadas</option>
           </select>
         </div>
         <div class="row-actions only-bodega">
@@ -54,6 +71,8 @@
             <tr>
               <th>Producto</th>
               <th>Categoría</th>
+              <th class="hidden" id="th-tipo-herramienta">Tipo</th>
+              <th class="hidden" id="th-adquisicion">Adquisición</th>
               <th>Medida</th>
               <th>Centro de gestión</th>
               <th>Centro de costo</th>
@@ -123,6 +142,10 @@
             <input type="text" id="e-nuevo-unidad" maxlength="20" placeholder="piezas, unidades, m, kg…" />
           </div>
         </div>
+        <div class="field hidden" id="campo-nuevo-tipo-herramienta">
+          <label for="e-nuevo-tipo-herramienta">Tipo de herramienta</label>
+          <select id="e-nuevo-tipo-herramienta"></select>
+        </div>
         <div class="field">
           <label for="e-nuevo-medida">Medida <span class="muted">(opcional)</span></label>
           <input type="text" id="e-nuevo-medida" maxlength="40" placeholder="Ej: 1/2 pulgada, 25 kg…" />
@@ -167,7 +190,41 @@
           <input type="text" id="e-motivo" maxlength="120"/>
         </div>
       </div>
-      
+
+      <div class="field hidden" id="bloque-tipo-adquisicion">
+        <label for="e-tipo-adquisicion">Tipo de adquisición</label>
+        <select id="e-tipo-adquisicion">
+          <option value="comprada">Comprada</option>
+          <option value="arrendada">Arrendada (hay que devolverla)</option>
+        </select>
+      </div>
+      <div class="row hidden" id="campos-arriendo">
+        <div class="field">
+          <label for="e-arriendo-empresa">Empresa arrendadora</label>
+          <input type="text" id="e-arriendo-empresa" maxlength="80" placeholder="Quién la arrendó" />
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Foto de la factura o guía <span class="muted">(opcional)</span></label>
+        <div class="row-actions">
+          <button type="button" class="btn btn-ghost" id="btn-e-factura-camara">📷 Tomar foto</button>
+          <button type="button" class="btn btn-ghost" id="btn-e-factura-archivo">📁 Elegir archivo</button>
+        </div>
+        <input type="file" id="e-factura" accept="image/*" capture="environment" class="hidden" />
+        <input type="file" id="e-factura-archivo" accept="image/*,.pdf" class="hidden" />
+        <p class="text-sm" id="e-factura-elegida" style="margin-top:6px;"></p>
+        <p class="text-sm muted">Queda disponible para descargar después en <a href="guias.html" target="_blank" rel="noopener">Guías</a>. Si es más de un producto del mismo PM, la misma foto se guarda para todos.</p>
+      </div>
+
+      <div class="field" style="position:relative;">
+        <label for="e-flete-buscar">Traslado (flete) asociado <span class="muted">(opcional)</span></label>
+        <input type="text" id="e-flete-buscar" class="buscador-input" placeholder="Empresa que hizo el traslado…" autocomplete="off" />
+        <input type="hidden" id="e-flete" />
+        <div id="e-flete-lista" class="buscador-lista hidden"></div>
+        <p class="text-sm muted" style="margin-top:6px;">Si vino con flete de una empresa externa y no lo has registrado, créalo primero en <a href="guias.html" target="_blank" rel="noopener">Guías</a> (con su factura) y elígelo acá.</p>
+      </div>
+
       <div class="modal-foot">
         <button type="button" class="btn btn-ghost" data-close>Cancelar</button>
         <button type="submit" class="btn btn-primary" id="btn-guardar-entrante">Registrar</button>
@@ -260,9 +317,13 @@
     import { montarTopbar, flash } from "./js/ui.js";
     import {
       CATEGORIAS, etiquetaCategoria, nivelStock,
+      TIPOS_HERRAMIENTA, etiquetaTipoHerramienta,
       escucharMateriales, registrarEntrada, registrarSalida, eliminarMaterial, marcarSinReposicion,
+      subirFacturaEntrada,
     } from "./js/materiales.js";
     import { escucharPedidos, escucharOrdenes, anotarOrdenDeCompra, cantidadRecibidaDe } from "./js/compras.js";
+    import { escucharFletes, etiquetaTipoFlete } from "./js/fletes.js";
+    import { escucharArriendos, crearArriendo, devolverHerramienta } from "./js/herramientas.js";
 
     // Esta misma página sirve para cuatro vistas: "Materiales" (todo menos
     // EPP/Herramientas), "EPPs" (?categoria=epp), "Herramientas"
@@ -306,6 +367,18 @@
     const optsCat = CATEGORIAS_DISPONIBLES.map((c) => `<option value="${c.valor}">${c.etiqueta}</option>`).join("");
     document.getElementById("filtro-categoria").insertAdjacentHTML("beforeend", optsCat);
     document.getElementById("filtro-categoria").classList.toggle("hidden", !!categoriaPagina);
+
+    // Filtros propios de Herramientas: por tipo (manual/eléctrica/
+    // inalámbrica) y por si está comprada o arrendada.
+    const optsTipoHerramienta = TIPOS_HERRAMIENTA.map((t) => `<option value="${t.valor}">${t.etiqueta}</option>`).join("");
+    document.getElementById("filtro-tipo-herramienta").insertAdjacentHTML("beforeend", optsTipoHerramienta);
+    document.getElementById("filtro-tipo-herramienta").classList.toggle("hidden", !modoHerramienta);
+    document.getElementById("filtro-adquisicion").classList.toggle("hidden", !modoHerramienta);
+    document.getElementById("e-nuevo-tipo-herramienta").innerHTML =
+      `<option value="" selected disabled hidden>Elegir un tipo</option>${optsTipoHerramienta}`;
+    document.getElementById("campo-nuevo-tipo-herramienta").classList.toggle("hidden", !modoHerramienta);
+    document.getElementById("th-tipo-herramienta").classList.toggle("hidden", !modoHerramienta);
+    document.getElementById("th-adquisicion").classList.toggle("hidden", !modoHerramienta);
     // Al CREAR un producto nuevo, en cambio, la categoría se elige siempre
     // completa (incluye EPP) sin importar en qué página estás -- un casco
     // sigue siendo EPP aunque llegue junto con cemento y se esté
@@ -332,17 +405,35 @@
     // saber a qué categoría pertenece un ítem esperado, sin mezclarlo en la
     // vista de esta página.
     let materialesTodos = [];
+    // Arriendos de herramientas pendientes por devolver -- se declara acá
+    // (antes del primer render()) para que la tarjeta/filtro de
+    // "Arrendadas" y el conteo puedan usarlo desde el principio; se llena
+    // más abajo, junto con el resto del bloque de arriendos.
+    let arriendos = [];
     const tbody = document.getElementById("tbody");
     const buscar = document.getElementById("buscar");
     const filtroCat = document.getElementById("filtro-categoria");
+    const filtroTipoHerramienta = document.getElementById("filtro-tipo-herramienta");
+    const filtroAdquisicionSel = document.getElementById("filtro-adquisicion");
 
     // Filtro por nivel de stock ('' | 'bajo' | 'cero'), activado al tocar
     // las tarjetas "Con stock bajo" / "Sin stock". Tocar la misma de nuevo
-    // (o "Tipos de material") lo quita y vuelve a mostrar todo.
+    // (o "Tipos de material") lo quita y vuelve a mostrar todo. En
+    // Herramientas esas dos tarjetas no aplican (importa más si está
+    // arrendada que si el stock está bajo) -- se reemplazan por
+    // "Arrendadas".
     let filtroStock = "";
+    // '' | 'comprada' | 'arrendada' -- se controla desde la tarjeta
+    // "Arrendadas" (atajo) y desde el select del mismo nombre; ambos
+    // quedan sincronizados entre sí.
+    let filtroAdquisicion = "";
     const statTotalCard = document.getElementById("stat-total-card");
     const statBajoCard = document.getElementById("stat-bajo-card");
     const statCeroCard = document.getElementById("stat-cero-card");
+    const statArrendadasCard = document.getElementById("stat-arrendadas-card");
+    statBajoCard.classList.toggle("hidden", modoHerramienta);
+    statCeroCard.classList.toggle("hidden", modoHerramienta);
+    statArrendadasCard.classList.toggle("hidden", !modoHerramienta);
     function setFiltroStock(valor) {
       filtroStock = filtroStock === valor ? "" : valor;
       statTotalCard.classList.toggle("active", filtroStock === "");
@@ -350,9 +441,20 @@
       statCeroCard.classList.toggle("active", filtroStock === "cero");
       render();
     }
+    function setFiltroAdquisicion(valor) {
+      filtroAdquisicion = valor;
+      filtroAdquisicionSel.value = filtroAdquisicion;
+      statArrendadasCard.classList.toggle("active", filtroAdquisicion === "arrendada");
+      render();
+    }
     statTotalCard.addEventListener("click", () => setFiltroStock(""));
     statBajoCard.addEventListener("click", () => setFiltroStock("bajo"));
     statCeroCard.addEventListener("click", () => setFiltroStock("cero"));
+    statArrendadasCard.addEventListener("click", () => {
+      setFiltroAdquisicion(filtroAdquisicion === "arrendada" ? "" : "arrendada");
+    });
+    filtroAdquisicionSel.addEventListener("change", () => setFiltroAdquisicion(filtroAdquisicionSel.value));
+    filtroTipoHerramienta.addEventListener("change", render);
 
     const fmtNum = (n) => (Number(n) || 0).toLocaleString("es-CL", { maximumFractionDigits: 3 });
     const fmtFecha = (ts) => {
@@ -486,9 +588,15 @@
     function render() {
       const q = buscar.value.trim().toLowerCase();
       const cat = filtroCat.value;
+      // Ids de productos con al menos un arriendo aún pendiente por
+      // devolver -- solo se usa (y solo se calcula lo pendiente) en
+      // Herramientas.
+      const idsArrendadas = new Set(arriendos.filter((a) => !a.devuelto).map((a) => a.materialId));
       const vista = materiales.filter((m) =>
         (!cat || m.categoria === cat) &&
         (!filtroStock || nivelStock(m) === filtroStock) &&
+        (!filtroTipoHerramienta.value || m.tipoHerramienta === filtroTipoHerramienta.value) &&
+        (!filtroAdquisicion || (filtroAdquisicion === "arrendada") === idsArrendadas.has(m.id)) &&
         (!q || (m.producto || "").toLowerCase().includes(q)));
 
       // Estadísticas (sobre todo el inventario, no la vista filtrada)
@@ -497,6 +605,7 @@
       document.getElementById("stat-total").textContent = materiales.length;
       document.getElementById("stat-bajo").textContent = bajos.length;
       document.getElementById("stat-cero").textContent = ceros.length;
+      if (modoHerramienta) document.getElementById("stat-arrendadas").textContent = idsArrendadas.size;
 
       const alerta = document.getElementById("alerta-stock");
       const enAlerta = [...ceros, ...bajos];
@@ -527,6 +636,8 @@
               ${m.sinReposicion ? `<div class="text-sm muted">No se repone</div>` : ""}
             </td>
             <td><span class="badge badge-muted">${esc(etiquetaCategoria(m.categoria))}</span></td>
+            <td class="${modoHerramienta ? "" : "hidden"}">${m.tipoHerramienta ? esc(etiquetaTipoHerramienta(m.tipoHerramienta)) : "<span class='muted'>—</span>"}</td>
+            <td class="${modoHerramienta ? "" : "hidden"}">${idsArrendadas.has(m.id) ? `<span class="badge badge-muted">Arrendada</span>` : `<span class="badge badge-muted">Comprada</span>`}</td>
             <td>${esc(m.medida) || "<span class='muted'>—</span>"}</td>
             <td>${esc(m.centroGestion) || "<span class='muted'>—</span>"}</td>
             <td>${esc(m.centroCosto) || "<span class='muted'>—</span>"}</td>
@@ -570,6 +681,50 @@
     let ordenesCompra = [];
     escucharPedidos((items) => { pedidos = items; }, () => {});
     escucharOrdenes((items) => { ordenesCompra = items; }, () => {});
+
+    // Fletes: para poder vincular un "Material entrante" al traslado (y su
+    // factura) que lo trajo. Se crean en la página Fletes, acá solo se eligen.
+    let fletes = [];
+    escucharFletes((items) => { fletes = items; }, () => {});
+
+    // Arriendos de herramientas: solo importa en esta página (Herramientas)
+    // -- ahí se muestra la lista de lo que sigue pendiente por devolver.
+    // (el arreglo "arriendos" ya se declaró más arriba, junto al resto del
+    // estado, para que la tarjeta "Arrendadas" lo pueda usar desde el
+    // primer render()).
+    const bloqueArriendos = document.getElementById("bloque-arriendos");
+    const resumenArriendos = document.getElementById("resumen-arriendos");
+    const listaArriendos = document.getElementById("lista-arriendos");
+    function renderArriendos() {
+      if (!modoHerramienta) return;
+      const pendientes = arriendos.filter((a) => !a.devuelto);
+      bloqueArriendos.classList.toggle("hidden", !pendientes.length);
+      resumenArriendos.textContent = `${pendientes.length} herramienta${pendientes.length === 1 ? "" : "s"} arrendada${pendientes.length === 1 ? "" : "s"} por devolver`;
+      listaArriendos.innerHTML = pendientes.map((a) => `
+        <div class="item-pedido-fila" data-arriendo-id="${a.id}">
+          <div style="display:flex; justify-content:space-between; align-items:baseline; gap:8px; flex-wrap:wrap;">
+            <div>
+              <strong>${esc(a.materialProducto)}</strong>
+              <span class="muted text-sm"> — ${fmtNum(a.cantidad)} unidad${a.cantidad === 1 ? "" : "es"} · ${esc(a.empresa)}</span>
+            </div>
+            <button type="button" class="btn btn-ghost btn-xs only-bodega" data-devolver="${a.id}">Marcar devuelta</button>
+          </div>
+        </div>`).join("");
+    }
+    escucharArriendos((items) => { arriendos = items; renderArriendos(); render(); }, () => {});
+    listaArriendos.addEventListener("click", async (e) => {
+      const id = e.target.getAttribute?.("data-devolver");
+      if (!id) return;
+      const a = arriendos.find((x) => x.id === id);
+      if (!a) return;
+      if (!confirm(`¿Marcar "${a.materialProducto}" (${fmtNum(a.cantidad)} unidad${a.cantidad === 1 ? "" : "es"}) como devuelta a ${a.empresa}? Se descuenta del stock.`)) return;
+      try {
+        await devolverHerramienta(a);
+        flash("Herramienta marcada como devuelta.");
+      } catch (err) {
+        flash(err.message, "error");
+      }
+    });
 
     /**
      * Ítems pendientes (de órdenes de compra aún no recibidas), con los
@@ -841,6 +996,71 @@
       },
     });
 
+    // ── Foto de la factura/guía (opcional): dos botones, "Tomar foto" y
+    // "Elegir archivo", cada uno con su propia entrada de archivo oculta
+    // -- separados porque mezclar accept="image/*,.pdf" con
+    // capture="environment" en un solo campo hace que en varios celulares
+    // ya no salte la cámara sola. Con cuál de las dos haya quedado el
+    // archivo, esa es la elegida.
+    const eFacturaCamara = document.getElementById("e-factura");
+    const eFacturaArchivo = document.getElementById("e-factura-archivo");
+    const eFacturaElegida = document.getElementById("e-factura-elegida");
+    let facturaElegidaEntrante = null;
+
+    function elegirFacturaEntrante(archivo) {
+      facturaElegidaEntrante = archivo;
+      eFacturaElegida.textContent = archivo ? `📎 ${archivo.name}` : "";
+    }
+    eFacturaCamara.addEventListener("change", () => elegirFacturaEntrante(eFacturaCamara.files[0] || null));
+    eFacturaArchivo.addEventListener("change", () => elegirFacturaEntrante(eFacturaArchivo.files[0] || null));
+    document.getElementById("btn-e-factura-camara").addEventListener("click", () => eFacturaCamara.click());
+    document.getElementById("btn-e-factura-archivo").addEventListener("click", () => eFacturaArchivo.click());
+
+    // ── Flete asociado (opcional): buscador simple, igual patrón que el
+    // de Pedido de Materiales -- se crea/edita aparte, en Fletes. ─────────
+    const eFleteBuscar = document.getElementById("e-flete-buscar");
+    const eFleteHidden = document.getElementById("e-flete");
+    const eFleteLista = document.getElementById("e-flete-lista");
+
+    function renderFleteLista() {
+      const q = normalizar(eFleteBuscar.value);
+      const items = fletes
+        .filter((f) => !q || normalizar(f.empresa).includes(q))
+        .slice(0, 20);
+      eFleteLista.innerHTML = items.length
+        ? items.map((f) => `
+            <button type="button" class="btn btn-ghost btn-xs" data-id="${f.id}">
+              ${esc(f.empresa)} <span class="muted text-sm">— ${esc(etiquetaTipoFlete(f.tipo))}</span>
+            </button>`).join("")
+        : `<div class="text-sm muted empty">Sin resultados. Créalo en Fletes.</div>`;
+      eFleteLista.classList.remove("hidden");
+    }
+    eFleteBuscar.addEventListener("focus", renderFleteLista);
+    eFleteBuscar.addEventListener("input", () => { eFleteHidden.value = ""; renderFleteLista(); });
+    eFleteBuscar.addEventListener("keydown", (e) => { if (e.key === "Escape") eFleteLista.classList.add("hidden"); });
+    eFleteLista.addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-id]");
+      if (!btn) return;
+      const f = fletes.find((x) => x.id === btn.getAttribute("data-id"));
+      eFleteHidden.value = f?.id || "";
+      eFleteBuscar.value = f ? `${f.empresa} — ${etiquetaTipoFlete(f.tipo)}` : "";
+      eFleteLista.classList.add("hidden");
+    });
+    document.addEventListener("click", (e) => {
+      if (e.target !== eFleteBuscar && !eFleteLista.contains(e.target)) eFleteLista.classList.add("hidden");
+    });
+
+    // ── Tipo de adquisición (solo en la página Herramientas): comprada o
+    // arrendada -- si es arrendada, se pide la empresa (y opcionalmente
+    // hasta cuándo) para poder dejarla pendiente por devolver. ───────────
+    const bloqueTipoAdquisicion = document.getElementById("bloque-tipo-adquisicion");
+    const camposArriendo = document.getElementById("campos-arriendo");
+    const eTipoAdquisicion = document.getElementById("e-tipo-adquisicion");
+    bloqueTipoAdquisicion.classList.toggle("hidden", !modoHerramienta);
+    eTipoAdquisicion.addEventListener("change", () => {
+      camposArriendo.classList.toggle("hidden", eTipoAdquisicion.value !== "arrendada");
+    });
+
     function actualizarVistaEntrante() {
       const hayPedido = !!document.getElementById("e-pedido").value;
       eNuevoCampos.classList.toggle("hidden", !modoProductoNuevo);
@@ -862,6 +1082,8 @@
       errEntrante.classList.add("hidden");
       eNuevoProducto.value = "";
       modoProductoNuevo = false;
+      elegirFacturaEntrante(null);
+      camposArriendo.classList.add("hidden");
       actualizarVistaEntrante();
       dlgEntrante.showModal();
     });
@@ -878,6 +1100,21 @@
         const proveedor = document.getElementById("e-proveedor").value;
         const motivo = document.getElementById("e-motivo").value;
         const ubicacion = eUbicacion.value;
+        const fleteId = eFleteHidden.value || null;
+        const fleteEmpresa = fleteId ? (fletes.find((f) => f.id === fleteId)?.empresa || "") : "";
+        // Una sola foto de factura/guía por registro, aunque sean varios
+        // productos del mismo PM a la vez -- es el mismo documento para
+        // todos, no hace falta subirlo más de una vez.
+        const factura = await subirFacturaEntrada(facturaElegidaEntrante);
+
+        // Tipo de adquisición (solo aplica en la página Herramientas): si
+        // es arrendada, es la misma empresa para todos los productos de
+        // este registro (igual que la factura/flete).
+        const tipoAdquisicion = modoHerramienta ? eTipoAdquisicion.value : null;
+        const empresaArriendo = tipoAdquisicion === "arrendada" ? document.getElementById("e-arriendo-empresa").value : "";
+        if (tipoAdquisicion === "arrendada" && !empresaArriendo.trim()) {
+          throw new Error("Indica la empresa arrendadora.");
+        }
 
         if (pedidoSeleccionado) {
           if (!itemsPMSeleccionados.length) throw new Error("Elige al menos un producto del pedido.");
@@ -928,6 +1165,11 @@
                 ordenCompraId: ordenAnotada.id,
                 ordenCompraNumero: ordenAnotada.numero,
                 pmItemId: item.id,
+                fleteId,
+                fleteEmpresa,
+                factura,
+                tipoAdquisicion,
+                empresaArriendo,
               };
               if (existente) {
                 datos.materialId = existente.id;
@@ -946,7 +1188,16 @@
                   descripcion: "",
                 };
               }
-              await registrarEntrada(datos);
+              const resultado = await registrarEntrada(datos);
+              if (tipoAdquisicion === "arrendada") {
+                await crearArriendo({
+                  materialId: resultado.materialId,
+                  materialProducto: resultado.materialProducto,
+                  cantidad: datos.cantidadRecibida,
+                  empresa: empresaArriendo,
+                  movimientoEntradaId: resultado.movimientoId,
+                });
+              }
               registrados++;
               itemsPMSeleccionados = itemsPMSeleccionados.filter((x) => x.id !== item.id);
             } catch (errItem) {
@@ -969,6 +1220,11 @@
             ordenCompraId: null,
             ordenCompraNumero: "",
             pmItemId: null,
+            fleteId,
+            fleteEmpresa,
+            factura,
+            tipoAdquisicion,
+            empresaArriendo,
           };
           if (modoProductoNuevo) {
             if (!document.getElementById("e-nuevo-categoria").value) throw new Error("Elige una categoría para el producto nuevo.");
@@ -982,12 +1238,22 @@
               stockMinimo: document.getElementById("e-nuevo-minimo").value,
               ubicacion,
               descripcion: document.getElementById("e-nuevo-descripcion").value,
+              tipoHerramienta: modoHerramienta ? document.getElementById("e-nuevo-tipo-herramienta").value : "",
             };
           } else {
             if (!eProducto.value) throw new Error("Selecciona un producto.");
             datos.materialId = eProducto.value;
           }
-          await registrarEntrada(datos);
+          const resultado = await registrarEntrada(datos);
+          if (tipoAdquisicion === "arrendada") {
+            await crearArriendo({
+              materialId: resultado.materialId,
+              materialProducto: resultado.materialProducto,
+              cantidad: datos.cantidadRecibida,
+              empresa: empresaArriendo,
+              movimientoEntradaId: resultado.movimientoId,
+            });
+          }
         }
         dlgEntrante.close();
         flash("Material entrante registrado.");

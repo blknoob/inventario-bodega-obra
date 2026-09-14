@@ -14,7 +14,8 @@ import {
   serverTimestamp,
   updateDoc,
 } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
-import { db } from "./firebase-config.js";
+import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-storage.js";
+import { db, storage } from "./firebase-config.js";
 import { usuarioActual } from "./auth.js";
 import { MODO_DEMO, MATERIALES_DEMO, MOVIMIENTOS_DEMO, bloquearEnDemo } from "./demo.js";
 
@@ -32,6 +33,17 @@ export const CATEGORIAS = [
 
 export function etiquetaCategoria(valor) {
   return CATEGORIAS.find((c) => c.valor === valor)?.etiqueta ?? valor;
+}
+
+// Solo aplica a herramientas (ver materiales.html, bloque "e-nuevo-campos").
+export const TIPOS_HERRAMIENTA = [
+  { valor: "manual", etiqueta: "Manual" },
+  { valor: "electrica", etiqueta: "Eléctrica" },
+  { valor: "inalambrica", etiqueta: "Inalámbrica" },
+];
+
+export function etiquetaTipoHerramienta(valor) {
+  return TIPOS_HERRAMIENTA.find((t) => t.valor === valor)?.etiqueta ?? valor;
 }
 
 /**
@@ -57,20 +69,48 @@ export function escucharMateriales(onCambio, onError) {
   );
 }
 
+function conTope(promesa, ms, mensaje) {
+  return Promise.race([
+    promesa,
+    new Promise((_, reject) => setTimeout(() => reject(new Error(mensaje)), ms)),
+  ]);
+}
+
+/**
+ * Sube la foto (o PDF) de la factura/guía de un ingreso a Storage y devuelve
+ * sus datos para guardar junto al movimiento. Se sube UNA vez por lo que se
+ * registra en el diálogo de "Material entrante" (aunque sean varios
+ * productos del mismo pedido a la vez: es la misma guía para todos), así que
+ * se llama antes de crear los movimientos, no dentro de registrarEntrada.
+ */
+export async function subirFacturaEntrada(archivo) {
+  if (!archivo) return null;
+  const path = `entradas/${crypto.randomUUID()}/${archivo.name}`;
+  const archivoRef = ref(storage, path);
+  await conTope(
+    uploadBytes(archivoRef, archivo),
+    20000,
+    "No se pudo subir la factura (se demoró demasiado). Revisa que Firebase Storage esté activado para este proyecto.",
+  );
+  const url = await getDownloadURL(archivoRef);
+  return { nombre: archivo.name, url, path };
+}
+
 /**
  * Registra material entrante: si `materialId` viene vacío, crea el producto
  * (con correlativo automático "item") con el stock inicial recibido; si viene
  * un id existente, solo suma esa cantidad a su stock. En ambos casos deja un
  * movimiento de tipo "entrada" en el historial. Todo en una sola transacción.
  */
-export async function registrarEntrada({ materialId, nuevoMaterial, cantidadRecibida, proveedor, documento, motivo, ubicacion, ordenCompraId, ordenCompraNumero, pmItemId }) {
+export async function registrarEntrada({ materialId, nuevoMaterial, cantidadRecibida, proveedor, documento, motivo, ubicacion, ordenCompraId, ordenCompraNumero, pmItemId, fleteId, fleteEmpresa, factura, tipoAdquisicion, empresaArriendo }) {
   if (MODO_DEMO) bloquearEnDemo();
   const cant = Number(cantidadRecibida);
   if (!(cant > 0)) throw new Error("La cantidad recibida debe ser mayor que cero.");
 
   const email = usuarioActual()?.email ?? null;
+  const nuevoMovRef = doc(movimientosRef);
 
-  await runTransaction(db, async (tx) => {
+  const resultado = await runTransaction(db, async (tx) => {
     let materialDoc, productoNombre, categoriaMovimiento, resultante;
 
     // Si este ingreso viene de un ítem puntual de una orden de compra, hay
@@ -121,14 +161,14 @@ export async function registrarEntrada({ materialId, nuevoMaterial, cantidadReci
         stockMinimo: Number(nuevoMaterial.stockMinimo) || 0,
         ubicacion: nuevoMaterial.ubicacion?.trim() || "",
         descripcion: nuevoMaterial.descripcion?.trim() || "",
+        tipoHerramienta: nuevoMaterial.categoria === "herramienta" ? (nuevoMaterial.tipoHerramienta?.trim() || "") : "",
         creadoPor: email,
         creadoEn: serverTimestamp(),
         actualizadoEn: serverTimestamp(),
       });
     }
 
-    const nuevoMov = doc(movimientosRef);
-    tx.set(nuevoMov, {
+    tx.set(nuevoMovRef, {
       materialId: materialDoc.id,
       materialProducto: productoNombre,
       categoria: categoriaMovimiento,
@@ -141,6 +181,15 @@ export async function registrarEntrada({ materialId, nuevoMaterial, cantidadReci
       ordenCompraId: ordenCompraId || null,
       ordenCompraNumero: ordenCompraNumero?.trim() || "",
       pmItemId: pmItemId || null,
+      fleteId: fleteId || null,
+      fleteEmpresa: fleteEmpresa?.trim() || "",
+      factura: factura || null,
+      // Solo aplica a herramientas: si esta llegada es de una herramienta
+      // arrendada (no comprada), hay que poder verla después como
+      // "pendiente por devolver" -- ver herramientas.js/crearArriendo, que
+      // se llama aparte con el id de este movimiento (movimientoEntradaId).
+      tipoAdquisicion: tipoAdquisicion || null,
+      empresaArriendo: tipoAdquisicion === "arrendada" ? (empresaArriendo?.trim() || "") : "",
       responsable: email,
       fecha: serverTimestamp(),
     });
@@ -155,7 +204,14 @@ export async function registrarEntrada({ materialId, nuevoMaterial, cantidadReci
       );
       tx.update(ordenDoc, { itemsCubiertos });
     }
+
+    return { materialId: materialDoc.id, materialProducto: productoNombre };
   });
+
+  // Id del material y del movimiento recién creados: los necesita el
+  // llamador para, si esto era una herramienta arrendada, dejar registrado
+  // aparte que queda pendiente por devolver (ver herramientas.js).
+  return { ...resultado, movimientoId: nuevoMovRef.id };
 }
 
 /**
