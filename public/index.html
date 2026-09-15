@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Control de Inventario de Bodega CCLP II</title>
+  <title>Control de Inventario de Bodega</title>
   <link rel="stylesheet" href="css/styles.css" />
 </head>
 <body>
@@ -40,26 +40,37 @@
   <script type="module">
     import { montarTopbar } from "./js/ui.js";
     import { escucharMateriales, nivelStock } from "./js/materiales.js";
+    import { obraActiva, escucharObraActiva } from "./js/obra.js";
 
     montarTopbar("inicio");
     const errorConexion = document.getElementById("error-conexion");
 
+    // Se guarda sin filtrar para poder refiltrar por obra activa sin
+    // esperar un nuevo snapshot (ver escucharObraActiva más abajo).
+    let materialesRaw = [];
+    function actualizarStats() {
+      const items = materialesRaw.filter((m) => m.obra === obraActiva());
+      const materiales = items.filter((m) => !["epp", "herramienta"].includes(m.categoria));
+      const epps = items.filter((m) => m.categoria === "epp");
+      const herramientas = items.filter((m) => m.categoria === "herramienta");
+      document.getElementById("stat-materiales").textContent = materiales.length;
+      document.getElementById("stat-epp").textContent = epps.length;
+      document.getElementById("stat-herramientas").textContent = herramientas.length;
+      const alertas = items.filter((m) => nivelStock(m) !== "ok").length;
+      document.getElementById("stat-alertas").textContent = alertas;
+    }
+
     escucharMateriales(
       (items) => {
-        const materiales = items.filter((m) => !["epp", "herramienta"].includes(m.categoria));
-        const epps = items.filter((m) => m.categoria === "epp");
-        const herramientas = items.filter((m) => m.categoria === "herramienta");
-        document.getElementById("stat-materiales").textContent = materiales.length;
-        document.getElementById("stat-epp").textContent = epps.length;
-        document.getElementById("stat-herramientas").textContent = herramientas.length;
-        const alertas = items.filter((m) => nivelStock(m) !== "ok").length;
-        document.getElementById("stat-alertas").textContent = alertas;
+        materialesRaw = items;
+        actualizarStats();
       },
       (err) => {
         errorConexion.textContent = "Error de conexión: " + err.message;
         errorConexion.classList.remove("hidden");
       },
     );
+    escucharObraActiva(actualizarStats);
   </script>
 </body>
 </html>

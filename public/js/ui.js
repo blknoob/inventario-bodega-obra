@@ -4,6 +4,7 @@
 
 import { observarSesion, cerrarSesion } from "./auth.js";
 import { MODO_DEMO } from "./demo.js";
+import { OBRAS, obraActiva, setObraActiva } from "./obra.js";
 
 /**
  * Monta la barra superior en <header id="topbar"> y refleja el estado de sesión.
@@ -16,9 +17,12 @@ export function montarTopbar(activo = "") {
   const link = (href, key, label) =>
     `<a href="${href}" class="${key === activo ? "active" : ""}">${label}</a>`;
 
+  const optsObra = OBRAS.map((o) => `<option value="${o.valor}">${o.etiqueta}</option>`).join("");
+
   header.className = "topbar";
   header.innerHTML = `
     <a class="brand" href="index.html">Control de Inventario <b>DPC</b></a>
+    <select id="selector-obra" class="selector-obra" title="Obra activa" aria-label="Obra activa">${optsObra}</select>
     <button type="button" class="menu-toggle" id="menu-toggle" aria-label="Abrir menú" aria-expanded="false" aria-controls="topbar-nav">
       <span class="bar"></span><span class="bar"></span><span class="bar"></span>
     </button>
@@ -34,6 +38,14 @@ export function montarTopbar(activo = "") {
       ${MODO_DEMO ? '<span class="badge badge-warn" title="Datos de muestra; no se guarda nada">DEMO</span>' : ""}
     </nav>
   `;
+
+  // Selector de obra: divide materiales, EPP y herramientas de la misma
+  // bodega entre CCLP II y Data Centers (ver public/js/obra.js). Es de
+  // vista, no de permisos: se ve y se puede cambiar sin haber iniciado
+  // sesión de bodega.
+  const selectorObra = header.querySelector("#selector-obra");
+  selectorObra.value = obraActiva();
+  selectorObra.addEventListener("change", () => setObraActiva(selectorObra.value));
 
   // Menú hamburguesa (solo se ve en pantallas angostas, vía CSS).
   const toggle = header.querySelector("#menu-toggle");

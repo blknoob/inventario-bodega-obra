@@ -111,7 +111,7 @@ export async function registrarEntrada({ materialId, nuevoMaterial, cantidadReci
   const nuevoMovRef = doc(movimientosRef);
 
   const resultado = await runTransaction(db, async (tx) => {
-    let materialDoc, productoNombre, categoriaMovimiento, resultante;
+    let materialDoc, productoNombre, categoriaMovimiento, obraMovimiento, resultante;
 
     // Si este ingreso viene de un ítem puntual de una orden de compra, hay
     // que leerla ANTES de cualquier escritura (regla de las transacciones
@@ -130,6 +130,7 @@ export async function registrarEntrada({ materialId, nuevoMaterial, cantidadReci
       if (!snap.exists()) throw new Error("El material ya no existe.");
       productoNombre = snap.data().producto;
       categoriaMovimiento = snap.data().categoria;
+      obraMovimiento = snap.data().obra || "";
       const actual = Number(snap.data().stock) || 0;
       resultante = Math.round((actual + cant) * 1000) / 1000;
       // La ubicación solo se toca si se indicó una -- si se deja en blanco
@@ -148,11 +149,13 @@ export async function registrarEntrada({ materialId, nuevoMaterial, cantidadReci
       materialDoc = doc(materialesRef);
       productoNombre = nuevoMaterial.producto.trim();
       categoriaMovimiento = nuevoMaterial.categoria;
+      obraMovimiento = nuevoMaterial.obra || "";
       resultante = cant;
       tx.set(materialDoc, {
         item,
         producto: productoNombre,
         categoria: nuevoMaterial.categoria,
+        obra: obraMovimiento,
         unidad: nuevoMaterial.unidad.trim(),
         medida: nuevoMaterial.medida?.trim() || "",
         centroGestion: nuevoMaterial.centroGestion?.trim() || "",
@@ -172,6 +175,7 @@ export async function registrarEntrada({ materialId, nuevoMaterial, cantidadReci
       materialId: materialDoc.id,
       materialProducto: productoNombre,
       categoria: categoriaMovimiento,
+      obra: obraMovimiento,
       tipo: "entrada",
       cantidad: cant,
       stockResultante: resultante,
@@ -205,7 +209,7 @@ export async function registrarEntrada({ materialId, nuevoMaterial, cantidadReci
       tx.update(ordenDoc, { itemsCubiertos });
     }
 
-    return { materialId: materialDoc.id, materialProducto: productoNombre };
+    return { materialId: materialDoc.id, materialProducto: productoNombre, obra: obraMovimiento };
   });
 
   // Id del material y del movimiento recién creados: los necesita el
@@ -245,6 +249,7 @@ export async function registrarSalida(materialId, {
       materialId,
       materialProducto: snap.data().producto,
       categoria: snap.data().categoria,
+      obra: snap.data().obra || "",
       tipo: "salida",
       cantidad: cant,
       stockResultante: resultante,

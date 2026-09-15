@@ -79,6 +79,23 @@ a { color: var(--info); }
 .topbar nav a.active { background: rgba(255, 255, 255, .12); color: #fff; }
 .topbar .session { font-size: 12px; color: var(--muted); }
 
+/* Selector de obra (CCLP II / Data Centers): divide materiales, EPP y
+   herramientas de la misma bodega. Va en la barra siempre visible, no
+   dentro del menú desplegable de celular. */
+.topbar .selector-obra {
+  flex: 0 0 auto;
+  background: rgba(255, 255, 255, .12);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, .25);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+}
+.topbar .selector-obra:hover { background: rgba(255, 255, 255, .18); }
+.topbar .selector-obra option { color: var(--ink); }
+
 /* Botón hamburguesa: oculto en desktop, se muestra en el media query de abajo. */
 .menu-toggle {
   display: none;
@@ -557,6 +574,7 @@ body.es-bodega .only-bodega.row-actions { display: flex; }
     white-space: nowrap;
   }
   .menu-toggle { display: flex; }
+  .topbar .selector-obra { font-size: 12px; padding: 5px 6px; }
 
   /* El menú flota sobre el contenido (no lo empuja hacia abajo). El
      "position: sticky" del .topbar ya sirve de referencia para este
