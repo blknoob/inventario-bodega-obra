@@ -14,7 +14,7 @@
 
     <div class="page-head">
       <h1 id="titulo-h1">Materiales</h1>
-      <p id="titulo-sub">Consumibles, equipos y otros materiales de obra. Los EPP tienen su propia sección.</p>
+      <!-- <p id="titulo-sub">Consumibles, equipos y otros materiales de obra. Los EPP tienen su propia sección.</p> -->
     </div>
 
     <div class="grid" style="margin-bottom: 18px;">
@@ -344,15 +344,18 @@
       herramienta: ["Herramientas", "Manuales, eléctricas e inalámbricas."],
     };
 
+    // "titulo-sub" es opcional en el HTML (algunas páginas lo dejan
+    // comentado); si no está, se ignora en vez de romper el resto.
+    const tituloSub = document.getElementById("titulo-sub");
     if (modoAlertas) {
       document.getElementById("titulo-pagina").textContent = "Alertas de stock | Inventario de Bodega";
       document.getElementById("titulo-h1").textContent = "Alertas de stock";
-      document.getElementById("titulo-sub").textContent = "Materiales, EPPs y herramientas con stock bajo o agotado.";
+      if (tituloSub) tituloSub.textContent = "Materiales, EPPs y herramientas con stock bajo o agotado.";
     } else {
       const [titulo, subtitulo] = TITULOS_PAGINA[categoriaPagina] || ["Materiales", "Consumibles, equipos y otros materiales de obra. Los EPP y las Herramientas tienen su propia sección."];
       document.getElementById("titulo-pagina").textContent = `${titulo} | Inventario de Bodega`;
       document.getElementById("titulo-h1").textContent = titulo;
-      document.getElementById("titulo-sub").textContent = subtitulo;
+      if (tituloSub) tituloSub.textContent = subtitulo;
     }
 
     // ── Poblar selects de categoría ─────────────────────────────────────────
