@@ -38,6 +38,7 @@ export const MATERIALES_DEMO = [
 export const PEDIDOS_DEMO = [
   {
     id: "p1", numero: "PM-001", solicitante: "Juan Pérez", observacion: "Reposición mensual",
+    obra: "cclp2",
     archivo: null,
     items: [
       { id: "i1", linea: "1", centroGestion: "Obra Gruesa", centroCosto: "CC-100", cantidad: 40, unidad: "sacos", glosa: "Cemento Portland 25 kg" },
@@ -49,6 +50,7 @@ export const PEDIDOS_DEMO = [
   },
   {
     id: "p2", numero: "PM-002", solicitante: "María Soto", observacion: "",
+    obra: "data_centers",
     archivo: null,
     items: [
       { id: "i4", linea: "1", centroGestion: "Obra Gruesa", centroCosto: "CC-100", cantidad: 30, unidad: "unidades", glosa: 'Disco de corte 4½"' },
@@ -83,12 +85,12 @@ const FACTURA_DEMO = { nombre: "factura-demo.jpg", url: "data:image/svg+xml,%3Cs
 
 export const FLETES_DEMO = [
   {
-    id: "f1", empresa: "Transportes Rojas", tipo: "entrada",
+    id: "f1", empresa: "Transportes Rojas", tipo: "entrada", obra: "cclp2",
     detalle: "Cemento Portland 25 kg (40 sacos)", observacion: "",
     factura: FACTURA_DEMO, creadoPor: "bodega@demo.cl", creadoEn: hace(3600),
   },
   {
-    id: "f2", empresa: "Retiros y Áridos SPA", tipo: "salida",
+    id: "f2", empresa: "Retiros y Áridos SPA", tipo: "salida", obra: "data_centers",
     detalle: "Escombros de demolición, 2 viajes", observacion: "Sector Patio A",
     factura: null, creadoPor: "bodega@demo.cl", creadoEn: hace(90000),
   },

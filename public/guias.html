@@ -95,6 +95,7 @@
     import { montarTopbar, flash } from "./js/ui.js";
     import { escucharFletes, crearFlete, eliminarFlete, TIPOS_FLETE, etiquetaTipoFlete } from "./js/fletes.js";
     import { escucharMovimientos } from "./js/materiales.js";
+    import { obraActiva, escucharObraActiva } from "./js/obra.js";
 
     montarTopbar("guias");
 
@@ -128,6 +129,10 @@
     document.getElementById("f-tipo").innerHTML =
       TIPOS_FLETE.map((t) => `<option value="${t.valor}">${t.etiqueta}</option>`).join("");
 
+    // Sin filtrar todavía por obra -- se guardan para poder refiltrar al
+    // cambiar de obra activa sin esperar un nuevo snapshot.
+    let fletesRaw = [];
+    let movimientosRaw = [];
     let fletes = [];
     let movimientos = [];
     let filtroTipo = ""; // "" | "ingreso" | "traslado"
@@ -283,14 +288,21 @@
 
     buscar.addEventListener("input", render);
 
+    function recalcularGuias() {
+      fletes = fletesRaw.filter((f) => f.obra === obraActiva());
+      movimientos = movimientosRaw.filter((m) => m.obra === obraActiva());
+      render();
+    }
+
     escucharFletes(
-      (items) => { fletes = items; render(); },
+      (items) => { fletesRaw = items; recalcularGuias(); },
       (err) => { lista.innerHTML = `<div class="card"><p class="empty">Error al cargar: ${esc(err.message)}</p></div>`; },
     );
     escucharMovimientos(
-      (items) => { movimientos = items; render(); },
+      (items) => { movimientosRaw = items; recalcularGuias(); },
       () => {},
     );
+    escucharObraActiva(recalcularGuias);
 
     // ── Modales: apertura/cierre comunes ────────────────────────────────
     document.querySelectorAll("dialog [data-close]").forEach((b) =>
@@ -336,6 +348,7 @@
           detalle: document.getElementById("f-detalle").value,
           observacion: document.getElementById("f-observacion").value,
           factura: facturaElegidaFlete,
+          obra: obraActiva(),
         });
         dlgFlete.close();
         flash("Traslado registrado.");

@@ -101,7 +101,7 @@ async function subirArchivo(carpeta, id, archivo) {
  * costo, cantidad, unidad, glosa). Los ítems son texto libre: no requieren
  * existir todavía en el catálogo de Materiales/EPPs.
  */
-export async function crearPedido({ numero, solicitante, observacion, items, archivo }) {
+export async function crearPedido({ numero, solicitante, observacion, items, archivo, obra }) {
   if (MODO_DEMO) bloquearEnDemo();
   if (!archivo) throw new Error("Sube el Excel del pedido: es la única forma de cargar un PM.");
   const itemsLimpios = (items || [])
@@ -125,6 +125,7 @@ export async function crearPedido({ numero, solicitante, observacion, items, arc
     numero: numero?.trim() || "",
     solicitante: solicitante?.trim() || "",
     observacion: observacion?.trim() || "",
+    obra: obra || "",
     items: itemsLimpios,
     archivo: archivoInfo,
     creadoPor: email,

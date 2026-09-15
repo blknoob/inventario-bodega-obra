@@ -80,7 +80,7 @@ async function subirFactura(fleteId, archivo) {
 }
 
 /** Crea un nuevo flete: empresa, tipo (entrada/salida), qué se trasladó y su factura. */
-export async function crearFlete({ empresa, tipo, detalle, observacion, factura }) {
+export async function crearFlete({ empresa, tipo, detalle, observacion, factura, obra }) {
   if (MODO_DEMO) bloquearEnDemo();
   if (!empresa?.trim()) throw new Error("Indica la empresa que hizo el traslado.");
   if (!TIPOS_FLETE.some((t) => t.valor === tipo)) throw new Error("Elige el tipo de flete.");
@@ -92,6 +92,7 @@ export async function crearFlete({ empresa, tipo, detalle, observacion, factura 
   await setDoc(fleteDoc, {
     empresa: empresa.trim(),
     tipo,
+    obra: obra || "",
     detalle: detalle?.trim() || "",
     observacion: observacion?.trim() || "",
     factura: facturaInfo,

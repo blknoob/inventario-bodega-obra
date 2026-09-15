@@ -572,6 +572,7 @@
       function render() {
         const q = normalizar(input.value);
         const items = pedidos
+          .filter((p) => p.obra === obraActiva())
           .filter((p) => !q || [p.numero, p.solicitante].some((v) => normalizar(v).includes(q)))
           .slice(0, 30);
         lista.innerHTML = items.length
@@ -1066,6 +1067,7 @@
     function renderFleteLista() {
       const q = normalizar(eFleteBuscar.value);
       const items = fletes
+        .filter((f) => f.obra === obraActiva())
         .filter((f) => !q || normalizar(f.empresa).includes(q))
         .slice(0, 20);
       eFleteLista.innerHTML = items.length
