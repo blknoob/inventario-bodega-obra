@@ -214,18 +214,14 @@
     <form id="form-saliente">
       <div id="err-saliente" class="alert alert-error hidden"></div>
 
-      <div class="field" style="position:relative;">
-        <label for="s-producto-buscar">Producto</label>
-        <input type="text" id="s-producto-buscar" class="buscador-input" placeholder="Busca el producto…" autocomplete="off" />
-        <input type="hidden" id="s-producto" />
-        <div id="s-producto-lista" class="buscador-lista hidden"></div>
-      </div>
-      <p class="text-sm muted" id="s-stock-actual" style="margin-top:-8px; margin-bottom:14px;"></p>
+      <label>Productos</label>
+      <div id="items-salida-lista"></div>
+      <button type="button" class="btn btn-ghost btn-block" id="btn-agregar-producto-salida" style="margin-top:8px; margin-bottom:14px;">+ Agregar otro producto</button>
 
       <div class="row">
         <div class="field">
-          <label for="s-cantidad">Cantidad</label>
-          <input type="number" id="s-cantidad" required min="0" step="any" />
+          <label for="s-persona-retira">Persona que retira</label>
+          <input type="text" id="s-persona-retira" required maxlength="80" />
         </div>
         <div class="field">
           <label for="s-numero-vale">N.º de vale <span class="muted">(opcional)</span></label>
@@ -234,19 +230,15 @@
       </div>
       <div class="row">
         <div class="field">
-          <label for="s-persona-retira">Persona que retira</label>
-          <input type="text" id="s-persona-retira" required maxlength="80" />
-        </div>
-        <div class="field">
           <label for="s-supervisor">Supervisor <span class="muted">(opcional)</span></label>
           <input type="text" id="s-supervisor" maxlength="80" />
         </div>
-      </div>
-      <div class="row">
         <div class="field">
           <label for="s-actividad">Actividad <span class="muted">(opcional)</span></label>
           <input type="text" id="s-actividad" maxlength="80" />
         </div>
+      </div>
+      <div class="row">
         <div class="field">
           <label for="s-zona">Área / zona <span class="muted">(opcional)</span></label>
           <input type="text" id="s-zona" maxlength="60" />
@@ -444,78 +436,16 @@
       .normalize("NFD").replace(/[̀-ͯ]/g, "");
 
     /**
-     * Buscador de producto: un <input type="text"> + <input type="hidden">
-     * (con el id elegido) + un contenedor de resultados clickeables, todo
-     * identificado con el prefijo dado (ej: "s-producto" -> #s-producto-buscar,
-     * #s-producto, #s-producto-lista). Se usa en Material saliente; Material
-     * entrante tiene su propia versión por fila (ver wireFilaManual), porque
-     * ahí puede haber más de un producto a la vez.
+     * Deshabilita "Quitar"/"+ Agregar..." mientras se envía un registro con
+     * varios productos (Material entrante/saliente): sin esto, quitar una
+     * fila a mitad del envío reordena el DOM que el bucle de registro
+     * todavía está recorriendo -- la siguiente vuelta busca una fila que ya
+     * no existe y truena con un error crudo en vez de fallar con aviso.
      */
-    function crearBuscadorProducto(prefijo, { onSeleccionar } = {}) {
-      const input = document.getElementById(`${prefijo}-buscar`);
-      const oculto = document.getElementById(prefijo);
-      const lista = document.getElementById(`${prefijo}-lista`);
-
-      function render() {
-        const q = normalizar(input.value);
-        const items = [...materiales]
-          .filter((m) => !q || normalizar(m.producto).includes(q))
-          .sort((a, b) => (a.producto || "").localeCompare(b.producto || "", "es", { sensitivity: "base" }))
-          .slice(0, 30);
-        lista.innerHTML = items.length
-          ? items.map((m) => `
-              <button type="button" class="btn btn-ghost btn-xs" data-id="${m.id}">
-                ${esc(m.producto)} — stock ${fmtNum(m.stock)} ${esc(m.unidad)}
-              </button>`).join("")
-          : `<div class="text-sm muted empty">Sin resultados.</div>`;
-        lista.classList.remove("hidden");
-      }
-
-      input.addEventListener("focus", render);
-      input.addEventListener("input", () => {
-        oculto.value = "";
-        onSeleccionar?.(null);
-        render();
-      });
-      input.addEventListener("keydown", (e) => {
-        if (e.key === "Escape") lista.classList.add("hidden");
-      });
-      lista.addEventListener("click", (e) => {
-        const btn = e.target.closest("[data-id]");
-        if (!btn) return;
-        seleccionar(btn.getAttribute("data-id"));
-      });
-      document.addEventListener("click", (e) => {
-        if (e.target !== input && !lista.contains(e.target)) lista.classList.add("hidden");
-      });
-
-      function seleccionar(id) {
-        const m = materiales.find((x) => x.id === id);
-        oculto.value = id || "";
-        input.value = m ? m.producto : "";
-        lista.classList.add("hidden");
-        onSeleccionar?.(m || null);
-      }
-
-      return {
-        seleccionar,
-        reset() {
-          input.value = "";
-          oculto.value = "";
-          lista.classList.add("hidden");
-          lista.innerHTML = "";
-          onSeleccionar?.(null);
-        },
-      };
+    function alternarBotonesLista(contenedores, bloqueado) {
+      contenedores.forEach((cont) => cont?.querySelectorAll("button").forEach((b) => { b.disabled = bloqueado; }));
     }
 
-    /**
-     * Buscador de "ítem del pedido": una vez elegido el Pedido de
-     * Materiales (PM) de la guía/factura, lista solo sus ítems
-     * (itemsDePedido), sin importar si el producto ya existe en el
-     * catálogo o hay que crearlo -- el onSeleccionar decide eso. Se le
-     * indica qué pedido mirar con setPedido().
-     */
     /**
      * Buscador de Pedido de Materiales (PM), por N.º de pedido o
      * solicitante -- para saber qué pedido trajo esta guía/factura.
@@ -1292,6 +1222,9 @@
       errEntrante.classList.add("hidden");
       const btn = document.getElementById("btn-guardar-entrante");
       btn.disabled = true; btn.textContent = "Guardando…";
+      alternarBotonesLista([itemsPedidoElegidosCont, itemsManualCont], true);
+      btnElegirItems.disabled = true; // cambiar la selección del PM a mitad de envío tiene el mismo riesgo
+      document.getElementById("btn-agregar-producto-manual").disabled = true;
       try {
         const pedidoId = document.getElementById("e-pedido").value;
         const pedidoSeleccionado = pedidoId ? pedidos.find((p) => p.id === pedidoId) : null;
@@ -1438,6 +1371,7 @@
           // registro por un dato que faltaba desde el principio.
           for (const item of itemsManualSeleccionados) {
             const fila = itemsManualCont.querySelector(`.item-manual-fila[data-row-id="${item.id}"]`);
+            if (!fila) continue; // ya no está en el DOM (se quitó) -- nada que validar
             const materialId = fila.querySelector(".im-producto").value;
             const nuevoProducto = fila.querySelector(".im-nuevo-producto").value;
             const campoBuscar = fila.querySelector(".im-buscar");
@@ -1470,6 +1404,7 @@
           let registrados = 0;
           for (const item of [...itemsManualSeleccionados]) {
             const fila = itemsManualCont.querySelector(`.item-manual-fila[data-row-id="${item.id}"]`);
+            if (!fila) continue; // ya no está en el DOM (se quitó) -- nada que registrar
             const materialId = fila.querySelector(".im-producto").value;
             const nuevoProducto = fila.querySelector(".im-nuevo-producto").value;
             const nombreParaError = nuevoProducto || materiales.find((m) => m.id === materialId)?.producto || "Producto";
@@ -1537,25 +1472,149 @@
         errEntrante.classList.remove("hidden");
       } finally {
         btn.disabled = false; btn.textContent = "Registrar";
+        alternarBotonesLista([itemsPedidoElegidosCont, itemsManualCont], false);
+        btnElegirItems.disabled = false;
+        document.getElementById("btn-agregar-producto-manual").disabled = false;
       }
     });
 
     // ── Material saliente ───────────────────────────────────────────────
+    // Uno o varios productos a la vez (mismo patrón que Material entrante:
+    // filas colapsables, cada una con su propio buscador y cantidad; el
+    // resto -- persona que retira, vale, supervisor, etc. -- es compartido
+    // para todo el registro).
     const dlgSaliente = document.getElementById("dlg-saliente");
     const formSaliente = document.getElementById("form-saliente");
     const errSaliente = document.getElementById("err-saliente");
-    const sProducto = document.getElementById("s-producto");
-    const sStockActual = document.getElementById("s-stock-actual");
+    const itemsSalidaCont = document.getElementById("items-salida-lista");
+    let itemsSalidaSeleccionados = []; // [{id, abierto}] -- el resto vive en el DOM de cada fila
 
-    const buscadorSaliente = crearBuscadorProducto("s-producto", {
-      onSeleccionar: (m) => {
-        sStockActual.textContent = m ? `Stock actual: ${fmtNum(m.stock)} ${m.unidad}` : "";
-      },
+    function nuevaFilaSalida() {
+      return { id: crypto.randomUUID(), abierto: true };
+    }
+
+    function sincronizarItemsSalidaDesdeDom() {
+      itemsSalidaSeleccionados.forEach((item) => {
+        const fila = itemsSalidaCont.querySelector(`.item-salida-fila[data-row-id="${item.id}"]`);
+        if (!fila) return;
+        item.textoBuscador = fila.querySelector(".is-buscar").value;
+        item.materialId = fila.querySelector(".is-producto").value;
+        item.cantidad = fila.querySelector(".is-cantidad").value;
+        item.abierto = fila.open;
+      });
+    }
+
+    function actualizarResumenFilaSalida(fila) {
+      const resumen = fila.querySelector(".is-resumen");
+      const materialId = fila.querySelector(".is-producto").value;
+      const cantidad = fila.querySelector(".is-cantidad").value;
+      const m = materialId ? materiales.find((x) => x.id === materialId) : null;
+      if (!m) { resumen.textContent = "Producto"; return; }
+      resumen.textContent = `${m.producto}${cantidad ? ` — ${fmtNum(cantidad)} ${m.unidad}` : ""}`;
+    }
+
+    function renderItemsSalida() {
+      itemsSalidaCont.innerHTML = itemsSalidaSeleccionados.map((item) => {
+        const existente = item.materialId ? materiales.find((m) => m.id === item.materialId) : null;
+        return `
+          <details class="item-pedido-fila item-salida-fila lista-desplegable" data-row-id="${item.id}" ${item.abierto ? "open" : ""}>
+            <summary style="display:flex; justify-content:space-between; gap:10px;">
+              <span class="is-resumen">Producto</span>
+              ${itemsSalidaSeleccionados.length > 1 ? `<button type="button" class="btn btn-ghost btn-xs btn-danger is-quitar">Quitar</button>` : ""}
+            </summary>
+            <div class="field" style="position:relative; margin-top:10px;">
+              <label>Producto</label>
+              <input type="text" class="is-buscar buscador-input" placeholder="Busca el producto…" autocomplete="off" value="${esc(item.textoBuscador || "")}" />
+              <input type="hidden" class="is-producto" value="${esc(item.materialId || "")}" />
+              <div class="is-lista buscador-lista hidden"></div>
+            </div>
+            <p class="text-sm muted is-stock" style="margin-top:-8px; margin-bottom:10px;">${existente ? `Stock actual: ${fmtNum(existente.stock)} ${esc(existente.unidad)}` : ""}</p>
+            <div class="field">
+              <label>Cantidad</label>
+              <input type="number" class="is-cantidad" min="0" step="any" value="${esc(item.cantidad || "")}" />
+            </div>
+          </details>`;
+      }).join("");
+
+      itemsSalidaCont.querySelectorAll(".item-salida-fila").forEach((fila) => {
+        const item = itemsSalidaSeleccionados.find((x) => x.id === fila.getAttribute("data-row-id"));
+        wireFilaSalida(fila, item);
+        actualizarResumenFilaSalida(fila);
+      });
+    }
+
+    function wireFilaSalida(fila, item) {
+      const input = fila.querySelector(".is-buscar");
+      const oculto = fila.querySelector(".is-producto");
+      const lista = fila.querySelector(".is-lista");
+      const stockTxt = fila.querySelector(".is-stock");
+
+      function renderLista() {
+        const q = normalizar(input.value);
+        const items = [...materiales]
+          .filter((m) => !q || normalizar(m.producto).includes(q))
+          .sort((a, b) => (a.producto || "").localeCompare(b.producto || "", "es", { sensitivity: "base" }))
+          .slice(0, 30);
+        lista.innerHTML = items.length
+          ? items.map((m) => `
+              <button type="button" class="btn btn-ghost btn-xs" data-id="${m.id}">
+                ${esc(m.producto)} — stock ${fmtNum(m.stock)} ${esc(m.unidad)}
+              </button>`).join("")
+          : `<div class="text-sm muted empty">Sin resultados.</div>`;
+        lista.classList.remove("hidden");
+      }
+
+      function elegir(m) {
+        input.value = m ? m.producto : input.value;
+        oculto.value = m?.id || "";
+        stockTxt.textContent = m ? `Stock actual: ${fmtNum(m.stock)} ${m.unidad}` : "";
+        lista.classList.add("hidden");
+        actualizarResumenFilaSalida(fila);
+      }
+
+      input.addEventListener("focus", renderLista);
+      input.addEventListener("input", () => {
+        const existente = materiales.find((m) => normalizar(m.producto) === normalizar(input.value.trim()));
+        elegir(existente || null);
+        renderLista();
+      });
+      input.addEventListener("keydown", (e) => { if (e.key === "Escape") lista.classList.add("hidden"); });
+      lista.addEventListener("click", (e) => {
+        const btn = e.target.closest("[data-id]");
+        if (!btn) return;
+        elegir(materiales.find((x) => x.id === btn.getAttribute("data-id")));
+      });
+      fila.querySelector(".is-cantidad").addEventListener("input", () => actualizarResumenFilaSalida(fila));
+
+      fila.querySelector(".is-quitar")?.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        sincronizarItemsSalidaDesdeDom();
+        itemsSalidaSeleccionados = itemsSalidaSeleccionados.filter((x) => x.id !== item.id);
+        renderItemsSalida();
+      });
+    }
+
+    // Listener delegado único (ver el mismo patrón en Material entrante).
+    document.addEventListener("click", (e) => {
+      itemsSalidaCont.querySelectorAll(".item-salida-fila").forEach((fila) => {
+        const input = fila.querySelector(".is-buscar");
+        const lista = fila.querySelector(".is-lista");
+        if (e.target !== input && !lista.contains(e.target)) lista.classList.add("hidden");
+      });
+    });
+
+    document.getElementById("btn-agregar-producto-salida").addEventListener("click", () => {
+      sincronizarItemsSalidaDesdeDom();
+      itemsSalidaSeleccionados.forEach((item) => { item.abierto = false; });
+      itemsSalidaSeleccionados.push(nuevaFilaSalida());
+      renderItemsSalida();
     });
 
     document.getElementById("btn-saliente").addEventListener("click", () => {
       formSaliente.reset();
-      buscadorSaliente.reset();
+      itemsSalidaSeleccionados = [nuevaFilaSalida()];
+      renderItemsSalida();
       errSaliente.classList.add("hidden");
       dlgSaliente.showModal();
     });
@@ -1565,17 +1624,63 @@
       errSaliente.classList.add("hidden");
       const btn = document.getElementById("btn-guardar-saliente");
       btn.disabled = true; btn.textContent = "Guardando…";
+      alternarBotonesLista([itemsSalidaCont], true);
+      document.getElementById("btn-agregar-producto-salida").disabled = true;
       try {
-        if (!sProducto.value) throw new Error("Selecciona un producto.");
-        await registrarSalida(sProducto.value, {
-          cantidad: document.getElementById("s-cantidad").value,
-          personaRetira: document.getElementById("s-persona-retira").value,
-          supervisor: document.getElementById("s-supervisor").value,
-          actividad: document.getElementById("s-actividad").value,
-          zona: document.getElementById("s-zona").value,
-          numeroVale: document.getElementById("s-numero-vale").value,
-          observacion: document.getElementById("s-observacion").value,
-        });
+        if (!itemsSalidaSeleccionados.length) throw new Error("Agrega al menos un producto.");
+        const llevarVistaA = (campo) => {
+          campo.closest(".item-salida-fila").open = true;
+          campo.scrollIntoView({ behavior: "smooth", block: "center" });
+          campo.focus();
+        };
+        const personaRetira = document.getElementById("s-persona-retira").value;
+        const supervisor = document.getElementById("s-supervisor").value;
+        const actividad = document.getElementById("s-actividad").value;
+        const zona = document.getElementById("s-zona").value;
+        const numeroVale = document.getElementById("s-numero-vale").value;
+        const observacion = document.getElementById("s-observacion").value;
+
+        // Se valida todo ANTES de registrar nada (mismo motivo que en
+        // Material entrante): así no queda a mitad de camino un registro
+        // por un dato que faltaba desde el principio.
+        for (const item of itemsSalidaSeleccionados) {
+          const fila = itemsSalidaCont.querySelector(`.item-salida-fila[data-row-id="${item.id}"]`);
+          if (!fila) continue; // ya no está en el DOM (se quitó) -- nada que validar
+          const campoBuscar = fila.querySelector(".is-buscar");
+          if (!fila.querySelector(".is-producto").value) {
+            llevarVistaA(campoBuscar);
+            throw new Error("Selecciona un producto de la lista en cada fila.");
+          }
+          const campoCantidad = fila.querySelector(".is-cantidad");
+          if (campoCantidad.value === "" || Number.isNaN(Number(campoCantidad.value)) || Number(campoCantidad.value) <= 0) {
+            llevarVistaA(campoCantidad);
+            throw new Error(`${campoBuscar.value}: ingresa la cantidad.`);
+          }
+        }
+
+        let registrados = 0;
+        for (const item of [...itemsSalidaSeleccionados]) {
+          const fila = itemsSalidaCont.querySelector(`.item-salida-fila[data-row-id="${item.id}"]`);
+          if (!fila) continue; // ya no está en el DOM (se quitó) -- nada que registrar
+          const materialId = fila.querySelector(".is-producto").value;
+          const nombreProducto = materiales.find((m) => m.id === materialId)?.producto || "Producto";
+          try {
+            await registrarSalida(materialId, {
+              cantidad: fila.querySelector(".is-cantidad").value,
+              personaRetira, supervisor, actividad, zona, numeroVale, observacion,
+            });
+            registrados++;
+            itemsSalidaSeleccionados = itemsSalidaSeleccionados.filter((x) => x.id !== item.id);
+          } catch (errItem) {
+            sincronizarItemsSalidaDesdeDom();
+            renderItemsSalida();
+            throw new Error(
+              `${nombreProducto}: ${errItem.message}` +
+              (registrados ? ` (ya se registraron ${registrados} producto${registrados === 1 ? "" : "s"} antes de este error, no hace falta repetirlos)` : ""),
+            );
+          }
+        }
+        renderItemsSalida();
         dlgSaliente.close();
         flash("Material saliente registrado.");
       } catch (err) {
@@ -1583,6 +1688,8 @@
         errSaliente.classList.remove("hidden");
       } finally {
         btn.disabled = false; btn.textContent = "Registrar";
+        alternarBotonesLista([itemsSalidaCont], false);
+        document.getElementById("btn-agregar-producto-salida").disabled = false;
       }
     });
   </script>
