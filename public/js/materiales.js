@@ -89,8 +89,12 @@ export async function subirFacturasEntrada(archivos) {
   const lista = (archivos || []).filter(Boolean);
   if (!lista.length) return [];
   const carpeta = crypto.randomUUID(); // misma carpeta para todas las fotos de esta guía
-  return Promise.all(lista.map(async (archivo) => {
-    const path = `entradas/${carpeta}/${archivo.name}`;
+  return Promise.all(lista.map(async (archivo, i) => {
+    // El índice va en la ruta (no solo el nombre) porque dos fotos de la
+    // misma guía pueden llegar con el mismo nombre de archivo (p. ej. la
+    // cámara del celular nombra "image.jpg" a cada foto que toma): sin
+    // esto, la segunda subida pisaría a la primera en Storage.
+    const path = `entradas/${carpeta}/${i}-${archivo.name}`;
     const archivoRef = ref(storage, path);
     await conTope(
       uploadBytes(archivoRef, archivo),
