@@ -74,7 +74,7 @@
 
   <script type="module">
     import { montarTopbar } from "./js/ui.js";
-    import { CATEGORIAS, etiquetaCategoria, escucharMovimientos } from "./js/materiales.js";
+    import { CATEGORIAS, etiquetaCategoria, escucharMovimientos, facturasDe } from "./js/materiales.js";
     import { escucharObraActiva, esDeObraActiva } from "./js/obra.js";
 
     montarTopbar("historial");
@@ -134,11 +134,11 @@
       const nombre = esc(factura.nombre);
       const url = esc(factura.url);
       if (esImagen(factura.nombre)) {
-        return `<a href="${url}" download="${nombre}" target="_blank" rel="noopener" style="display:inline-block;">
+        return `<a href="${url}" download="${nombre}" target="_blank" rel="noopener" style="display:inline-block; margin:0 6px 6px 0;">
           <img src="${url}" alt="Factura" style="display:block; max-width:80px; max-height:80px; border-radius:6px; border:1px solid var(--line); object-fit:cover;" />
         </a>`;
       }
-      return `<a href="${url}" download="${nombre}" target="_blank" rel="noopener">📎 ${nombre}</a>`;
+      return `<a href="${url}" download="${nombre}" target="_blank" rel="noopener" style="display:inline-block; margin:0 6px 6px 0;">📎 ${nombre}</a>`;
     }
 
     /** Resumen corto de detalle, visible directo en la fila (lo esencial de
@@ -160,7 +160,9 @@
         if (m.proveedor) partes.push(["Proveedor", esc(m.proveedor)]);
         if (m.documento) partes.push(["Documento", esc(m.documento)]);
         if (m.motivo) partes.push(["Motivo", esc(m.motivo)]);
-        if (m.factura) partes.push(["Factura/guía", vistaFactura(m.factura)]);
+        if (m.observacionRecepcion) partes.push(["Observación de recepción", esc(m.observacionRecepcion)]);
+        const facturas = facturasDe(m);
+        if (facturas.length) partes.push(["Factura/guía", facturas.map(vistaFactura).join("")]);
         if (m.fleteEmpresa) partes.push(["Traslado (flete)", `${esc(m.fleteEmpresa)} <a href="guias.html" class="text-sm">(ver en Guías)</a>`]);
         if (m.tipoAdquisicion === "arrendada") partes.push(["Adquisición", `Arrendada — ${esc(m.empresaArriendo)}`]);
       } else {

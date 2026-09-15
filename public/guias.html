@@ -94,7 +94,7 @@
   <script type="module">
     import { montarTopbar, flash } from "./js/ui.js";
     import { escucharFletes, crearFlete, eliminarFlete, TIPOS_FLETE, etiquetaTipoFlete } from "./js/fletes.js";
-    import { escucharMovimientos } from "./js/materiales.js";
+    import { escucharMovimientos, facturasDe } from "./js/materiales.js";
     import { obraActiva, escucharObraActiva, esDeObraActiva } from "./js/obra.js";
 
     montarTopbar("guias");
@@ -157,17 +157,22 @@
     // manda a otra pestaña) y se agrega "download" al link para que el
     // navegador la baje directo en vez de solo mostrarla.
     const esImagen = (nombre) => /\.(jpe?g|png|gif|webp|heic|heif|bmp)$/i.test(nombre || "");
+    // Envuelto en su propio <div> (no solo <a>/<p> sueltos) para poder
+    // ponerlos uno al lado del otro con flex-wrap cuando hay más de una
+    // foto, sin que el <p> (block por defecto) fuerce salto de línea.
     function bloqueFactura(factura) {
       const nombre = esc(factura.nombre);
       const url = esc(factura.url);
       if (esImagen(factura.nombre)) {
         return `
-          <a href="${url}" download="${nombre}" target="_blank" rel="noopener" style="display:inline-block;">
-            <img src="${url}" alt="Factura" style="display:block; max-width:160px; max-height:160px; border-radius:8px; border:1px solid var(--line); object-fit:cover;" />
-          </a>
-          <p class="text-sm"><a href="${url}" download="${nombre}" target="_blank" rel="noopener">⬇ Descargar (${nombre})</a></p>`;
+          <div style="max-width:160px; margin:0 10px 10px 0;">
+            <a href="${url}" download="${nombre}" target="_blank" rel="noopener" style="display:inline-block;">
+              <img src="${url}" alt="Factura" style="display:block; max-width:160px; max-height:160px; border-radius:8px; border:1px solid var(--line); object-fit:cover;" />
+            </a>
+            <p class="text-sm"><a href="${url}" download="${nombre}" target="_blank" rel="noopener">⬇ Descargar (${nombre})</a></p>
+          </div>`;
       }
-      return `<p class="text-sm"><a href="${url}" download="${nombre}" target="_blank" rel="noopener">📎 Ver/descargar (${nombre})</a></p>`;
+      return `<p class="text-sm" style="margin:0 10px 10px 0;"><a href="${url}" download="${nombre}" target="_blank" rel="noopener">📎 Ver/descargar (${nombre})</a></p>`;
     }
 
     // Une en un solo listado, ordenado por fecha:
@@ -181,12 +186,17 @@
     function documentos() {
       const gruposIngreso = new Map();
       movimientos
-        .filter((m) => m.tipo === "entrada" && m.factura)
+        .filter((m) => m.tipo === "entrada" && facturasDe(m).length)
         .forEach((m) => {
-          const clave = m.factura.path || m.factura.url;
+          const facturas = facturasDe(m);
+          // Misma clave para todos los movimientos que comparten las MISMAS
+          // fotos (un solo registro de "Material entrante" con varios
+          // productos a la vez sube las mismas fotos para todos) -- así
+          // quedan agrupados en una sola tarjeta en vez de repetir la foto.
+          const clave = facturas.map((f) => f.path || f.url).sort().join("|");
           if (!gruposIngreso.has(clave)) {
             gruposIngreso.set(clave, {
-              tipo: "ingreso", fecha: m.fecha, factura: m.factura,
+              tipo: "ingreso", fecha: m.fecha, facturas,
               proveedor: m.proveedor || "",
               ordenCompra: m.ordenCompraNumero || m.documento || "",
               fleteEmpresa: m.fleteEmpresa || "",
@@ -272,11 +282,15 @@
               ${d.productos.map((p) => `<li class="text-sm">${esc(p.producto)} — Cantidad recibida: ${fmtNum(p.cantidad)}</li>`).join("")}
             </ul>
           </details>` : ""}
-          ${d.factura ? `
+          ${(() => {
+            const facturas = d.facturas || (d.factura ? [d.factura] : []);
+            if (!facturas.length) return `<p class="text-sm" style="margin:2px 0 0;"><span class="badge badge-warn">Sin factura</span></p>`;
+            return `
           <details class="lista-desplegable">
-            <summary>Foto de la guía</summary>
-            <div style="margin-top:6px;">${bloqueFactura(d.factura)}</div>
-          </details>` : `<p class="text-sm" style="margin:2px 0 0;"><span class="badge badge-warn">Sin factura</span></p>`}
+            <summary>${facturas.length > 1 ? `${facturas.length} fotos de la guía` : "Foto de la guía"}</summary>
+            <div style="margin-top:6px; display:flex; flex-wrap:wrap;">${facturas.map(bloqueFactura).join("")}</div>
+          </details>`;
+          })()}
           ${d.tipo === "ingreso" && d.fleteEmpresa ? `<p class="text-sm muted" style="margin-top:4px;">Traslado: ${esc(d.fleteEmpresa)}</p>` : ""}
           ${d.tipo === "traslado" && d.vinculados?.length ? `
             <p class="text-sm muted" style="margin-top:4px;">

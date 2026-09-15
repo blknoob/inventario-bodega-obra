@@ -118,77 +118,27 @@
         <div id="items-pedido-elegidos"></div>
       </div>
 
-      <!-- Sin PM (excepción sin pedido detrás): un producto a la vez -->
+      <!-- Sin PM (excepción sin pedido detrás): uno o varios productos a la vez -->
       <div id="bloque-producto-manual">
         <!-- <p class="text-sm muted" id="aviso-sin-orden" style="margin-top:0;">Si esto es una excepción sin pedido detrás (caja chica, casa matriz…), escribe el producto acá: si ya existe lo eliges de la lista, si no, se completa solo para crearlo.</p> -->
-        <div class="field" style="position:relative;">
-          <label for="e-producto-buscar">Producto</label>
-          <input type="text" id="e-producto-buscar" class="buscador-input" placeholder="Busca o escribe el nombre del producto…" autocomplete="off" />
-          <input type="hidden" id="e-producto" />
-          <input type="hidden" id="e-nuevo-producto" />
-          <div id="e-producto-lista" class="buscador-lista hidden"></div>
-        </div>
-      </div>
-      <p class="text-sm muted" id="e-stock-actual" style="margin-top:-8px; margin-bottom:14px;"></p>
-
-      <div id="e-nuevo-campos" class="hidden">
-        <div class="row">
-          <div class="field" id="campo-nuevo-categoria">
-            <label for="e-nuevo-categoria">Categoría</label>
-            <select id="e-nuevo-categoria"></select>
-          </div>
-          <div class="field">
-            <label for="e-nuevo-unidad">Unidad</label>
-            <input type="text" id="e-nuevo-unidad" maxlength="20" placeholder="piezas, unidades, m, kg…" />
-          </div>
-        </div>
-        <div class="field hidden" id="campo-nuevo-tipo-herramienta">
-          <label for="e-nuevo-tipo-herramienta">Tipo de herramienta</label>
-          <select id="e-nuevo-tipo-herramienta"></select>
-        </div>
-        <div class="field">
-          <label for="e-nuevo-medida">Medida <span class="muted">(opcional)</span></label>
-          <input type="text" id="e-nuevo-medida" maxlength="40" placeholder="Ej: 1/2 pulgada, 25 kg…" />
-        </div>
-        <div class="row">
-          <div class="field">
-            <label for="e-nuevo-centro-gestion">Centro de gestión <span class="muted">(opcional)</span></label>
-            <input type="text" id="e-nuevo-centro-gestion" maxlength="60" />
-          </div>
-          <div class="field">
-            <label for="e-nuevo-centro-costo">Centro de costo <span class="muted">(opcional)</span></label>
-            <input type="text" id="e-nuevo-centro-costo" maxlength="60" />
-          </div>
-        </div>
-        <div class="field">
-          <label for="e-nuevo-minimo">Stock mínimo (alerta) <span class="muted">— obligatorio en Consumibles y EPP</span></label>
-          <input type="number" id="e-nuevo-minimo" min="0" step="any" value="0" />
-        </div>
-        <div class="field">
-          <label for="e-nuevo-descripcion">Descripción <span class="muted">(opcional)</span></label>
-          <textarea id="e-nuevo-descripcion" rows="2" maxlength="300"></textarea>
-        </div>
+        <label>Productos</label>
+        <div id="items-manual-lista"></div>
+        <button type="button" class="btn btn-ghost btn-block" id="btn-agregar-producto-manual" style="margin-top:8px;">+ Agregar otro producto</button>
       </div>
 
-      <div class="row">
-        <div class="field" id="campo-cantidad-manual">
-          <label for="e-cantidad">Cantidad recibida</label>
-          <input type="number" id="e-cantidad" min="0" step="any" />
-        </div>
+      <div class="row" style="margin-top:14px;">
         <div class="field">
           <label for="e-proveedor">Proveedor <span class="muted">(opcional)</span></label>
           <input type="text" id="e-proveedor" maxlength="80" />
         </div>
-      </div>
-      <div class="row">
         <div class="field">
           <label for="e-ubicacion">Ubicación <span class="muted">(opcional)</span></label>
           <input type="text" id="e-ubicacion" maxlength="60"/>
         </div>
-        <div class="field">
-          <label for="e-motivo">Observación <span class="muted">(opcional)</span></label>
-          <input type="text" id="e-motivo" maxlength="120"/>
-        </div>
+      </div>
+      <div class="field">
+        <label for="e-motivo">Observación <span class="muted">(opcional)</span></label>
+        <input type="text" id="e-motivo" maxlength="120"/>
       </div>
 
       <div class="field hidden" id="bloque-tipo-adquisicion">
@@ -206,15 +156,15 @@
       </div>
 
       <div class="field">
-        <label>Foto de la factura o guía <span class="muted">(opcional)</span></label>
+        <label>Fotos de la factura o guía <span class="muted">(opcional, pueden ser varias)</span></label>
         <div class="row-actions">
           <button type="button" class="btn btn-ghost" id="btn-e-factura-camara">📷 Tomar foto</button>
           <button type="button" class="btn btn-ghost" id="btn-e-factura-archivo">📁 Elegir archivo</button>
         </div>
         <input type="file" id="e-factura" accept="image/*" capture="environment" class="hidden" />
-        <input type="file" id="e-factura-archivo" accept="image/*,.pdf" class="hidden" />
-        <p class="text-sm" id="e-factura-elegida" style="margin-top:6px;"></p>
-        <p class="text-sm muted">Queda disponible para descargar después en <a href="guias.html" target="_blank" rel="noopener">Guías</a>.</p>
+        <input type="file" id="e-factura-archivo" accept="image/*,.pdf" multiple class="hidden" />
+        <div id="e-factura-elegida" style="margin-top:6px;"></div>
+        <p class="text-sm muted">Quedan disponibles para descargar después en <a href="guias.html" target="_blank" rel="noopener">Guías</a>.</p>
       </div>
 
       <div class="field" style="position:relative;">
@@ -319,7 +269,7 @@
       CATEGORIAS, etiquetaCategoria, nivelStock,
       TIPOS_HERRAMIENTA, etiquetaTipoHerramienta,
       escucharMateriales, registrarEntrada, registrarSalida, eliminarMaterial, marcarSinReposicion,
-      subirFacturaEntrada,
+      subirFacturasEntrada,
     } from "./js/materiales.js";
     import { escucharPedidos, escucharOrdenes, anotarOrdenDeCompra, cantidadRecibidaDe } from "./js/compras.js";
     import { escucharFletes, etiquetaTipoFlete } from "./js/fletes.js";
@@ -378,9 +328,6 @@
     document.getElementById("filtro-tipo-herramienta").insertAdjacentHTML("beforeend", optsTipoHerramienta);
     document.getElementById("filtro-tipo-herramienta").classList.toggle("hidden", !modoHerramienta);
     document.getElementById("filtro-adquisicion").classList.toggle("hidden", !modoHerramienta);
-    document.getElementById("e-nuevo-tipo-herramienta").innerHTML =
-      `<option value="" selected disabled hidden>Elegir un tipo</option>${optsTipoHerramienta}`;
-    document.getElementById("campo-nuevo-tipo-herramienta").classList.toggle("hidden", !modoHerramienta);
     document.getElementById("th-tipo-herramienta").classList.toggle("hidden", !modoHerramienta);
     document.getElementById("th-adquisicion").classList.toggle("hidden", !modoHerramienta);
     // Al CREAR un producto nuevo, en cambio, la categoría se elige siempre
@@ -398,7 +345,14 @@
         `<option value="${c.valor}" ${c.valor === valorElegido ? "selected" : ""}>${c.etiqueta}</option>`).join("");
       return `<option value="" ${valorElegido ? "" : "selected"} disabled hidden>Elegir una categoría</option>${opciones}`;
     }
-    document.getElementById("e-nuevo-categoria").innerHTML = optsCategoriaNuevo();
+
+    // Igual que optsCategoriaNuevo, pero para el tipo de herramienta -- solo
+    // se usa dentro de una fila de producto nuevo en Herramientas.
+    function optsTipoHerramientaNuevo(valorElegido = "") {
+      const opciones = TIPOS_HERRAMIENTA.map((t) =>
+        `<option value="${t.valor}" ${t.valor === valorElegido ? "selected" : ""}>${t.etiqueta}</option>`).join("");
+      return `<option value="" ${valorElegido ? "" : "selected"} disabled hidden>Elegir un tipo</option>${opciones}`;
+    }
 
     // Consumibles y EPP son justamente lo que se controla por alerta de
     // stock bajo (a diferencia de herramientas/equipo) -- sin un mínimo
@@ -492,8 +446,10 @@
     /**
      * Buscador de producto: un <input type="text"> + <input type="hidden">
      * (con el id elegido) + un contenedor de resultados clickeables, todo
-     * identificado con el prefijo dado (ej: "e-producto" -> #e-producto-buscar,
-     * #e-producto, #e-producto-lista).
+     * identificado con el prefijo dado (ej: "s-producto" -> #s-producto-buscar,
+     * #s-producto, #s-producto-lista). Se usa en Material saliente; Material
+     * entrante tiene su propia versión por fila (ver wireFilaManual), porque
+     * ahí puede haber más de un producto a la vez.
      */
     function crearBuscadorProducto(prefijo, { onSeleccionar } = {}) {
       const input = document.getElementById(`${prefijo}-buscar`);
@@ -834,46 +790,188 @@
     const dlgEntrante = document.getElementById("dlg-entrante");
     const formEntrante = document.getElementById("form-entrante");
     const errEntrante = document.getElementById("err-entrante");
-    const eProducto = document.getElementById("e-producto");
-    const eNuevoCampos = document.getElementById("e-nuevo-campos");
-    const eStockActual = document.getElementById("e-stock-actual");
-    const eNuevoProducto = document.getElementById("e-nuevo-producto");
-    let modoProductoNuevo = false;
 
     const bloqueProductoManual = document.getElementById("bloque-producto-manual");
     const bloqueItemsPedido = document.getElementById("bloque-items-pedido");
-    const campoCantidadManual = document.getElementById("campo-cantidad-manual");
-
-    // Sin Pedido de Materiales (PM) elegido: buscador manual de siempre --
-    // si lo que se escribe calza exacto con uno que ya existe (o se elige
-    // de la lista), es ese; si no, se asume que es nuevo y se completan
-    // solos los campos para crearlo -- sin botón "producto nuevo/existente"
-    // que apretar. Esto cubre la excepción sin PM de por medio (caja
-    // chica, casa matriz...).
     const eUbicacion = document.getElementById("e-ubicacion");
-    const buscadorEntrante = crearBuscadorProducto("e-producto", {
-      onSeleccionar: (m) => {
-        eStockActual.textContent = m ? `Stock actual: ${fmtNum(m.stock)} ${m.unidad}` : "";
-        // Se precarga con la ubicación que ya tenía, para no dejarla en
-        // blanco por accidente -- si se cambia acá, se actualiza.
-        eUbicacion.value = m?.ubicacion || "";
-        if (m) { modoProductoNuevo = false; actualizarVistaEntrante(); }
-      },
+
+    // Sin Pedido de Materiales (PM) elegido: uno o varios productos a la
+    // vez, cada uno en su propia fila -- cada fila tiene su propio
+    // buscador (si lo que se escribe calza exacto con uno que ya existe,
+    // es ese; si no, se completan solos los campos para crearlo, cubriendo
+    // la excepción sin PM de por medio: caja chica, casa matriz...).
+    let itemsManualSeleccionados = []; // [{id}] -- los demás valores viven en el DOM de cada fila, ver sincronizarItemsManualDesdeDom
+    const itemsManualCont = document.getElementById("items-manual-lista");
+
+    function nuevaFilaManual() {
+      return { id: crypto.randomUUID() };
+    }
+
+    // Antes de redibujar (agregar/quitar una fila) hay que guardar lo que
+    // ya se había escrito en cada una -- si no, el redibujo las deja en
+    // blanco de nuevo. Como estos campos no llevan estado propio en JS
+    // (se leen del DOM cuando hace falta), acá se copian a un dataset en
+    // el propio objeto de la fila para poder reconstruir su HTML.
+    function sincronizarItemsManualDesdeDom() {
+      itemsManualSeleccionados.forEach((item) => {
+        const fila = itemsManualCont.querySelector(`.item-manual-fila[data-row-id="${item.id}"]`);
+        if (!fila) return;
+        item.textoBuscador = fila.querySelector(".im-buscar").value;
+        item.materialId = fila.querySelector(".im-producto").value;
+        item.nuevoProducto = fila.querySelector(".im-nuevo-producto").value;
+        item.cantidad = fila.querySelector(".im-cantidad").value;
+        item.categoria = fila.querySelector(".im-categoria")?.value || "";
+        item.unidad = fila.querySelector(".im-unidad")?.value || "";
+        item.medida = fila.querySelector(".im-medida")?.value || "";
+        item.centroGestion = fila.querySelector(".im-centro-gestion")?.value || "";
+        item.centroCosto = fila.querySelector(".im-centro-costo")?.value || "";
+        item.stockMinimo = fila.querySelector(".im-minimo")?.value ?? 0;
+        item.descripcion = fila.querySelector(".im-descripcion")?.value || "";
+        item.tipoHerramienta = fila.querySelector(".im-tipo-herramienta")?.value || "";
+      });
+    }
+
+    function renderItemsManual() {
+      itemsManualCont.innerHTML = itemsManualSeleccionados.map((item) => {
+        const existente = item.materialId ? materiales.find((m) => m.id === item.materialId) : null;
+        const hayTexto = !!(item.textoBuscador || "").trim();
+        return `
+          <div class="item-pedido-fila item-manual-fila" data-row-id="${item.id}">
+            ${itemsManualSeleccionados.length > 1 ? `
+            <div class="row-actions" style="justify-content:flex-end; margin-bottom:6px;">
+              <button type="button" class="btn btn-ghost btn-xs btn-danger im-quitar">Quitar</button>
+            </div>` : ""}
+            <div class="field" style="position:relative;">
+              <label>Producto</label>
+              <input type="text" class="im-buscar buscador-input" placeholder="Busca o escribe el nombre del producto…" autocomplete="off" value="${esc(item.textoBuscador || "")}" />
+              <input type="hidden" class="im-producto" value="${esc(item.materialId || "")}" />
+              <input type="hidden" class="im-nuevo-producto" value="${esc(item.nuevoProducto || "")}" />
+              <div class="im-lista buscador-lista hidden"></div>
+            </div>
+            <p class="text-sm muted im-stock" style="margin-top:-8px; margin-bottom:10px;">${existente ? `Stock actual: ${fmtNum(existente.stock)} ${esc(existente.unidad)}` : ""}</p>
+            <div class="im-nuevo ${!existente && hayTexto ? "" : "hidden"}">
+              <div class="row">
+                <div class="field">
+                  <label>Categoría</label>
+                  <select class="im-categoria">${optsCategoriaNuevo(item.categoria)}</select>
+                </div>
+                <div class="field">
+                  <label>Unidad</label>
+                  <input type="text" class="im-unidad" maxlength="20" placeholder="piezas, unidades, m, kg…" value="${esc(item.unidad || "")}" />
+                </div>
+              </div>
+              <div class="field im-campo-tipo-herramienta ${modoHerramienta ? "" : "hidden"}">
+                <label>Tipo de herramienta</label>
+                <select class="im-tipo-herramienta">${optsTipoHerramientaNuevo(item.tipoHerramienta)}</select>
+              </div>
+              <div class="field">
+                <label>Medida <span class="muted">(opcional)</span></label>
+                <input type="text" class="im-medida" maxlength="40" placeholder="Ej: 1/2 pulgada, 25 kg…" value="${esc(item.medida || "")}" />
+              </div>
+              <div class="row">
+                <div class="field">
+                  <label>Centro de gestión <span class="muted">(opcional)</span></label>
+                  <input type="text" class="im-centro-gestion" maxlength="60" value="${esc(item.centroGestion || "")}" />
+                </div>
+                <div class="field">
+                  <label>Centro de costo <span class="muted">(opcional)</span></label>
+                  <input type="text" class="im-centro-costo" maxlength="60" value="${esc(item.centroCosto || "")}" />
+                </div>
+              </div>
+              <div class="field">
+                <label>Stock mínimo (alerta) <span class="muted">— obligatorio en Consumibles y EPP</span></label>
+                <input type="number" class="im-minimo" min="0" step="any" value="${item.stockMinimo ?? 0}" />
+              </div>
+              <div class="field">
+                <label>Descripción <span class="muted">(opcional)</span></label>
+                <textarea class="im-descripcion" rows="2" maxlength="300">${esc(item.descripcion || "")}</textarea>
+              </div>
+            </div>
+            <div class="row" style="margin-top:10px;">
+              <div class="field">
+                <label>Cantidad recibida</label>
+                <input type="number" class="im-cantidad" min="0" step="any" value="${esc(item.cantidad || "")}" />
+              </div>
+            </div>
+          </div>`;
+      }).join("");
+
+      itemsManualCont.querySelectorAll(".item-manual-fila").forEach((fila) => {
+        const item = itemsManualSeleccionados.find((x) => x.id === fila.getAttribute("data-row-id"));
+        wireFilaManual(fila, item);
+      });
+    }
+
+    /** Cablea el buscador de producto y el botón "Quitar" de UNA fila recién insertada en el DOM. */
+    function wireFilaManual(fila, item) {
+      const input = fila.querySelector(".im-buscar");
+      const oculto = fila.querySelector(".im-producto");
+      const nuevoOculto = fila.querySelector(".im-nuevo-producto");
+      const lista = fila.querySelector(".im-lista");
+      const stockTxt = fila.querySelector(".im-stock");
+      const bloqueNuevo = fila.querySelector(".im-nuevo");
+
+      function renderLista() {
+        const q = normalizar(input.value);
+        const items = [...materiales]
+          .filter((m) => !q || normalizar(m.producto).includes(q))
+          .sort((a, b) => (a.producto || "").localeCompare(b.producto || "", "es", { sensitivity: "base" }))
+          .slice(0, 30);
+        lista.innerHTML = items.length
+          ? items.map((m) => `
+              <button type="button" class="btn btn-ghost btn-xs" data-id="${m.id}">
+                ${esc(m.producto)} — stock ${fmtNum(m.stock)} ${esc(m.unidad)}
+              </button>`).join("")
+          : `<div class="text-sm muted empty">Sin resultados.</div>`;
+        lista.classList.remove("hidden");
+      }
+
+      function elegir(m) {
+        input.value = m ? m.producto : input.value;
+        oculto.value = m?.id || "";
+        nuevoOculto.value = m ? "" : (input.value.trim().length >= 2 ? input.value.trim() : "");
+        stockTxt.textContent = m ? `Stock actual: ${fmtNum(m.stock)} ${m.unidad}` : "";
+        bloqueNuevo.classList.toggle("hidden", !!m || !nuevoOculto.value);
+        lista.classList.add("hidden");
+      }
+
+      input.addEventListener("focus", renderLista);
+      input.addEventListener("input", () => {
+        const texto = input.value.trim();
+        const existente = materiales.find((m) => normalizar(m.producto) === normalizar(texto));
+        elegir(existente || null);
+        renderLista();
+      });
+      input.addEventListener("keydown", (e) => { if (e.key === "Escape") lista.classList.add("hidden"); });
+      lista.addEventListener("click", (e) => {
+        const btn = e.target.closest("[data-id]");
+        if (!btn) return;
+        elegir(materiales.find((x) => x.id === btn.getAttribute("data-id")));
+      });
+
+      fila.querySelector(".im-quitar")?.addEventListener("click", () => {
+        sincronizarItemsManualDesdeDom();
+        itemsManualSeleccionados = itemsManualSeleccionados.filter((x) => x.id !== item.id);
+        renderItemsManual();
+      });
+    }
+
+    // Un solo listener delegado (no uno por fila: las filas se recrean
+    // cada vez que se agrega/quita una, así que uno por fila iría
+    // acumulando listeners repetidos sobre `document`) para cerrar el
+    // desplegable de resultados si se hace clic afuera.
+    document.addEventListener("click", (e) => {
+      itemsManualCont.querySelectorAll(".item-manual-fila").forEach((fila) => {
+        const input = fila.querySelector(".im-buscar");
+        const lista = fila.querySelector(".im-lista");
+        if (e.target !== input && !lista.contains(e.target)) lista.classList.add("hidden");
+      });
     });
 
-    document.getElementById("e-producto-buscar").addEventListener("input", () => {
-      if (document.getElementById("e-pedido").value) return; // con PM elegido, se maneja abajo
-      const texto = document.getElementById("e-producto-buscar").value.trim();
-      if (texto.length < 2) {
-        modoProductoNuevo = false;
-        eNuevoProducto.value = "";
-        actualizarVistaEntrante();
-        return;
-      }
-      const existeExacto = materiales.some((m) => normalizar(m.producto) === normalizar(texto));
-      modoProductoNuevo = !existeExacto;
-      eNuevoProducto.value = modoProductoNuevo ? texto : "";
-      actualizarVistaEntrante();
+    document.getElementById("btn-agregar-producto-manual").addEventListener("click", () => {
+      sincronizarItemsManualDesdeDom();
+      itemsManualSeleccionados.push(nuevaFilaManual());
+      renderItemsManual();
     });
 
     // Con un PM elegido: uno o varios productos de ese pedido a la vez,
@@ -902,6 +1000,8 @@
         if (categoriaSelect) item.categoriaElegida = categoriaSelect.value;
         const minimoInput = fila.querySelector(".ie-minimo");
         if (minimoInput) item.stockMinimo = minimoInput.value;
+        const observacionInput = fila.querySelector(".ie-observacion");
+        if (observacionInput) item.observacionRecepcion = observacionInput.value;
       });
     }
 
@@ -945,6 +1045,10 @@
                 <input type="number" class="ie-minimo" min="0" step="any" value="${item.stockMinimo ?? 0}" />
               </div>
             </div>` : ""}
+            <div class="field" style="margin-top:10px;">
+              <label>Observación de recepción <span class="muted">(si llegó distinto a lo pedido)</span></label>
+              <textarea class="ie-observacion" rows="2" maxlength="200" placeholder="Ej: llegaron 8 de 10, los otros 2 vienen después">${esc(item.observacionRecepcion || "")}</textarea>
+            </div>
           </div>`;
       }).join("");
     }
@@ -1030,31 +1134,53 @@
       onSeleccionar: (p) => {
         itemsPMSeleccionados = [];
         renderItemsPedidoElegidos();
-        modoProductoNuevo = false;
-        eStockActual.textContent = "";
-        eNuevoProducto.value = "";
-        buscadorEntrante.reset();
+        itemsManualSeleccionados = [nuevaFilaManual()];
+        renderItemsManual();
         actualizarVistaEntrante();
       },
     });
 
-    // ── Foto de la factura/guía (opcional): dos botones, "Tomar foto" y
-    // "Elegir archivo", cada uno con su propia entrada de archivo oculta
-    // -- separados porque mezclar accept="image/*,.pdf" con
-    // capture="environment" en un solo campo hace que en varios celulares
-    // ya no salte la cámara sola. Con cuál de las dos haya quedado el
-    // archivo, esa es la elegida.
+    // ── Fotos de la factura/guía (opcional, pueden ser varias): dos
+    // botones, "Tomar foto" y "Elegir archivo", cada uno con su propia
+    // entrada de archivo oculta -- separados porque mezclar
+    // accept="image/*,.pdf" con capture="environment" en un solo campo
+    // hace que en varios celulares ya no salte la cámara sola. Cada vez
+    // que se elige algo (con cualquiera de los dos) se AGREGA a la lista,
+    // no la reemplaza -- "Tomar foto" de a una (la cámara nativa no deja
+    // elegir varias), "Elegir archivo" permite varias de una vez.
     const eFacturaCamara = document.getElementById("e-factura");
     const eFacturaArchivo = document.getElementById("e-factura-archivo");
     const eFacturaElegida = document.getElementById("e-factura-elegida");
-    let facturaElegidaEntrante = null;
+    let facturasElegidasEntrante = [];
 
-    function elegirFacturaEntrante(archivo) {
-      facturaElegidaEntrante = archivo;
-      eFacturaElegida.textContent = archivo ? `📎 ${archivo.name}` : "";
+    function renderFacturasElegidas() {
+      eFacturaElegida.innerHTML = facturasElegidasEntrante.map((archivo, i) => `
+        <span class="badge badge-muted" style="display:inline-flex; align-items:center; gap:6px; margin:2px 6px 2px 0;">
+          📎 ${esc(archivo.name)}
+          <button type="button" class="btn-quitar-factura" data-idx="${i}" aria-label="Quitar" style="border:none; background:none; cursor:pointer; font-weight:700; line-height:1; padding:0;">×</button>
+        </span>`).join("");
     }
-    eFacturaCamara.addEventListener("change", () => elegirFacturaEntrante(eFacturaCamara.files[0] || null));
-    eFacturaArchivo.addEventListener("change", () => elegirFacturaEntrante(eFacturaArchivo.files[0] || null));
+    function agregarFacturasEntrante(archivos) {
+      facturasElegidasEntrante.push(...[...archivos].filter(Boolean));
+      renderFacturasElegidas();
+    }
+    eFacturaElegida.addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-idx]");
+      if (!btn) return;
+      facturasElegidasEntrante.splice(Number(btn.getAttribute("data-idx")), 1);
+      renderFacturasElegidas();
+    });
+    // Se limpia el valor del <input> tras leerlo: si no, elegir DE NUEVO el
+    // mismo archivo (p. ej. sacar la misma foto dos veces) no dispara
+    // "change" la segunda vez, porque el navegador ve el mismo valor.
+    eFacturaCamara.addEventListener("change", () => {
+      agregarFacturasEntrante(eFacturaCamara.files);
+      eFacturaCamara.value = "";
+    });
+    eFacturaArchivo.addEventListener("change", () => {
+      agregarFacturasEntrante(eFacturaArchivo.files);
+      eFacturaArchivo.value = "";
+    });
     document.getElementById("btn-e-factura-camara").addEventListener("click", () => eFacturaCamara.click());
     document.getElementById("btn-e-factura-archivo").addEventListener("click", () => eFacturaArchivo.click());
 
@@ -1106,26 +1232,22 @@
 
     function actualizarVistaEntrante() {
       const hayPedido = !!document.getElementById("e-pedido").value;
-      eNuevoCampos.classList.toggle("hidden", !modoProductoNuevo);
-      // El buscador manual de producto y el campo de cantidad suelto solo
-      // aplican sin pedido elegido; con pedido, se eligen varios productos
-      // a la vez y la cantidad va por producto.
+      // La lista de productos manuales solo aplica sin pedido elegido; con
+      // pedido, se eligen varios productos del PM a la vez (otro bloque).
       bloqueProductoManual.classList.toggle("hidden", hayPedido);
       bloqueItemsPedido.classList.toggle("hidden", !hayPedido);
-      campoCantidadManual.classList.toggle("hidden", hayPedido);
     }
 
     document.getElementById("btn-entrante").addEventListener("click", () => {
       formEntrante.reset();
-      buscadorEntrante.reset();
       buscadorPedidoEntrante.reset();
       itemsPMSeleccionados = [];
       renderItemsPedidoElegidos();
-      document.getElementById("e-nuevo-categoria").innerHTML = optsCategoriaNuevo();
+      itemsManualSeleccionados = [nuevaFilaManual()];
+      renderItemsManual();
       errEntrante.classList.add("hidden");
-      eNuevoProducto.value = "";
-      modoProductoNuevo = false;
-      elegirFacturaEntrante(null);
+      facturasElegidasEntrante = [];
+      renderFacturasElegidas();
       camposArriendo.classList.add("hidden");
       actualizarVistaEntrante();
       dlgEntrante.showModal();
@@ -1145,10 +1267,10 @@
         const ubicacion = eUbicacion.value;
         const fleteId = eFleteHidden.value || null;
         const fleteEmpresa = fleteId ? (fletes.find((f) => f.id === fleteId)?.empresa || "") : "";
-        // Una sola foto de factura/guía por registro, aunque sean varios
-        // productos del mismo PM a la vez -- es el mismo documento para
-        // todos, no hace falta subirlo más de una vez.
-        const factura = await subirFacturaEntrada(facturaElegidaEntrante);
+        // Las mismas fotos de factura/guía van para todo este registro,
+        // aunque sean varios productos a la vez (del mismo PM, o varios
+        // manuales) -- no hace falta subirlas más de una vez.
+        const facturas = await subirFacturasEntrada(facturasElegidasEntrante);
 
         // Tipo de adquisición (solo aplica en la página Herramientas): si
         // es arrendada, es la misma empresa para todos los productos de
@@ -1210,13 +1332,14 @@
                 proveedor,
                 documento: "", // ya queda anotado como ordenCompraNumero, no hace falta repetirlo
                 motivo,
+                observacionRecepcion: fila.querySelector(".ie-observacion")?.value || "",
                 ubicacion,
                 ordenCompraId: ordenAnotada.id,
                 ordenCompraNumero: ordenAnotada.numero,
                 pmItemId: item.id,
                 fleteId,
                 fleteEmpresa,
-                factura,
+                facturas,
                 tipoAdquisicion,
                 empresaArriendo,
               };
@@ -1263,57 +1386,107 @@
           }
           renderItemsPedidoElegidos();
         } else {
-          const datos = {
-            cantidadRecibida: document.getElementById("e-cantidad").value,
-            proveedor,
-            documento: numeroOc,
-            motivo,
-            ubicacion,
-            ordenCompraId: null,
-            ordenCompraNumero: "",
-            pmItemId: null,
-            fleteId,
-            fleteEmpresa,
-            factura,
-            tipoAdquisicion,
-            empresaArriendo,
+          if (!itemsManualSeleccionados.length) throw new Error("Agrega al menos un producto.");
+          const llevarVistaA = (campo) => {
+            campo.scrollIntoView({ behavior: "smooth", block: "center" });
+            campo.focus();
           };
-          if (modoProductoNuevo) {
-            const categoriaElegida = document.getElementById("e-nuevo-categoria").value;
-            if (!categoriaElegida) throw new Error("Elige una categoría para el producto nuevo.");
-            try {
-              validarStockMinimo(categoriaElegida, document.getElementById("e-nuevo-minimo").value);
-            } catch (errMinimo) {
-              throw new Error(`${etiquetaCategoria(categoriaElegida)}: ${errMinimo.message}`);
+          // Se valida todo ANTES de registrar nada, igual que con un PM
+          // elegido (ver más arriba): así no queda a mitad de camino un
+          // registro por un dato que faltaba desde el principio.
+          for (const item of itemsManualSeleccionados) {
+            const fila = itemsManualCont.querySelector(`.item-manual-fila[data-row-id="${item.id}"]`);
+            const materialId = fila.querySelector(".im-producto").value;
+            const nuevoProducto = fila.querySelector(".im-nuevo-producto").value;
+            const campoBuscar = fila.querySelector(".im-buscar");
+            if (!materialId && !nuevoProducto.trim()) {
+              llevarVistaA(campoBuscar);
+              throw new Error("Indica o elige un producto en cada fila.");
             }
-            datos.nuevoMaterial = {
-              producto: document.getElementById("e-nuevo-producto").value,
-              categoria: categoriaElegida,
-              obra: obraActiva(),
-              unidad: document.getElementById("e-nuevo-unidad").value,
-              medida: document.getElementById("e-nuevo-medida").value,
-              centroGestion: document.getElementById("e-nuevo-centro-gestion").value,
-              centroCosto: document.getElementById("e-nuevo-centro-costo").value,
-              stockMinimo: document.getElementById("e-nuevo-minimo").value,
-              ubicacion,
-              descripcion: document.getElementById("e-nuevo-descripcion").value,
-              tipoHerramienta: modoHerramienta ? document.getElementById("e-nuevo-tipo-herramienta").value : "",
-            };
-          } else {
-            if (!eProducto.value) throw new Error("Selecciona un producto.");
-            datos.materialId = eProducto.value;
+            const campoCantidad = fila.querySelector(".im-cantidad");
+            if (campoCantidad.value === "" || Number.isNaN(Number(campoCantidad.value)) || Number(campoCantidad.value) <= 0) {
+              llevarVistaA(campoCantidad);
+              throw new Error(`${nuevoProducto || fila.querySelector(".im-buscar").value}: ingresa la cantidad recibida.`);
+            }
+            if (materialId) continue;
+            const campoCategoria = fila.querySelector(".im-categoria");
+            if (!campoCategoria.value) {
+              llevarVistaA(campoCategoria);
+              throw new Error(`${nuevoProducto}: elige una categoría.`);
+            }
+            if (!fila.querySelector(".im-unidad").value.trim()) {
+              llevarVistaA(fila.querySelector(".im-unidad"));
+              throw new Error(`${nuevoProducto}: indica la unidad.`);
+            }
+            try {
+              validarStockMinimo(campoCategoria.value, fila.querySelector(".im-minimo").value);
+            } catch (errMinimo) {
+              llevarVistaA(fila.querySelector(".im-minimo"));
+              throw new Error(`${nuevoProducto}: ${errMinimo.message}`);
+            }
           }
-          const resultado = await registrarEntrada(datos);
-          if (tipoAdquisicion === "arrendada") {
-            await crearArriendo({
-              materialId: resultado.materialId,
-              materialProducto: resultado.materialProducto,
-              obra: resultado.obra,
-              cantidad: datos.cantidadRecibida,
-              empresa: empresaArriendo,
-              movimientoEntradaId: resultado.movimientoId,
-            });
+          let registrados = 0;
+          for (const item of [...itemsManualSeleccionados]) {
+            const fila = itemsManualCont.querySelector(`.item-manual-fila[data-row-id="${item.id}"]`);
+            const materialId = fila.querySelector(".im-producto").value;
+            const nuevoProducto = fila.querySelector(".im-nuevo-producto").value;
+            const nombreParaError = nuevoProducto || materiales.find((m) => m.id === materialId)?.producto || "Producto";
+            try {
+              const datos = {
+                cantidadRecibida: fila.querySelector(".im-cantidad").value,
+                proveedor,
+                documento: numeroOc,
+                motivo,
+                ubicacion,
+                ordenCompraId: null,
+                ordenCompraNumero: "",
+                pmItemId: null,
+                fleteId,
+                fleteEmpresa,
+                facturas,
+                tipoAdquisicion,
+                empresaArriendo,
+              };
+              if (materialId) {
+                datos.materialId = materialId;
+              } else {
+                datos.nuevoMaterial = {
+                  producto: nuevoProducto,
+                  categoria: fila.querySelector(".im-categoria").value,
+                  obra: obraActiva(),
+                  unidad: fila.querySelector(".im-unidad").value,
+                  medida: fila.querySelector(".im-medida").value,
+                  centroGestion: fila.querySelector(".im-centro-gestion").value,
+                  centroCosto: fila.querySelector(".im-centro-costo").value,
+                  stockMinimo: fila.querySelector(".im-minimo").value,
+                  ubicacion,
+                  descripcion: fila.querySelector(".im-descripcion").value,
+                  tipoHerramienta: modoHerramienta ? fila.querySelector(".im-tipo-herramienta").value : "",
+                };
+              }
+              const resultado = await registrarEntrada(datos);
+              if (tipoAdquisicion === "arrendada") {
+                await crearArriendo({
+                  materialId: resultado.materialId,
+                  materialProducto: resultado.materialProducto,
+                  obra: resultado.obra,
+                  cantidad: datos.cantidadRecibida,
+                  empresa: empresaArriendo,
+                  movimientoEntradaId: resultado.movimientoId,
+                });
+              }
+              registrados++;
+              itemsManualSeleccionados = itemsManualSeleccionados.filter((x) => x.id !== item.id);
+            } catch (errItem) {
+              sincronizarItemsManualDesdeDom();
+              renderItemsManual();
+              throw new Error(
+                `${nombreParaError}: ${errItem.message}` +
+                (registrados ? ` (ya se registraron ${registrados} producto${registrados === 1 ? "" : "s"} antes de este error, no hace falta repetirlos)` : ""),
+              );
+            }
           }
+          renderItemsManual();
         }
         dlgEntrante.close();
         flash("Material entrante registrado.");
