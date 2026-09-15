@@ -18,13 +18,38 @@
     </div>
 
     <div class="card">
-      <h2>Acciones</h2>
-      <p class="text-sm"><a href="materiales.html" class="btn btn-primary">Ir a Materiales</a></p>
-      <p class="text-sm mt">Desde <strong>Materiales</strong> puedes crear materiales y registrar llegadas (entrada de stock).</p>
-      <ul class="text-sm mt" style="padding-left: 18px;">
-        <li><strong>Tramo 3:</strong> foto de la guía con cámara + salidas e historial de movimientos.</li>
-        <li><strong>Tramo 4–5:</strong> inventario y préstamo de herramientas.</li>
-      </ul>
+      <div class="grid">
+        <div class="stat">
+          <div class="label">Materiales</div>
+          <p class="text-sm mt" style="margin-top:8px;">Registrar material entrante/saliente, crear productos nuevos.</p>
+          <p class="text-sm mt"><a href="materiales.html" class="btn btn-primary btn-block">Ir a Materiales</a></p>
+        </div>
+        <div class="stat">
+          <div class="label">EPPs</div>
+          <p class="text-sm mt" style="margin-top:8px;">Mismo control que Materiales, solo para elementos de protección personal.</p>
+          <p class="text-sm mt"><a href="materiales.html?categoria=epp" class="btn btn-primary btn-block">Ir a EPPs</a></p>
+        </div>
+        <div class="stat">
+          <div class="label">Herramientas</div>
+          <p class="text-sm mt" style="margin-top:8px;">Registrar herramientas compradas o arrendadas, y marcar devoluciones a la arrendadora.</p>
+          <p class="text-sm mt"><a href="materiales.html?categoria=herramienta" class="btn btn-primary btn-block">Ir a Herramientas</a></p>
+        </div>
+        <div class="stat">
+          <div class="label">Seguimiento de compra</div>
+          <p class="text-sm mt" style="margin-top:8px;">Cargar Pedidos de Materiales (PM) y anotar sus Órdenes de Compra.</p>
+          <p class="text-sm mt"><a href="compras.html" class="btn btn-primary btn-block">Ir a Compras</a></p>
+        </div>
+        <div class="stat">
+          <div class="label">Guías</div>
+          <p class="text-sm mt" style="margin-top:8px;">Ver/descargar fotos de facturas y registrar traslados (fletes) de una empresa externa.</p>
+          <p class="text-sm mt"><a href="guias.html" class="btn btn-primary btn-block">Ir a Guías</a></p>
+        </div>
+        <div class="stat">
+          <div class="label">Historial</div>
+          <p class="text-sm mt" style="margin-top:8px;">Ver todos los movimientos de entrada y salida, con su detalle.</p>
+          <p class="text-sm mt"><a href="historial.html" class="btn btn-primary btn-block">Ir a Historial</a></p>
+        </div>
+      </div>
       <button class="btn btn-ghost mt" id="btn-salir">Cerrar sesión</button>
     </div>
   </div>

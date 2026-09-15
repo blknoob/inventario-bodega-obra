@@ -42,6 +42,13 @@ export function montarTopbar(activo = "") {
     const abierto = nav.classList.toggle("open");
     toggle.setAttribute("aria-expanded", String(abierto));
   });
+  // Clic afuera del menú (y no en el botón que lo abre) lo cierra.
+  document.addEventListener("click", (e) => {
+    if (!nav.classList.contains("open")) return;
+    if (nav.contains(e.target) || toggle.contains(e.target)) return;
+    nav.classList.remove("open");
+    toggle.setAttribute("aria-expanded", "false");
+  });
 
   if (MODO_DEMO) {
     // En demo mostramos los controles de bodega para ver la interfaz completa.

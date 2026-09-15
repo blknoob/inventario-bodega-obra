@@ -14,7 +14,7 @@
 
     <div class="page-head">
       <h1>Guías</h1>
-      <p>Fotos de facturas y guías de despacho descargables: materiales, EPPs y herramientas entrantes, y los traslados (fletes) de una empresa externa.</p>
+      <!-- <p>Fotos de facturas y guías de despacho descargables: materiales, EPPs y herramientas entrantes, y los traslados (fletes) de una empresa externa.</p> -->
     </div>
 
     <div class="grid" style="margin-bottom: 18px;">
@@ -224,31 +224,44 @@
         return;
       }
 
-      let claveDiaAnterior = null;
-      lista.innerHTML = vista.map((d) => {
+      // Se agrupan por día para poder colapsar cada día aparte -- si no,
+      // con muchas guías la página se vuelve interminable de scrollear.
+      const grupos = [];
+      for (const d of vista) {
         const clave = claveDia(d.fecha);
-        const encabezadoDia = clave !== claveDiaAnterior ? `<h3 class="fecha-separador">${fmtFechaLarga(d.fecha)}</h3>` : "";
-        claveDiaAnterior = clave;
-        return `${encabezadoDia}
-        <div class="card">
-          <div class="row-actions" style="justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
-            <div>
-              <div style="font-weight: 700;">
-                ${esc(d.titulo)}
-                <span class="badge ${d.tipo === "ingreso" ? "badge-ok" : "badge-info"}">${d.tipo === "ingreso" ? "Ingreso" : etiquetaTipoFlete(d.tipoFlete)}</span>
-              </div>
-              <div class="text-sm muted">${fmtHora(d.fecha)}</div>
-            </div>
-            ${d.tipo === "traslado" ? `
-            <div class="row-actions only-bodega">
-              <button class="btn btn-ghost btn-xs btn-danger" data-eliminar-flete="${d.id}">Eliminar</button>
-            </div>` : ""}
-          </div>
+        const ultimo = grupos[grupos.length - 1];
+        if (ultimo?.clave === clave) ultimo.items.push(d);
+        else grupos.push({ clave, fecha: d.fecha, items: [d] });
+      }
 
-          ${d.sub ? `<p class="text-sm" style="margin-bottom:4px;">${esc(d.sub)}</p>` : ""}
-          ${d.observacion ? `<p class="text-sm muted" style="margin-bottom:4px;">${esc(d.observacion)}</p>` : ""}
+      lista.innerHTML = grupos.map((g, i) => `
+        <details class="dia-desplegable" ${i === 0 ? "open" : ""}>
+          <summary>${fmtFechaLarga(g.fecha)} <span class="muted text-sm">(${g.items.length})</span></summary>
+          <div class="dia-contenido">
+            ${g.items.map(tarjetaDocumento).join("")}
+          </div>
+        </details>`).join("");
+    }
+
+    function tarjetaDocumento(d) {
+      return `
+        <div class="card card-compacto">
+          <div class="row-actions" style="justify-content: space-between; align-items: baseline; gap:8px; margin-bottom: 4px;">
+            <div style="font-weight: 700;">
+              ${esc(d.titulo)}
+              <span class="badge ${d.tipo === "ingreso" ? "badge-ok" : "badge-info"}">${d.tipo === "ingreso" ? "Ingreso" : etiquetaTipoFlete(d.tipoFlete)}</span>
+            </div>
+            <div class="text-sm muted nowrap">${fmtHora(d.fecha)}</div>
+          </div>
+          ${d.tipo === "traslado" ? `
+          <div class="row-actions only-bodega" style="margin-bottom:4px;">
+            <button class="btn btn-ghost btn-xs btn-danger" data-eliminar-flete="${d.id}">Eliminar</button>
+          </div>` : ""}
+
+          ${d.sub ? `<p class="text-sm" style="margin-bottom:2px;">${esc(d.sub)}</p>` : ""}
+          ${d.observacion ? `<p class="text-sm muted" style="margin-bottom:2px;">${esc(d.observacion)}</p>` : ""}
           ${d.productos ? `
-          <details class="lista-desplegable" style="margin-bottom:8px;">
+          <details class="lista-desplegable">
             <summary>${d.productos.length} producto${d.productos.length === 1 ? "" : "s"} recibido${d.productos.length === 1 ? "" : "s"}</summary>
             <ul style="margin:6px 0 0; padding-left:18px;">
               ${d.productos.map((p) => `<li class="text-sm">${esc(p.producto)} — Cantidad recibida: ${fmtNum(p.cantidad)}</li>`).join("")}
@@ -258,15 +271,14 @@
           <details class="lista-desplegable">
             <summary>Foto de la guía</summary>
             <div style="margin-top:6px;">${bloqueFactura(d.factura)}</div>
-          </details>` : `<p class="text-sm"><span class="badge badge-warn">Sin factura</span></p>`}
-          ${d.tipo === "ingreso" && d.fleteEmpresa ? `<p class="text-sm muted" style="margin-top:6px;">Traslado: ${esc(d.fleteEmpresa)}</p>` : ""}
+          </details>` : `<p class="text-sm" style="margin:2px 0 0;"><span class="badge badge-warn">Sin factura</span></p>`}
+          ${d.tipo === "ingreso" && d.fleteEmpresa ? `<p class="text-sm muted" style="margin-top:4px;">Traslado: ${esc(d.fleteEmpresa)}</p>` : ""}
           ${d.tipo === "traslado" && d.vinculados?.length ? `
-            <p class="text-sm muted" style="margin-top:6px;">
+            <p class="text-sm muted" style="margin-top:4px;">
               Vinculado a: ${d.vinculados.map((m) => `${esc(m.materialProducto)} (${fmtFecha(m.fecha)})`).join(", ")}
             </p>
           ` : ""}
         </div>`;
-      }).join("");
     }
 
     buscar.addEventListener("input", render);
