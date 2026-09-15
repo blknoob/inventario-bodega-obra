@@ -55,7 +55,7 @@ export function escucharArriendos(onCambio, onError) {
  * pendiente por devolver). Se llama aparte, después de registrarEntrada --
  * no en la misma transacción, igual que la factura/flete asociados.
  */
-export async function crearArriendo({ materialId, materialProducto, cantidad, empresa, movimientoEntradaId, observacion }) {
+export async function crearArriendo({ materialId, materialProducto, cantidad, empresa, movimientoEntradaId, observacion, obra }) {
   if (MODO_DEMO) bloquearEnDemo();
   const cant = Number(cantidad);
   if (!(cant > 0)) throw new Error("La cantidad arrendada debe ser mayor que cero.");
@@ -66,6 +66,7 @@ export async function crearArriendo({ materialId, materialProducto, cantidad, em
   await setDoc(arriendoDoc, {
     materialId,
     materialProducto,
+    obra: obra || "",
     cantidad: cant,
     empresa: empresa.trim(),
     movimientoEntradaId: movimientoEntradaId || null,
@@ -105,6 +106,7 @@ export async function devolverHerramienta(arriendo, { observacion } = {}) {
         materialId: arriendo.materialId,
         materialProducto: snap.data().producto,
         categoria: snap.data().categoria,
+        obra: snap.data().obra || arriendo.obra || "",
         tipo: "salida",
         cantidad: arriendo.cantidad,
         stockResultante: resultante,

@@ -70,22 +70,21 @@
         </table>
       </div>
     </div>
-
-    <div class="card">
-      <h2>Herramientas</h2>
-      <p class="text-sm muted">Aún no hay movimientos de herramientas. Esta parte del historial se activa en el Tramo 4.</p>
-    </div>
   </div>
 
   <script type="module">
     import { montarTopbar } from "./js/ui.js";
     import { CATEGORIAS, etiquetaCategoria, escucharMovimientos } from "./js/materiales.js";
+    import { escucharObraActiva, esDeObraActiva } from "./js/obra.js";
 
     montarTopbar("historial");
 
     const optsCat = CATEGORIAS.map((c) => `<option value="${c.valor}">${c.etiqueta}</option>`).join("");
     document.getElementById("filtro-categoria").insertAdjacentHTML("beforeend", optsCat);
 
+    // Sin filtrar todavía por obra -- se guarda para poder refiltrar al
+    // cambiar de obra activa sin esperar un nuevo snapshot.
+    let movimientosRaw = [];
     let movimientos = [];
     const tbody = document.getElementById("tbody");
     const buscar = document.getElementById("buscar");
@@ -279,12 +278,18 @@
       if (!e.target.closest(".detalle-celda")) cerrarPaneles(null);
     });
 
+    function recalcularMovimientos() {
+      movimientos = movimientosRaw.filter((m) => esDeObraActiva(m.obra));
+      render();
+    }
+
     escucharMovimientos(
-      (items) => { movimientos = items; render(); },
+      (items) => { movimientosRaw = items; recalcularMovimientos(); },
       (err) => {
         tbody.innerHTML = `<tr><td colspan="8" class="empty">Error al cargar: ${esc(err.message)}</td></tr>`;
       },
     );
+    escucharObraActiva(recalcularMovimientos);
   </script>
 </body>
 </html>
