@@ -77,23 +77,39 @@ function conTope(promesa, ms, mensaje) {
 }
 
 /**
- * Sube la foto (o PDF) de la factura/guía de un ingreso a Storage y devuelve
- * sus datos para guardar junto al movimiento. Se sube UNA vez por lo que se
- * registra en el diálogo de "Material entrante" (aunque sean varios
- * productos del mismo pedido a la vez: es la misma guía para todos), así que
- * se llama antes de crear los movimientos, no dentro de registrarEntrada.
+ * Sube las fotos (o PDFs) de la factura/guía de un ingreso a Storage y
+ * devuelve sus datos para guardar junto al movimiento. Puede ser más de una
+ * (una guía suele traer varias hojas, o factura + guía de despacho por
+ * separado). Se suben UNA vez por lo que se registra en el diálogo de
+ * "Material entrante" (aunque sean varios productos del mismo pedido a la
+ * vez: son las mismas fotos para todos), así que se llama antes de crear
+ * los movimientos, no dentro de registrarEntrada.
  */
-export async function subirFacturaEntrada(archivo) {
-  if (!archivo) return null;
-  const path = `entradas/${crypto.randomUUID()}/${archivo.name}`;
-  const archivoRef = ref(storage, path);
-  await conTope(
-    uploadBytes(archivoRef, archivo),
-    20000,
-    "No se pudo subir la factura (se demoró demasiado). Revisa que Firebase Storage esté activado para este proyecto.",
-  );
-  const url = await getDownloadURL(archivoRef);
-  return { nombre: archivo.name, url, path };
+export async function subirFacturasEntrada(archivos) {
+  const lista = (archivos || []).filter(Boolean);
+  if (!lista.length) return [];
+  const carpeta = crypto.randomUUID(); // misma carpeta para todas las fotos de esta guía
+  return Promise.all(lista.map(async (archivo) => {
+    const path = `entradas/${carpeta}/${archivo.name}`;
+    const archivoRef = ref(storage, path);
+    await conTope(
+      uploadBytes(archivoRef, archivo),
+      20000,
+      `No se pudo subir "${archivo.name}" (se demoró demasiado). Revisa que Firebase Storage esté activado para este proyecto.`,
+    );
+    const url = await getDownloadURL(archivoRef);
+    return { nombre: archivo.name, url, path };
+  }));
+}
+
+/**
+ * Fotos de factura/guía de un movimiento, con compatibilidad hacia atrás:
+ * los movimientos creados antes de admitir más de una foto traen una sola en
+ * `factura` (objeto); los nuevos traen `facturas` (arreglo, puede ir vacío).
+ */
+export function facturasDe(movimiento) {
+  if (movimiento.facturas?.length) return movimiento.facturas;
+  return movimiento.factura ? [movimiento.factura] : [];
 }
 
 /**
@@ -102,7 +118,7 @@ export async function subirFacturaEntrada(archivo) {
  * un id existente, solo suma esa cantidad a su stock. En ambos casos deja un
  * movimiento de tipo "entrada" en el historial. Todo en una sola transacción.
  */
-export async function registrarEntrada({ materialId, nuevoMaterial, cantidadRecibida, proveedor, documento, motivo, ubicacion, ordenCompraId, ordenCompraNumero, pmItemId, fleteId, fleteEmpresa, factura, tipoAdquisicion, empresaArriendo }) {
+export async function registrarEntrada({ materialId, nuevoMaterial, cantidadRecibida, proveedor, documento, motivo, observacionRecepcion, ubicacion, ordenCompraId, ordenCompraNumero, pmItemId, fleteId, fleteEmpresa, facturas, tipoAdquisicion, empresaArriendo }) {
   if (MODO_DEMO) bloquearEnDemo();
   const cant = Number(cantidadRecibida);
   if (!(cant > 0)) throw new Error("La cantidad recibida debe ser mayor que cero.");
@@ -182,12 +198,16 @@ export async function registrarEntrada({ materialId, nuevoMaterial, cantidadReci
       proveedor: proveedor?.trim() || "",
       documento: documento?.trim() || "",
       motivo: motivo?.trim() || "Llegada de material",
+      // Solo aplica a ítems elegidos de un Pedido de Materiales: por si
+      // llegó distinto a lo pedido (otra cantidad, cambiaron de marca...),
+      // sin mezclarlo con el motivo general de todo el registro.
+      observacionRecepcion: observacionRecepcion?.trim() || "",
       ordenCompraId: ordenCompraId || null,
       ordenCompraNumero: ordenCompraNumero?.trim() || "",
       pmItemId: pmItemId || null,
       fleteId: fleteId || null,
       fleteEmpresa: fleteEmpresa?.trim() || "",
-      factura: factura || null,
+      facturas: facturas || [],
       // Solo aplica a herramientas: si esta llegada es de una herramienta
       // arrendada (no comprada), hay que poder verla después como
       // "pendiente por devolver" -- ver herramientas.js/crearArriendo, que
