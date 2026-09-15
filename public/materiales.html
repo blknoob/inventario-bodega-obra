@@ -161,7 +161,7 @@
           </div>
         </div>
         <div class="field">
-          <label for="e-nuevo-minimo">Stock mínimo (alerta)</label>
+          <label for="e-nuevo-minimo">Stock mínimo (alerta) <span class="muted">— obligatorio en Consumibles y EPP</span></label>
           <input type="number" id="e-nuevo-minimo" min="0" step="any" value="0" />
         </div>
         <div class="field">
@@ -398,6 +398,17 @@
       return `<option value="" ${valorElegido ? "" : "selected"} disabled hidden>Elegir una categoría</option>${opciones}`;
     }
     document.getElementById("e-nuevo-categoria").innerHTML = optsCategoriaNuevo();
+
+    // Consumibles y EPP son justamente lo que se controla por alerta de
+    // stock bajo (a diferencia de herramientas/equipo) -- sin un mínimo
+    // mayor que cero, "nivelStock()" nunca los marca como "bajo" y la
+    // alerta nunca aparece, aunque se estén por acabar.
+    const CATEGORIAS_CON_ALERTA = ["consumible", "epp"];
+    function validarStockMinimo(categoria, stockMinimo) {
+      if (CATEGORIAS_CON_ALERTA.includes(categoria) && !(Number(stockMinimo) > 0)) {
+        throw new Error("indica un stock mínimo mayor que 0 para poder mostrar la alerta de stock bajo.");
+      }
+    }
     document.getElementById("stat-total-label").textContent = modoAlertas
       ? "En alerta"
       : TITULOS_PAGINA[categoriaPagina]?.[0] || "Tipos de material";
@@ -869,6 +880,8 @@
         if (unidadInput) item.unidad = unidadInput.value;
         const categoriaSelect = fila.querySelector(".ie-categoria");
         if (categoriaSelect) item.categoriaElegida = categoriaSelect.value;
+        const minimoInput = fila.querySelector(".ie-minimo");
+        if (minimoInput) item.stockMinimo = minimoInput.value;
       });
     }
 
@@ -902,9 +915,15 @@
               </div>` : ""}
             </div>
             ${!existente ? `
-            <div class="field" style="margin-top:10px;">
-              <label>Categoría</label>
-              <select class="ie-categoria">${optsCategoriaNuevo(item.categoriaElegida)}</select>
+            <div class="row" style="margin-top:10px;">
+              <div class="field">
+                <label>Categoría</label>
+                <select class="ie-categoria">${optsCategoriaNuevo(item.categoriaElegida)}</select>
+              </div>
+              <div class="field">
+                <label>Stock mínimo (alerta) <span class="muted">— obligatorio en Consumibles y EPP</span></label>
+                <input type="number" class="ie-minimo" min="0" step="any" value="${item.stockMinimo ?? 0}" />
+              </div>
             </div>` : ""}
           </div>`;
       }).join("");
@@ -1147,6 +1166,12 @@
               llevarVistaA(campoCategoria);
               throw new Error(`${item.glosa}: elige una categoría.`);
             }
+            try {
+              validarStockMinimo(campoCategoria.value, fila.querySelector(".ie-minimo")?.value);
+            } catch (errMinimo) {
+              llevarVistaA(fila.querySelector(".ie-minimo"));
+              throw new Error(`${item.glosa}: ${errMinimo.message}`);
+            }
           }
           let registrados = 0;
           for (const item of [...itemsPMSeleccionados]) {
@@ -1179,6 +1204,7 @@
               } else {
                 const campoUnidad = fila.querySelector(".ie-unidad");
                 const campoCategoria = fila.querySelector(".ie-categoria");
+                const campoMinimo = fila.querySelector(".ie-minimo");
                 datos.nuevoMaterial = {
                   producto: item.glosa,
                   categoria: campoCategoria.value,
@@ -1186,7 +1212,7 @@
                   medida: "",
                   centroGestion: item.centroGestion,
                   centroCosto: item.centroCosto,
-                  stockMinimo: 0,
+                  stockMinimo: campoMinimo ? campoMinimo.value : 0,
                   ubicacion,
                   descripcion: "",
                 };
@@ -1230,10 +1256,16 @@
             empresaArriendo,
           };
           if (modoProductoNuevo) {
-            if (!document.getElementById("e-nuevo-categoria").value) throw new Error("Elige una categoría para el producto nuevo.");
+            const categoriaElegida = document.getElementById("e-nuevo-categoria").value;
+            if (!categoriaElegida) throw new Error("Elige una categoría para el producto nuevo.");
+            try {
+              validarStockMinimo(categoriaElegida, document.getElementById("e-nuevo-minimo").value);
+            } catch (errMinimo) {
+              throw new Error(`${etiquetaCategoria(categoriaElegida)}: ${errMinimo.message}`);
+            }
             datos.nuevoMaterial = {
               producto: document.getElementById("e-nuevo-producto").value,
-              categoria: document.getElementById("e-nuevo-categoria").value,
+              categoria: categoriaElegida,
               unidad: document.getElementById("e-nuevo-unidad").value,
               medida: document.getElementById("e-nuevo-medida").value,
               centroGestion: document.getElementById("e-nuevo-centro-gestion").value,
