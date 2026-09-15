@@ -804,7 +804,7 @@
     const itemsManualCont = document.getElementById("items-manual-lista");
 
     function nuevaFilaManual() {
-      return { id: crypto.randomUUID() };
+      return { id: crypto.randomUUID(), abierto: true };
     }
 
     // Antes de redibujar (agregar/quitar una fila) hay que guardar lo que
@@ -828,6 +828,10 @@
         item.stockMinimo = fila.querySelector(".im-minimo")?.value ?? 0;
         item.descripcion = fila.querySelector(".im-descripcion")?.value || "";
         item.tipoHerramienta = fila.querySelector(".im-tipo-herramienta")?.value || "";
+        // El desplegable se puede abrir/cerrar a mano (clic en el
+        // resumen), sin pasar por ningún botón nuestro -- se respeta lo
+        // que haya quedado en vez de forzarlo a abierto/cerrado.
+        item.abierto = fila.open;
       });
     }
 
@@ -835,13 +839,17 @@
       itemsManualCont.innerHTML = itemsManualSeleccionados.map((item) => {
         const existente = item.materialId ? materiales.find((m) => m.id === item.materialId) : null;
         const hayTexto = !!(item.textoBuscador || "").trim();
+        // Un desplegable por producto (no un <div> siempre expandido):
+        // así, a medida que se agregan varios, los que ya se llenaron se
+        // ven como una lista compacta en vez de alargar la ficha entera.
+        // Al menos uno queda abierto siempre (el que se está llenando).
         return `
-          <div class="item-pedido-fila item-manual-fila" data-row-id="${item.id}">
-            ${itemsManualSeleccionados.length > 1 ? `
-            <div class="row-actions" style="justify-content:flex-end; margin-bottom:6px;">
-              <button type="button" class="btn btn-ghost btn-xs btn-danger im-quitar">Quitar</button>
-            </div>` : ""}
-            <div class="field" style="position:relative;">
+          <details class="item-pedido-fila item-manual-fila lista-desplegable" data-row-id="${item.id}" ${item.abierto ? "open" : ""}>
+            <summary style="display:flex; justify-content:space-between; gap:10px;">
+              <span class="im-resumen">Producto nuevo</span>
+              ${itemsManualSeleccionados.length > 1 ? `<button type="button" class="btn btn-ghost btn-xs btn-danger im-quitar">Quitar</button>` : ""}
+            </summary>
+            <div class="field" style="position:relative; margin-top:10px;">
               <label>Producto</label>
               <input type="text" class="im-buscar buscador-input" placeholder="Busca o escribe el nombre del producto…" autocomplete="off" value="${esc(item.textoBuscador || "")}" />
               <input type="hidden" class="im-producto" value="${esc(item.materialId || "")}" />
@@ -893,13 +901,27 @@
                 <input type="number" class="im-cantidad" min="0" step="any" value="${esc(item.cantidad || "")}" />
               </div>
             </div>
-          </div>`;
+          </details>`;
       }).join("");
 
       itemsManualCont.querySelectorAll(".item-manual-fila").forEach((fila) => {
         const item = itemsManualSeleccionados.find((x) => x.id === fila.getAttribute("data-row-id"));
         wireFilaManual(fila, item);
+        actualizarResumenFila(fila);
       });
+    }
+
+    /** Texto corto del <summary> de una fila (producto + cantidad), leído directo del DOM -- se llama tras cada cambio relevante, sin esperar a un redibujo completo. */
+    function actualizarResumenFila(fila) {
+      const resumen = fila.querySelector(".im-resumen");
+      const materialId = fila.querySelector(".im-producto").value;
+      const nuevoProducto = fila.querySelector(".im-nuevo-producto").value;
+      const cantidad = fila.querySelector(".im-cantidad").value;
+      const existente = materialId ? materiales.find((m) => m.id === materialId) : null;
+      const nombre = existente ? existente.producto : nuevoProducto;
+      if (!nombre) { resumen.textContent = "Producto nuevo"; return; }
+      const unidad = existente ? existente.unidad : (fila.querySelector(".im-unidad")?.value || "");
+      resumen.textContent = `${nombre}${cantidad ? ` — ${fmtNum(cantidad)}${unidad ? " " + unidad : ""}` : ""}`;
     }
 
     /** Cablea el buscador de producto y el botón "Quitar" de UNA fila recién insertada en el DOM. */
@@ -933,6 +955,7 @@
         stockTxt.textContent = m ? `Stock actual: ${fmtNum(m.stock)} ${m.unidad}` : "";
         bloqueNuevo.classList.toggle("hidden", !!m || !nuevoOculto.value);
         lista.classList.add("hidden");
+        actualizarResumenFila(fila);
       }
 
       input.addEventListener("focus", renderLista);
@@ -948,8 +971,15 @@
         if (!btn) return;
         elegir(materiales.find((x) => x.id === btn.getAttribute("data-id")));
       });
+      fila.querySelector(".im-cantidad").addEventListener("input", () => actualizarResumenFila(fila));
+      fila.querySelector(".im-unidad")?.addEventListener("input", () => actualizarResumenFila(fila));
 
-      fila.querySelector(".im-quitar")?.addEventListener("click", () => {
+      fila.querySelector(".im-quitar")?.addEventListener("click", (e) => {
+        // El botón vive dentro de <summary>: sin esto, el clic también
+        // abre/cierra el desplegable (o lo deja cerrado justo al quitar
+        // el que tocaba, por el toggle nativo del clic).
+        e.preventDefault();
+        e.stopPropagation();
         sincronizarItemsManualDesdeDom();
         itemsManualSeleccionados = itemsManualSeleccionados.filter((x) => x.id !== item.id);
         renderItemsManual();
@@ -970,6 +1000,10 @@
 
     document.getElementById("btn-agregar-producto-manual").addEventListener("click", () => {
       sincronizarItemsManualDesdeDom();
+      // Las filas anteriores se colapsan (solo la nueva queda abierta) --
+      // si no, con varios productos la ficha se vuelve interminable de
+      // scrollear. Igual se pueden volver a abrir con un clic.
+      itemsManualSeleccionados.forEach((item) => { item.abierto = false; });
       itemsManualSeleccionados.push(nuevaFilaManual());
       renderItemsManual();
     });
@@ -1387,7 +1421,15 @@
           renderItemsPedidoElegidos();
         } else {
           if (!itemsManualSeleccionados.length) throw new Error("Agrega al menos un producto.");
+          // A diferencia de los ítems de un PM, estas filas son
+          // <details> colapsables (ver renderItemsManual): si el campo
+          // con el problema quedó en una fila ya cerrada, hay que
+          // abrirla primero -- si no, scrollIntoView/focus no hacen nada
+          // visible (un campo con display:none no se puede enfocar) y
+          // el usuario no sabe cuál de varias filas "Producto nuevo"
+          // colapsadas es la que falta completar.
           const llevarVistaA = (campo) => {
+            campo.closest(".item-manual-fila").open = true;
             campo.scrollIntoView({ behavior: "smooth", block: "center" });
             campo.focus();
           };
