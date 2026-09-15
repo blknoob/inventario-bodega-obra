@@ -47,6 +47,12 @@ a { color: var(--info); }
   justify-content: space-between;
   gap: 8px 16px;
   flex-wrap: wrap;
+  /* Queda visible arriba al hacer scroll -- "sticky" ya sirve de
+     referencia de posición para el menú desplegable de celular, así
+     que no hace falta "relative" aparte (ver responsive más abajo). */
+  position: sticky;
+  top: 0;
+  z-index: 40;
 }
 .topbar .brand {
   font-weight: 700;
@@ -552,8 +558,10 @@ body.es-bodega .only-bodega.row-actions { display: flex; }
   }
   .menu-toggle { display: flex; }
 
-  /* El menú flota sobre el contenido (no lo empuja hacia abajo). */
-  .topbar { position: relative; }
+  /* El menú flota sobre el contenido (no lo empuja hacia abajo). El
+     "position: sticky" del .topbar ya sirve de referencia para este
+     "position: absolute" -- no hace falta agregar "relative" acá (y
+     si se agregara, pisaría el sticky en celular). */
   .topbar nav {
     display: none;
     position: absolute;
