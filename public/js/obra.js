@@ -49,3 +49,15 @@ export function escucharObraActiva(callback) {
   window.addEventListener(EVENTO, callback);
   return () => window.removeEventListener(EVENTO, callback);
 }
+
+/**
+ * Compara el campo `obra` de un documento (material, movimiento, pedido,
+ * flete, arriendo...) contra la obra activa. Un documento SIN `obra` -- todo
+ * lo cargado antes de que existiera este filtro, incluidos los datos reales
+ * ya en uso -- se trata como de la primera obra (CCLP II, la única que
+ * existía) en vez de "ninguna obra": si se comparara con `===` a secas, esos
+ * documentos dejarían de verse en toda la app en cuanto se desplegara esto.
+ */
+export function esDeObraActiva(obraDoc) {
+  return (obraDoc || OBRAS[0].valor) === obraActiva();
+}

@@ -40,7 +40,7 @@
   <script type="module">
     import { montarTopbar } from "./js/ui.js";
     import { escucharMateriales, nivelStock } from "./js/materiales.js";
-    import { obraActiva, escucharObraActiva } from "./js/obra.js";
+    import { escucharObraActiva, esDeObraActiva } from "./js/obra.js";
 
     montarTopbar("inicio");
     const errorConexion = document.getElementById("error-conexion");
@@ -49,7 +49,7 @@
     // esperar un nuevo snapshot (ver escucharObraActiva más abajo).
     let materialesRaw = [];
     function actualizarStats() {
-      const items = materialesRaw.filter((m) => m.obra === obraActiva());
+      const items = materialesRaw.filter((m) => esDeObraActiva(m.obra));
       const materiales = items.filter((m) => !["epp", "herramienta"].includes(m.categoria));
       const epps = items.filter((m) => m.categoria === "epp");
       const herramientas = items.filter((m) => m.categoria === "herramienta");

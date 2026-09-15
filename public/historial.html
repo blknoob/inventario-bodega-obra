@@ -80,7 +80,7 @@
   <script type="module">
     import { montarTopbar } from "./js/ui.js";
     import { CATEGORIAS, etiquetaCategoria, escucharMovimientos } from "./js/materiales.js";
-    import { obraActiva, escucharObraActiva } from "./js/obra.js";
+    import { escucharObraActiva, esDeObraActiva } from "./js/obra.js";
 
     montarTopbar("historial");
 
@@ -284,7 +284,7 @@
     });
 
     function recalcularMovimientos() {
-      movimientos = movimientosRaw.filter((m) => m.obra === obraActiva());
+      movimientos = movimientosRaw.filter((m) => esDeObraActiva(m.obra));
       render();
     }
 

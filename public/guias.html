@@ -95,7 +95,7 @@
     import { montarTopbar, flash } from "./js/ui.js";
     import { escucharFletes, crearFlete, eliminarFlete, TIPOS_FLETE, etiquetaTipoFlete } from "./js/fletes.js";
     import { escucharMovimientos } from "./js/materiales.js";
-    import { obraActiva, escucharObraActiva } from "./js/obra.js";
+    import { obraActiva, escucharObraActiva, esDeObraActiva } from "./js/obra.js";
 
     montarTopbar("guias");
 
@@ -289,8 +289,8 @@
     buscar.addEventListener("input", render);
 
     function recalcularGuias() {
-      fletes = fletesRaw.filter((f) => f.obra === obraActiva());
-      movimientos = movimientosRaw.filter((m) => m.obra === obraActiva());
+      fletes = fletesRaw.filter((f) => esDeObraActiva(f.obra));
+      movimientos = movimientosRaw.filter((m) => esDeObraActiva(m.obra));
       render();
     }
 

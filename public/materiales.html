@@ -324,7 +324,7 @@
     import { escucharPedidos, escucharOrdenes, anotarOrdenDeCompra, cantidadRecibidaDe } from "./js/compras.js";
     import { escucharFletes, etiquetaTipoFlete } from "./js/fletes.js";
     import { escucharArriendos, crearArriendo, devolverHerramienta } from "./js/herramientas.js";
-    import { obraActiva, escucharObraActiva } from "./js/obra.js";
+    import { obraActiva, escucharObraActiva, esDeObraActiva } from "./js/obra.js";
 
     // Esta misma página sirve para cuatro vistas: "Materiales" (todo menos
     // EPP/Herramientas), "EPPs" (?categoria=epp), "Herramientas"
@@ -572,7 +572,7 @@
       function render() {
         const q = normalizar(input.value);
         const items = pedidos
-          .filter((p) => p.obra === obraActiva())
+          .filter((p) => esDeObraActiva(p.obra))
           .filter((p) => !q || [p.numero, p.solicitante].some((v) => normalizar(v).includes(q)))
           .slice(0, 30);
         lista.innerHTML = items.length
@@ -611,7 +611,7 @@
       // Ids de productos con al menos un arriendo aún pendiente por
       // devolver -- solo se usa (y solo se calcula lo pendiente) en
       // Herramientas. Acotado a la obra activa, igual que el resto.
-      const idsArrendadas = new Set(arriendos.filter((a) => !a.devuelto && a.obra === obraActiva()).map((a) => a.materialId));
+      const idsArrendadas = new Set(arriendos.filter((a) => !a.devuelto && esDeObraActiva(a.obra)).map((a) => a.materialId));
       const vista = materiales.filter((m) =>
         (!cat || m.categoria === cat) &&
         (!filtroStock || nivelStock(m) === filtroStock) &&
@@ -688,7 +688,7 @@
     // una entrada quede sumada al producto de la otra obra) y después al
     // modo de esta página (categoría / alertas), igual que antes.
     function recalcularMateriales() {
-      const items = materialesRaw.filter((m) => m.obra === obraActiva());
+      const items = materialesRaw.filter((m) => esDeObraActiva(m.obra));
       materialesTodos = items;
       materiales = modoAlertas
         ? items.filter((m) => nivelStock(m) !== "ok")
@@ -730,7 +730,7 @@
     const listaArriendos = document.getElementById("lista-arriendos");
     function renderArriendos() {
       if (!modoHerramienta) return;
-      const pendientes = arriendos.filter((a) => !a.devuelto && a.obra === obraActiva());
+      const pendientes = arriendos.filter((a) => !a.devuelto && esDeObraActiva(a.obra));
       bloqueArriendos.classList.toggle("hidden", !pendientes.length);
       resumenArriendos.textContent = `${pendientes.length} herramienta${pendientes.length === 1 ? "" : "s"} arrendada${pendientes.length === 1 ? "" : "s"} por devolver`;
       listaArriendos.innerHTML = pendientes.map((a) => `
@@ -1067,7 +1067,7 @@
     function renderFleteLista() {
       const q = normalizar(eFleteBuscar.value);
       const items = fletes
-        .filter((f) => f.obra === obraActiva())
+        .filter((f) => esDeObraActiva(f.obra))
         .filter((f) => !q || normalizar(f.empresa).includes(q))
         .slice(0, 20);
       eFleteLista.innerHTML = items.length
