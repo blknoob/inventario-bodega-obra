@@ -27,17 +27,11 @@ import {
 import { db } from "./firebase-config.js";
 import { usuarioActual } from "./auth.js";
 import { MODO_DEMO, ARRIENDOS_DEMO, bloquearEnDemo } from "./demo.js";
+import { ACTIVIDAD_DEVOLUCION_HERRAMIENTA } from "./constantes.js";
 
 const arriendosRef = collection(db, "arriendos_herramienta");
 const materialesRef = collection(db, "materiales");
 const movimientosRef = collection(db, "movimientos_materiales");
-
-// Texto exacto del campo "actividad" con el que queda marcado el movimiento
-// de salida que genera una devolución -- guias.html lo usa para reconocer
-// esos movimientos entre todas las salidas y mostrarlos como "Devolución"
-// (ver ahí mismo). Como constante compartida, no como literal repetido, para
-// que un cambio de texto no rompa ese filtro sin dar ningún error.
-export const ACTIVIDAD_DEVOLUCION_HERRAMIENTA = "Devolución de herramienta arrendada";
 
 /** Escucha en tiempo real todos los arriendos (pendientes y ya devueltos), más recientes primero. */
 export function escucharArriendos(onCambio, onError) {

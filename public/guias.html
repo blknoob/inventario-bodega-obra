@@ -26,6 +26,10 @@
         <div class="label">Ingresos</div>
         <div class="value stock-ok" id="stat-ingreso">—</div>
       </button>
+      <button type="button" class="stat" id="stat-devolucion-card">
+        <div class="label">Devoluciones</div>
+        <div class="value" id="stat-devolucion" style="color: var(--warn);">—</div>
+      </button>
       <button type="button" class="stat" id="stat-traslado-card">
         <div class="label">Traslados</div>
         <div class="value" id="stat-traslado" style="color: var(--info);">—</div>
@@ -95,7 +99,7 @@
     import { montarTopbar, flash } from "./js/ui.js";
     import { escucharFletes, crearFlete, eliminarFlete, TIPOS_FLETE, etiquetaTipoFlete } from "./js/fletes.js";
     import { escucharMovimientos, facturasDe } from "./js/materiales.js";
-    import { ACTIVIDAD_DEVOLUCION_HERRAMIENTA } from "./js/herramientas.js";
+    import { ACTIVIDAD_DEVOLUCION_HERRAMIENTA } from "./js/constantes.js";
     import { obraActiva, escucharObraActiva, esDeObraActiva } from "./js/obra.js";
 
     montarTopbar("guias");
@@ -136,22 +140,25 @@
     let movimientosRaw = [];
     let fletes = [];
     let movimientos = [];
-    let filtroTipo = ""; // "" | "ingreso" | "traslado"
+    let filtroTipo = ""; // "" | "ingreso" | "devolucion" | "traslado"
     const lista = document.getElementById("lista-guias");
     const buscar = document.getElementById("buscar");
     const statTotalCard = document.getElementById("stat-total-card");
     const statIngresoCard = document.getElementById("stat-ingreso-card");
+    const statDevolucionCard = document.getElementById("stat-devolucion-card");
     const statTrasladoCard = document.getElementById("stat-traslado-card");
 
     function setFiltroTipo(valor) {
       filtroTipo = filtroTipo === valor ? "" : valor;
       statTotalCard.classList.toggle("active", filtroTipo === "");
       statIngresoCard.classList.toggle("active", filtroTipo === "ingreso");
+      statDevolucionCard.classList.toggle("active", filtroTipo === "devolucion");
       statTrasladoCard.classList.toggle("active", filtroTipo === "traslado");
       render();
     }
     statTotalCard.addEventListener("click", () => setFiltroTipo(""));
     statIngresoCard.addEventListener("click", () => setFiltroTipo("ingreso"));
+    statDevolucionCard.addEventListener("click", () => setFiltroTipo("devolucion"));
     statTrasladoCard.addEventListener("click", () => setFiltroTipo("traslado"));
 
     // Si es una foto, se ve la miniatura ahí mismo (no solo un link que
@@ -237,6 +244,7 @@
       const todos = documentos();
       document.getElementById("stat-total").textContent = todos.length;
       document.getElementById("stat-ingreso").textContent = todos.filter((d) => d.tipo === "ingreso").length;
+      document.getElementById("stat-devolucion").textContent = todos.filter((d) => d.tipo === "devolucion").length;
       document.getElementById("stat-traslado").textContent = todos.filter((d) => d.tipo === "traslado").length;
 
       const vista = todos.filter((d) =>
