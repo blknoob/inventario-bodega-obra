@@ -70,13 +70,13 @@
           <thead>
             <tr>
               <th>Producto</th>
+              <th class="text-right">Stock</th>
               <th>Categoría</th>
               <th class="hidden" id="th-tipo-herramienta">Tipo</th>
               <th class="hidden" id="th-adquisicion">Adquisición</th>
               <th>Medida</th>
               <th>Centro de gestión</th>
               <th>Centro de costo</th>
-              <th class="text-right">Stock</th>
               <th>Ubicación</th>
               <th>Actualizado</th>
               <th class="only-bodega"></th>
@@ -541,17 +541,17 @@
               ${m.descripcion ? `<div class="text-sm muted">${esc(m.descripcion)}</div>` : ""}
               ${m.sinReposicion ? `<div class="text-sm muted">No se repone</div>` : ""}
             </td>
+            <td class="text-right nowrap">
+              <span class="stock-num ${clase}">${fmtNum(m.stock)}</span>
+              <span class="muted text-sm">${esc(m.unidad)}</span>
+              ${m.stockMinimo ? `<div class="text-sm muted">mín. ${fmtNum(m.stockMinimo)}</div>` : ""}
+            </td>
             <td><span class="badge badge-muted">${esc(etiquetaCategoria(m.categoria))}</span></td>
             <td class="${modoHerramienta ? "" : "hidden"}">${m.tipoHerramienta ? esc(etiquetaTipoHerramienta(m.tipoHerramienta)) : "<span class='muted'>—</span>"}</td>
             <td class="${modoHerramienta ? "" : "hidden"}">${idsArrendadas.has(m.id) ? `<span class="badge badge-muted">Arrendada</span>` : `<span class="badge badge-muted">Comprada</span>`}</td>
             <td>${esc(m.medida) || "<span class='muted'>—</span>"}</td>
             <td>${esc(m.centroGestion) || "<span class='muted'>—</span>"}</td>
             <td>${esc(m.centroCosto) || "<span class='muted'>—</span>"}</td>
-            <td class="text-right nowrap">
-              <span class="stock-num ${clase}">${fmtNum(m.stock)}</span>
-              <span class="muted text-sm">${esc(m.unidad)}</span>
-              ${m.stockMinimo ? `<div class="text-sm muted">mín. ${fmtNum(m.stockMinimo)}</div>` : ""}
-            </td>
             <td>${esc(m.ubicacion) || "<span class='muted'>—</span>"}</td>
             <td class="nowrap text-sm muted">${fmtFecha(m.actualizadoEn)}</td>
             <td class="only-bodega nowrap">
