@@ -95,6 +95,7 @@
     import { montarTopbar, flash } from "./js/ui.js";
     import { escucharFletes, crearFlete, eliminarFlete, TIPOS_FLETE, etiquetaTipoFlete } from "./js/fletes.js";
     import { escucharMovimientos, facturasDe } from "./js/materiales.js";
+    import { ACTIVIDAD_DEVOLUCION_HERRAMIENTA } from "./js/herramientas.js";
     import { obraActiva, escucharObraActiva, esDeObraActiva } from "./js/obra.js";
 
     montarTopbar("guias");
@@ -214,7 +215,7 @@
         sub: [g.proveedor, g.ordenCompra ? `OC ${g.ordenCompra}` : ""].filter(Boolean).join(" · "),
       }));
       const devoluciones = movimientos
-        .filter((m) => m.tipo === "salida" && m.actividad === "Devolución de herramienta arrendada" && facturasDe(m).length)
+        .filter((m) => m.tipo === "salida" && m.actividad === ACTIVIDAD_DEVOLUCION_HERRAMIENTA && facturasDe(m).length)
         .map((m) => ({
           tipo: "devolucion", fecha: m.fecha, facturas: facturasDe(m),
           titulo: m.materialProducto,

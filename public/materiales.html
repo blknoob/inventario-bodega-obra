@@ -678,7 +678,8 @@
     // foto (opcional, pueden ser varias) y queda disponible después en
     // Guías junto con el resto.
     const dlgDevolver = document.getElementById("dlg-devolver");
-    cerrarAlClickAfuera(dlgDevolver);
+    let devolucionEnCurso = false; // ver el "submit" más abajo: mientras esté en true, este modal no se puede cerrar
+    cerrarAlClickAfuera(dlgDevolver, () => devolucionEnCurso);
     const formDevolver = document.getElementById("form-devolver");
     const errDevolver = document.getElementById("err-devolver");
     const devolverResumen = document.getElementById("devolver-resumen");
@@ -747,7 +748,14 @@
       errDevolver.classList.add("hidden");
       const btn = document.getElementById("btn-guardar-devolver");
       btn.disabled = true; btn.textContent = "Guardando…";
-      alternarBotonesLista([listaArriendos], true);
+      // También se bloquean Cancelar/X y el clic afuera (vía
+      // "devolucionEnCurso", ver cerrarAlClickAfuera más arriba): si se
+      // pudiera cerrar el modal ahora y el envío fallara después (ej. se
+      // corta la conexión a mitad de la subida), el error quedaría escrito
+      // en un modal ya cerrado -- invisible, sin ningún flash() de
+      // respaldo -- y el usuario creería que sí quedó devuelta.
+      devolucionEnCurso = true;
+      alternarBotonesLista([listaArriendos, dlgDevolver], true);
       try {
         const facturas = await subirFacturasEntrada(facturasElegidasDevolucion, "devoluciones");
         await devolverHerramienta(arriendo, {
@@ -760,8 +768,9 @@
         errDevolver.textContent = err.message;
         errDevolver.classList.remove("hidden");
       } finally {
+        devolucionEnCurso = false;
         btn.disabled = false; btn.textContent = "Marcar devuelta";
-        alternarBotonesLista([listaArriendos], false);
+        alternarBotonesLista([listaArriendos, dlgDevolver], false);
       }
     });
 
@@ -841,8 +850,13 @@
     // pero eso también pasa al clicar dentro del padding del cuadro (no
     // sobre un hijo). Por eso se compara contra su posición real en
     // pantalla: solo cierra si el clic cayó fuera de ese rectángulo.
-    function cerrarAlClickAfuera(dialog) {
+    // "bloqueado()" es para el caso de "Marcar herramienta devuelta": con un
+    // envío en curso no debe poder cerrarse ni por acá (ver más abajo, el
+    // botón Cancelar/X de ese modal en particular también queda
+    // deshabilitado mientras tanto, por la misma razón).
+    function cerrarAlClickAfuera(dialog, bloqueado = () => false) {
       dialog.addEventListener("click", (e) => {
+        if (bloqueado()) return;
         const r = dialog.getBoundingClientRect();
         const dentro = e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom;
         if (!dentro) dialog.close();

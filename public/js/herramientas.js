@@ -32,6 +32,13 @@ const arriendosRef = collection(db, "arriendos_herramienta");
 const materialesRef = collection(db, "materiales");
 const movimientosRef = collection(db, "movimientos_materiales");
 
+// Texto exacto del campo "actividad" con el que queda marcado el movimiento
+// de salida que genera una devolución -- guias.html lo usa para reconocer
+// esos movimientos entre todas las salidas y mostrarlos como "Devolución"
+// (ver ahí mismo). Como constante compartida, no como literal repetido, para
+// que un cambio de texto no rompa ese filtro sin dar ningún error.
+export const ACTIVIDAD_DEVOLUCION_HERRAMIENTA = "Devolución de herramienta arrendada";
+
 /** Escucha en tiempo real todos los arriendos (pendientes y ya devueltos), más recientes primero. */
 export function escucharArriendos(onCambio, onError) {
   if (MODO_DEMO) {
@@ -116,7 +123,7 @@ export async function devolverHerramienta(arriendo, { observacion, facturas } = 
         cantidad: arriendo.cantidad,
         stockResultante: resultante,
         supervisor: "",
-        actividad: "Devolución de herramienta arrendada",
+        actividad: ACTIVIDAD_DEVOLUCION_HERRAMIENTA,
         zona: "",
         personaRetira: arriendo.empresa,
         numeroVale: "",
@@ -132,6 +139,11 @@ export async function devolverHerramienta(arriendo, { observacion, facturas } = 
       fechaDevolucion: serverTimestamp(),
       movimientoSalidaId: snap.exists() ? nuevoMovRef.id : null,
       observacionDevolucion: observacion?.trim() || "",
+      // También quedan acá (no solo en el movimiento de salida): si el
+      // producto ya no existe en el catálogo (se eliminó), no se crea
+      // movimiento -- sin esto, la foto ya subida a Storage quedaría sin
+      // ninguna referencia en Firestore, imposible de encontrar después.
+      facturas: facturas || [],
     });
   });
 }
