@@ -542,9 +542,13 @@
               ${m.sinReposicion ? `<div class="text-sm muted">No se repone</div>` : ""}
             </td>
             <td class="text-right nowrap">
-              <span class="stock-num ${clase}">${fmtNum(m.stock)}</span>
-              <span class="muted text-sm">${esc(m.unidad)}</span>
-              ${m.stockMinimo ? `<div class="text-sm muted">mín. ${fmtNum(m.stockMinimo)}</div>` : ""}
+              <div class="stock-cell">
+                <div class="stock-linea">
+                  <span class="stock-num ${clase}">${fmtNum(m.stock)}</span>
+                  <span class="muted text-sm">${esc(m.unidad)}</span>
+                </div>
+                ${m.stockMinimo ? `<div class="stock-min">mín. ${fmtNum(m.stockMinimo)}</div>` : ""}
+              </div>
             </td>
             <td><span class="badge badge-muted">${esc(etiquetaCategoria(m.categoria))}</span></td>
             <td class="${modoHerramienta ? "" : "hidden"}">${m.tipoHerramienta ? esc(etiquetaTipoHerramienta(m.tipoHerramienta)) : "<span class='muted'>—</span>"}</td>

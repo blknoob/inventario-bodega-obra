@@ -517,10 +517,13 @@ tbody tr:nth-child(even):hover td { background: #fafbfc; }
 .toolbar input[type="search"] { min-width: 200px; }
 
 /* Stock según nivel */
-.stock-num { font-weight: 700; font-variant-numeric: tabular-nums; }
+.stock-cell { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; line-height: 1.35; }
+.stock-cell .stock-linea { display: flex; align-items: baseline; gap: 4px; }
+.stock-num { font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .stock-ok    { color: var(--ok); }
 .stock-bajo  { color: var(--warn); }
 .stock-cero  { color: var(--danger); }
+.stock-min { font-size: 11px; color: var(--muted); }
 
 .empty { text-align: center; color: var(--muted); padding: 28px 12px; font-size: 14px; }
 .row-actions { display: flex; gap: 6px; flex-wrap: wrap; }
