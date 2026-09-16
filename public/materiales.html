@@ -169,7 +169,7 @@
 
       <div class="field" style="position:relative;">
         <label for="e-flete-buscar">Traslado (flete) asociado <span class="muted">(opcional)</span></label>
-        <input type="text" id="e-flete-buscar" class="buscador-input" placeholder="Empresa que hizo el traslado…" autocomplete="off" />
+        <input type="text" id="e-flete-buscar" class="buscador-input" autocomplete="off" />
         <input type="hidden" id="e-flete" />
         <div id="e-flete-lista" class="buscador-lista hidden"></div>
         <!-- <p class="text-sm muted" style="margin-top:6px;">Si vino con flete de una empresa externa y no lo has registrado, créalo primero en <a href="guias.html" target="_blank" rel="noopener">Guías</a> (con su factura) y elígelo acá.</p> -->
@@ -813,7 +813,7 @@
                 </div>
                 <div class="field">
                   <label>Unidad</label>
-                  <input type="text" class="im-unidad" maxlength="20" placeholder="piezas, unidades, m, kg…" value="${esc(item.unidad || "")}" />
+                  <input type="text" class="im-unidad" maxlength="20" placeholder="pzas, und, rollos, kg…" value="${esc(item.unidad || "")}" />
                 </div>
               </div>
               <div class="field im-campo-tipo-herramienta ${modoHerramienta ? "" : "hidden"}">
@@ -822,7 +822,7 @@
               </div>
               <div class="field">
                 <label>Medida <span class="muted">(opcional)</span></label>
-                <input type="text" class="im-medida" maxlength="40" placeholder="Ej: 1/2 pulgada, 25 kg…" value="${esc(item.medida || "")}" />
+                <input type="text" class="im-medida" maxlength="40" placeholder="Ej: 1/2 plg, 25 kg…" value="${esc(item.medida || "")}" />
               </div>
               <div class="field">
                 <label>Stock mínimo (alerta) <span class="muted">— obligatorio en EPP</span></label>
