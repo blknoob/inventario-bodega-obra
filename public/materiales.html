@@ -255,6 +255,40 @@
     </form>
   </dialog>
 
+  <!-- ── Modal: marcar herramienta arrendada como devuelta ───────────────── -->
+  <dialog id="dlg-devolver">
+    <div class="modal-head">
+      <h3>Marcar herramienta devuelta</h3>
+      <button type="button" class="modal-close" data-close>&times;</button>
+    </div>
+    <form id="form-devolver">
+      <div id="err-devolver" class="alert alert-error hidden"></div>
+      <p class="text-sm muted" id="devolver-resumen" style="margin-top:-6px;"></p>
+
+      <div class="field">
+        <label>Fotos de la guía de devolución <span class="muted">(opcional, pueden ser varias)</span></label>
+        <div class="row-actions">
+          <button type="button" class="btn btn-ghost" id="btn-dv-factura-camara">📷 Tomar foto</button>
+          <button type="button" class="btn btn-ghost" id="btn-dv-factura-archivo">📁 Elegir archivo</button>
+        </div>
+        <input type="file" id="dv-factura" accept="image/*" capture="environment" class="hidden" />
+        <input type="file" id="dv-factura-archivo" accept="image/*,.pdf" multiple class="hidden" />
+        <div id="dv-factura-elegida" style="margin-top:6px;"></div>
+        <p class="text-sm muted">Quedan disponibles para descargar después en <a href="guias.html" target="_blank" rel="noopener">Guías</a>.</p>
+      </div>
+
+      <div class="field">
+        <label for="dv-observacion">Observación <span class="muted">(opcional)</span></label>
+        <input type="text" id="dv-observacion" maxlength="160" />
+      </div>
+
+      <div class="modal-foot">
+        <button type="button" class="btn btn-ghost" data-close>Cancelar</button>
+        <button type="submit" class="btn btn-primary" id="btn-guardar-devolver">Marcar devuelta</button>
+      </div>
+    </form>
+  </dialog>
+
   <script type="module">
     import { montarTopbar, flash } from "./js/ui.js";
     import {
@@ -637,17 +671,85 @@
     }
     escucharArriendos((items) => { arriendos = items; renderArriendos(); render(); }, () => {});
     escucharObraActiva(renderArriendos);
-    listaArriendos.addEventListener("click", async (e) => {
+
+    // ── Marcar herramienta devuelta: la empresa arrendadora suele traer su
+    // propia guía de devolución (constancia de que recibió la herramienta
+    // de vuelta) -- igual que en Material entrante, se puede adjuntar como
+    // foto (opcional, pueden ser varias) y queda disponible después en
+    // Guías junto con el resto.
+    const dlgDevolver = document.getElementById("dlg-devolver");
+    cerrarAlClickAfuera(dlgDevolver);
+    const formDevolver = document.getElementById("form-devolver");
+    const errDevolver = document.getElementById("err-devolver");
+    const devolverResumen = document.getElementById("devolver-resumen");
+    let arriendoADevolver = null;
+
+    const dvFacturaCamara = document.getElementById("dv-factura");
+    const dvFacturaArchivo = document.getElementById("dv-factura-archivo");
+    const dvFacturaElegida = document.getElementById("dv-factura-elegida");
+    let facturasElegidasDevolucion = [];
+
+    function renderFacturasDevolucion() {
+      dvFacturaElegida.innerHTML = facturasElegidasDevolucion.map((archivo, i) => `
+        <span class="badge badge-muted" style="display:inline-flex; align-items:center; gap:6px; margin:2px 6px 2px 0;">
+          📎 ${esc(archivo.name)}
+          <button type="button" class="btn-quitar-factura" data-idx="${i}" aria-label="Quitar" style="border:none; background:none; cursor:pointer; font-weight:700; line-height:1; padding:0;">×</button>
+        </span>`).join("");
+    }
+    function agregarFacturasDevolucion(archivos) {
+      facturasElegidasDevolucion.push(...[...archivos].filter(Boolean));
+      renderFacturasDevolucion();
+    }
+    dvFacturaElegida.addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-idx]");
+      if (!btn) return;
+      facturasElegidasDevolucion.splice(Number(btn.getAttribute("data-idx")), 1);
+      renderFacturasDevolucion();
+    });
+    dvFacturaCamara.addEventListener("change", () => {
+      agregarFacturasDevolucion(dvFacturaCamara.files);
+      dvFacturaCamara.value = "";
+    });
+    dvFacturaArchivo.addEventListener("change", () => {
+      agregarFacturasDevolucion(dvFacturaArchivo.files);
+      dvFacturaArchivo.value = "";
+    });
+    document.getElementById("btn-dv-factura-camara").addEventListener("click", () => dvFacturaCamara.click());
+    document.getElementById("btn-dv-factura-archivo").addEventListener("click", () => dvFacturaArchivo.click());
+
+    listaArriendos.addEventListener("click", (e) => {
       const id = e.target.getAttribute?.("data-devolver");
       if (!id) return;
       const a = arriendos.find((x) => x.id === id);
       if (!a) return;
-      if (!confirm(`¿Marcar "${a.materialProducto}" (${fmtNum(a.cantidad)} unidad${a.cantidad === 1 ? "" : "es"}) como devuelta a ${a.empresa}? Se descuenta del stock.`)) return;
+      arriendoADevolver = a;
+      devolverResumen.textContent = `${a.materialProducto} — ${fmtNum(a.cantidad)} unidad${a.cantidad === 1 ? "" : "es"} · ${a.empresa}. Se descuenta del stock.`;
+      formDevolver.reset();
+      facturasElegidasDevolucion = [];
+      renderFacturasDevolucion();
+      errDevolver.classList.add("hidden");
+      dlgDevolver.showModal();
+    });
+
+    formDevolver.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      if (!arriendoADevolver) return;
+      errDevolver.classList.add("hidden");
+      const btn = document.getElementById("btn-guardar-devolver");
+      btn.disabled = true; btn.textContent = "Guardando…";
       try {
-        await devolverHerramienta(a);
+        const facturas = await subirFacturasEntrada(facturasElegidasDevolucion, "devoluciones");
+        await devolverHerramienta(arriendoADevolver, {
+          observacion: document.getElementById("dv-observacion").value,
+          facturas,
+        });
+        dlgDevolver.close();
         flash("Herramienta marcada como devuelta.");
       } catch (err) {
-        flash(err.message, "error");
+        errDevolver.textContent = err.message;
+        errDevolver.classList.remove("hidden");
+      } finally {
+        btn.disabled = false; btn.textContent = "Marcar devuelta";
       }
     });
 

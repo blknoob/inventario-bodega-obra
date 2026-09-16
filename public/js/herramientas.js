@@ -85,8 +85,13 @@ export async function crearArriendo({ materialId, materialProducto, cantidad, em
  * movimiento de salida, como cualquier otra salida de material) y cierra el
  * registro. Si el producto ya no existe en el catálogo (se eliminó), igual
  * se cierra el arriendo, solo que sin tocar stock.
+ *
+ * `facturas` son las fotos de la guía de devolución (subidas antes con
+ * subirFacturasEntrada(archivos, "devoluciones"), igual que en Material
+ * entrante) -- quedan en el movimiento de salida para poder verlas después
+ * en Guías, junto con las demás.
  */
-export async function devolverHerramienta(arriendo, { observacion } = {}) {
+export async function devolverHerramienta(arriendo, { observacion, facturas } = {}) {
   if (MODO_DEMO) bloquearEnDemo();
   if (arriendo.devuelto) throw new Error("Este arriendo ya está marcado como devuelto.");
 
@@ -116,6 +121,7 @@ export async function devolverHerramienta(arriendo, { observacion } = {}) {
         personaRetira: arriendo.empresa,
         numeroVale: "",
         observacion: observacion?.trim() || "",
+        facturas: facturas || [],
         responsable: email,
         fecha: serverTimestamp(),
       });

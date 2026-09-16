@@ -103,6 +103,8 @@ export const MOVIMIENTOS_DEMO = [
   { id: "m4", materialId: "d6", materialProducto: "Fierro estriado Ø10", categoria: "consumible", obra: "cclp2", tipo: "salida", cantidad: 30, stockResultante: 120, supervisor: "R. Díaz", actividad: "Fundaciones", zona: "Sector Patio A", personaRetira: "L. Vera", numeroVale: "V-0086", observacion: "Urgente", responsable: "bodega@demo.cl", fecha: hace(400000) },
   { id: "m5", materialId: "d5", materialProducto: "Andamio marco 1.5 m", categoria: "equipo", obra: "data_centers", tipo: "entrada", cantidad: 16, stockResultante: 16, proveedor: "Arriendos Layher", documento: "G-334", motivo: "Llegada de material", responsable: "bodega@demo.cl", fecha: hace(400000) },
   { id: "m6", materialId: "d8", materialProducto: "Taladro percutor Bosch", categoria: "herramienta", obra: "cclp2", tipo: "entrada", cantidad: 2, stockResultante: 4, proveedor: "Arriendos Layher", documento: "G-410", tipoAdquisicion: "arrendada", empresaArriendo: "Arriendos Layher", motivo: "Llegada de material", responsable: "bodega@demo.cl", fecha: hace(50000) },
+  // Devolución de la "Amoladora angular inalámbrica" (ver ARRIENDOS_DEMO/a2, ya devuelto) -- con foto de la guía de devolución, para poder verla en Guías.
+  { id: "m0s", materialId: "d8", materialProducto: "Amoladora angular inalámbrica", categoria: "herramienta", obra: "data_centers", tipo: "salida", cantidad: 1, stockResultante: 0, supervisor: "", actividad: "Devolución de herramienta arrendada", zona: "", personaRetira: "Hilti Chile", numeroVale: "", observacion: "", facturas: [FACTURA_DEMO], responsable: "bodega@demo.cl", fecha: hace(20000) },
 ];
 
 // Herramientas arrendadas: pendientes por devolver (o ya devueltas) a la

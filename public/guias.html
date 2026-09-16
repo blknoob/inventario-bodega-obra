@@ -181,6 +181,9 @@
     //    guía trajo varios productos a la vez (mismo PM, registrados
     //    juntos), quedan agrupados en UNA sola tarjeta -- se suben con la
     //    misma foto de factura, así que agrupar por esa factura basta.
+    //  - "devolucion": la guía de devolución de una herramienta arrendada
+    //    (ver js/herramientas.js/devolverHerramienta) -- cada devolución
+    //    queda en su propio movimiento de salida, así que van una por una.
     //  - "traslado": los fletes (empresa externa), tengan o no un ingreso
     //    vinculado -- un retiro de escombros, por ejemplo, no tiene ninguno.
     function documentos() {
@@ -210,13 +213,21 @@
         titulo: `${g.productos.length} producto${g.productos.length === 1 ? "" : "s"}`,
         sub: [g.proveedor, g.ordenCompra ? `OC ${g.ordenCompra}` : ""].filter(Boolean).join(" · "),
       }));
+      const devoluciones = movimientos
+        .filter((m) => m.tipo === "salida" && m.actividad === "Devolución de herramienta arrendada" && facturasDe(m).length)
+        .map((m) => ({
+          tipo: "devolucion", fecha: m.fecha, facturas: facturasDe(m),
+          titulo: m.materialProducto,
+          sub: [`${fmtNum(m.cantidad)} unidad${m.cantidad === 1 ? "" : "es"}`, m.personaRetira ? `Devuelto a ${m.personaRetira}` : ""].filter(Boolean).join(" · "),
+          observacion: m.observacion || "",
+        }));
       const traslados = fletes.map((f) => ({
         tipo: "traslado", fecha: f.creadoEn, factura: f.factura,
         titulo: f.empresa, tipoFlete: f.tipo, sub: f.detalle,
         observacion: f.observacion, id: f.id,
         vinculados: movimientos.filter((m) => m.fleteId === f.id),
       }));
-      return [...ingresos, ...traslados].sort((a, b) =>
+      return [...ingresos, ...devoluciones, ...traslados].sort((a, b) =>
         (b.fecha?.toDate?.() || 0) - (a.fecha?.toDate?.() || 0));
     }
 
@@ -264,7 +275,7 @@
           <div class="row-actions" style="justify-content: space-between; align-items: baseline; gap:8px; margin-bottom: 4px;">
             <div style="font-weight: 700;">
               ${esc(d.titulo)}
-              <span class="badge ${d.tipo === "ingreso" ? "badge-ok" : "badge-info"}">${d.tipo === "ingreso" ? "Ingreso" : etiquetaTipoFlete(d.tipoFlete)}</span>
+              <span class="badge ${d.tipo === "ingreso" ? "badge-ok" : d.tipo === "devolucion" ? "badge-warn" : "badge-info"}">${d.tipo === "ingreso" ? "Ingreso" : d.tipo === "devolucion" ? "Devolución" : etiquetaTipoFlete(d.tipoFlete)}</span>
             </div>
             <div class="text-sm muted nowrap">${fmtHora(d.fecha)}</div>
           </div>
