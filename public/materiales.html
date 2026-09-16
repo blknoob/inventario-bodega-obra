@@ -734,12 +734,23 @@
     formDevolver.addEventListener("submit", async (e) => {
       e.preventDefault();
       if (!arriendoADevolver) return;
+      // Se guarda en una constante propia del envío (no se vuelve a leer
+      // "arriendoADevolver" después de esto): entre la subida de la foto
+      // y devolverHerramienta hay un buen rato de espera (hasta 20s por
+      // foto), y si en ese lapso se cierra este modal y se abre para OTRA
+      // herramienta, esa variable compartida ya apuntaría a la otra --
+      // terminaría devolviendo la herramienta equivocada. Los botones
+      // "Marcar devuelta" de la lista quedan bloqueados mientras tanto
+      // por lo mismo (ver más abajo), así que en la práctica no debería
+      // poder pasar, pero esta constante es la salvaguarda de fondo.
+      const arriendo = arriendoADevolver;
       errDevolver.classList.add("hidden");
       const btn = document.getElementById("btn-guardar-devolver");
       btn.disabled = true; btn.textContent = "Guardando…";
+      alternarBotonesLista([listaArriendos], true);
       try {
         const facturas = await subirFacturasEntrada(facturasElegidasDevolucion, "devoluciones");
-        await devolverHerramienta(arriendoADevolver, {
+        await devolverHerramienta(arriendo, {
           observacion: document.getElementById("dv-observacion").value,
           facturas,
         });
@@ -750,6 +761,7 @@
         errDevolver.classList.remove("hidden");
       } finally {
         btn.disabled = false; btn.textContent = "Marcar devuelta";
+        alternarBotonesLista([listaArriendos], false);
       }
     });
 
