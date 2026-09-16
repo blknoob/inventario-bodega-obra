@@ -721,8 +721,23 @@
     document.querySelectorAll("dialog [data-close]").forEach((b) =>
       b.addEventListener("click", () => b.closest("dialog").close()));
 
+    // Cerrar el modal al hacer clic fuera de su contenido (en el fondo
+    // oscuro). El <dialog> nativo no distingue eso en el evento -- si el
+    // clic viene del fondo, el target termina siendo el propio <dialog>,
+    // pero eso también pasa al clicar dentro del padding del cuadro (no
+    // sobre un hijo). Por eso se compara contra su posición real en
+    // pantalla: solo cierra si el clic cayó fuera de ese rectángulo.
+    function cerrarAlClickAfuera(dialog) {
+      dialog.addEventListener("click", (e) => {
+        const r = dialog.getBoundingClientRect();
+        const dentro = e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom;
+        if (!dentro) dialog.close();
+      });
+    }
+
     // ── Material entrante ───────────────────────────────────────────────
     const dlgEntrante = document.getElementById("dlg-entrante");
+    cerrarAlClickAfuera(dlgEntrante);
     const formEntrante = document.getElementById("form-entrante");
     const errEntrante = document.getElementById("err-entrante");
 
@@ -1475,6 +1490,7 @@
     // resto -- persona que retira, vale, supervisor, etc. -- es compartido
     // para todo el registro).
     const dlgSaliente = document.getElementById("dlg-saliente");
+    cerrarAlClickAfuera(dlgSaliente);
     const formSaliente = document.getElementById("form-saliente");
     const errSaliente = document.getElementById("err-saliente");
     const itemsSalidaCont = document.getElementById("items-salida-lista");
