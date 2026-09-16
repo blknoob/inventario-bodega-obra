@@ -517,7 +517,8 @@ tbody tr:nth-child(even):hover td { background: #fafbfc; }
 .toolbar input[type="search"] { min-width: 200px; }
 
 /* Stock según nivel */
-.stock-cell { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; line-height: 1.35; }
+.stock-cell { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; line-height: 1.35; }
+.stock-cell .stock-num { min-width: 2ch; display: inline-block; text-align: right; }
 .stock-cell .stock-linea { display: flex; align-items: baseline; gap: 4px; }
 .stock-num { font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .stock-ok    { color: var(--ok); }

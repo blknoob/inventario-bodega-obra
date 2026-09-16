@@ -70,7 +70,7 @@
           <thead>
             <tr>
               <th>Producto</th>
-              <th class="text-right">Stock</th>
+              <th>Stock</th>
               <th>Categoría</th>
               <th class="hidden" id="th-tipo-herramienta">Tipo</th>
               <th class="hidden" id="th-adquisicion">Adquisición</th>
@@ -541,7 +541,7 @@
               ${m.descripcion ? `<div class="text-sm muted">${esc(m.descripcion)}</div>` : ""}
               ${m.sinReposicion ? `<div class="text-sm muted">No se repone</div>` : ""}
             </td>
-            <td class="text-right nowrap">
+            <td class="nowrap">
               <div class="stock-cell">
                 <div class="stock-linea">
                   <span class="stock-num ${clase}">${fmtNum(m.stock)}</span>
