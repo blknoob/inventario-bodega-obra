@@ -77,15 +77,18 @@ function conTope(promesa, ms, mensaje) {
 }
 
 /**
- * Sube las fotos (o PDFs) de la factura/guía de un ingreso a Storage y
- * devuelve sus datos para guardar junto al movimiento. Puede ser más de una
- * (una guía suele traer varias hojas, o factura + guía de despacho por
- * separado). Se suben UNA vez por lo que se registra en el diálogo de
- * "Material entrante" (aunque sean varios productos del mismo pedido a la
- * vez: son las mismas fotos para todos), así que se llama antes de crear
- * los movimientos, no dentro de registrarEntrada.
+ * Sube las fotos (o PDFs) de una guía a Storage y devuelve sus datos para
+ * guardar junto al movimiento. Puede ser más de una (una guía suele traer
+ * varias hojas, o factura + guía de despacho por separado). Se suben UNA vez
+ * por lo que se registra en el diálogo correspondiente (aunque sean varios
+ * productos a la vez: son las mismas fotos para todos), así que se llama
+ * antes de crear el movimiento, no dentro de registrarEntrada/devolverHerramienta.
+ *
+ * `carpetaBase` separa las fotos de un ingreso ("entradas", el valor por
+ * defecto) de las de una devolución de herramienta arrendada ("devoluciones",
+ * ver js/herramientas.js) -- mismo mecanismo, distinta carpeta en Storage.
  */
-export async function subirFacturasEntrada(archivos) {
+export async function subirFacturasEntrada(archivos, carpetaBase = "entradas") {
   const lista = (archivos || []).filter(Boolean);
   if (!lista.length) return [];
   const carpeta = crypto.randomUUID(); // misma carpeta para todas las fotos de esta guía
@@ -94,7 +97,7 @@ export async function subirFacturasEntrada(archivos) {
     // misma guía pueden llegar con el mismo nombre de archivo (p. ej. la
     // cámara del celular nombra "image.jpg" a cada foto que toma): sin
     // esto, la segunda subida pisaría a la primera en Storage.
-    const path = `entradas/${carpeta}/${i}-${archivo.name}`;
+    const path = `${carpetaBase}/${carpeta}/${i}-${archivo.name}`;
     const archivoRef = ref(storage, path);
     await conTope(
       uploadBytes(archivoRef, archivo),

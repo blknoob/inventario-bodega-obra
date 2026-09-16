@@ -27,6 +27,7 @@ import {
 import { db } from "./firebase-config.js";
 import { usuarioActual } from "./auth.js";
 import { MODO_DEMO, ARRIENDOS_DEMO, bloquearEnDemo } from "./demo.js";
+import { ACTIVIDAD_DEVOLUCION_HERRAMIENTA } from "./constantes.js";
 
 const arriendosRef = collection(db, "arriendos_herramienta");
 const materialesRef = collection(db, "materiales");
@@ -85,8 +86,13 @@ export async function crearArriendo({ materialId, materialProducto, cantidad, em
  * movimiento de salida, como cualquier otra salida de material) y cierra el
  * registro. Si el producto ya no existe en el catálogo (se eliminó), igual
  * se cierra el arriendo, solo que sin tocar stock.
+ *
+ * `facturas` son las fotos de la guía de devolución (subidas antes con
+ * subirFacturasEntrada(archivos, "devoluciones"), igual que en Material
+ * entrante) -- quedan en el movimiento de salida para poder verlas después
+ * en Guías, junto con las demás.
  */
-export async function devolverHerramienta(arriendo, { observacion } = {}) {
+export async function devolverHerramienta(arriendo, { observacion, facturas } = {}) {
   if (MODO_DEMO) bloquearEnDemo();
   if (arriendo.devuelto) throw new Error("Este arriendo ya está marcado como devuelto.");
 
@@ -111,11 +117,12 @@ export async function devolverHerramienta(arriendo, { observacion } = {}) {
         cantidad: arriendo.cantidad,
         stockResultante: resultante,
         supervisor: "",
-        actividad: "Devolución de herramienta arrendada",
+        actividad: ACTIVIDAD_DEVOLUCION_HERRAMIENTA,
         zona: "",
         personaRetira: arriendo.empresa,
         numeroVale: "",
         observacion: observacion?.trim() || "",
+        facturas: facturas || [],
         responsable: email,
         fecha: serverTimestamp(),
       });
@@ -126,6 +133,11 @@ export async function devolverHerramienta(arriendo, { observacion } = {}) {
       fechaDevolucion: serverTimestamp(),
       movimientoSalidaId: snap.exists() ? nuevoMovRef.id : null,
       observacionDevolucion: observacion?.trim() || "",
+      // También quedan acá (no solo en el movimiento de salida): si el
+      // producto ya no existe en el catálogo (se eliminó), no se crea
+      // movimiento -- sin esto, la foto ya subida a Storage quedaría sin
+      // ninguna referencia en Firestore, imposible de encontrar después.
+      facturas: facturas || [],
     });
   });
 }

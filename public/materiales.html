@@ -255,6 +255,40 @@
     </form>
   </dialog>
 
+  <!-- ── Modal: marcar herramienta arrendada como devuelta ───────────────── -->
+  <dialog id="dlg-devolver">
+    <div class="modal-head">
+      <h3>Marcar herramienta devuelta</h3>
+      <button type="button" class="modal-close" data-close>&times;</button>
+    </div>
+    <form id="form-devolver">
+      <div id="err-devolver" class="alert alert-error hidden"></div>
+      <p class="text-sm muted" id="devolver-resumen" style="margin-top:-6px;"></p>
+
+      <div class="field">
+        <label>Fotos de la guía de devolución <span class="muted">(opcional, pueden ser varias)</span></label>
+        <div class="row-actions">
+          <button type="button" class="btn btn-ghost" id="btn-dv-factura-camara">📷 Tomar foto</button>
+          <button type="button" class="btn btn-ghost" id="btn-dv-factura-archivo">📁 Elegir archivo</button>
+        </div>
+        <input type="file" id="dv-factura" accept="image/*" capture="environment" class="hidden" />
+        <input type="file" id="dv-factura-archivo" accept="image/*,.pdf" multiple class="hidden" />
+        <div id="dv-factura-elegida" style="margin-top:6px;"></div>
+        <p class="text-sm muted">Quedan disponibles para descargar después en <a href="guias.html" target="_blank" rel="noopener">Guías</a>.</p>
+      </div>
+
+      <div class="field">
+        <label for="dv-observacion">Observación <span class="muted">(opcional)</span></label>
+        <input type="text" id="dv-observacion" maxlength="160" />
+      </div>
+
+      <div class="modal-foot">
+        <button type="button" class="btn btn-ghost" data-close>Cancelar</button>
+        <button type="submit" class="btn btn-primary" id="btn-guardar-devolver">Marcar devuelta</button>
+      </div>
+    </form>
+  </dialog>
+
   <script type="module">
     import { montarTopbar, flash } from "./js/ui.js";
     import {
@@ -448,6 +482,55 @@
     }
 
     /**
+     * Selector de fotos (o PDFs) reutilizable -- lo usan tanto "Material
+     * entrante" (foto de la factura/guía) como "Marcar herramienta
+     * devuelta" (foto de la guía de devolución): dos botones, "Tomar foto"
+     * y "Elegir archivo", cada uno con su propia entrada de archivo oculta
+     * -- separados porque mezclar accept="image/*,.pdf" con
+     * capture="environment" en un solo campo hace que en varios celulares
+     * ya no salte la cámara sola. Cada vez que se elige algo (con
+     * cualquiera de los dos) se AGREGA a la lista, no la reemplaza --
+     * "Tomar foto" de a una (la cámara nativa no deja elegir varias),
+     * "Elegir archivo" permite varias de una vez.
+     */
+    function crearSelectorFotos({ idCamara, idArchivo, idElegida, idBotonCamara, idBotonArchivo }) {
+      const inputCamara = document.getElementById(idCamara);
+      const inputArchivo = document.getElementById(idArchivo);
+      const contElegida = document.getElementById(idElegida);
+      let elegidas = [];
+
+      function render() {
+        contElegida.innerHTML = elegidas.map((archivo, i) => `
+          <span class="badge badge-muted" style="display:inline-flex; align-items:center; gap:6px; margin:2px 6px 2px 0;">
+            📎 ${esc(archivo.name)}
+            <button type="button" class="btn-quitar-factura" data-idx="${i}" aria-label="Quitar" style="border:none; background:none; cursor:pointer; font-weight:700; line-height:1; padding:0;">×</button>
+          </span>`).join("");
+      }
+      function agregar(archivos) {
+        elegidas.push(...[...archivos].filter(Boolean));
+        render();
+      }
+      contElegida.addEventListener("click", (e) => {
+        const btn = e.target.closest("[data-idx]");
+        if (!btn) return;
+        elegidas.splice(Number(btn.getAttribute("data-idx")), 1);
+        render();
+      });
+      // Se limpia el valor del <input> tras leerlo: si no, elegir DE NUEVO
+      // el mismo archivo (p. ej. sacar la misma foto dos veces) no dispara
+      // "change" la segunda vez, porque el navegador ve el mismo valor.
+      inputCamara.addEventListener("change", () => { agregar(inputCamara.files); inputCamara.value = ""; });
+      inputArchivo.addEventListener("change", () => { agregar(inputArchivo.files); inputArchivo.value = ""; });
+      document.getElementById(idBotonCamara).addEventListener("click", () => inputCamara.click());
+      document.getElementById(idBotonArchivo).addEventListener("click", () => inputArchivo.click());
+
+      return {
+        obtenerElegidas: () => elegidas,
+        limpiar() { elegidas = []; render(); },
+      };
+    }
+
+    /**
      * Buscador de Pedido de Materiales (PM), por N.º de pedido o
      * solicitante -- para saber qué pedido trajo esta guía/factura.
      */
@@ -637,17 +720,85 @@
     }
     escucharArriendos((items) => { arriendos = items; renderArriendos(); render(); }, () => {});
     escucharObraActiva(renderArriendos);
-    listaArriendos.addEventListener("click", async (e) => {
+
+    // ── Marcar herramienta devuelta: la empresa arrendadora suele traer su
+    // propia guía de devolución (constancia de que recibió la herramienta
+    // de vuelta) -- igual que en Material entrante, se puede adjuntar como
+    // foto (opcional, pueden ser varias) y queda disponible después en
+    // Guías junto con el resto.
+    const dlgDevolver = document.getElementById("dlg-devolver");
+    let devolucionEnCurso = false; // ver el "submit" más abajo: mientras esté en true, este modal no se puede cerrar
+    cerrarAlClickAfuera(dlgDevolver, () => devolucionEnCurso);
+    // La tecla Escape dispara "cancel" (y cierra) ANTES que "close" -- sin
+    // este preventDefault(), es la única forma de cerrar el modal que
+    // "devolucionEnCurso" no alcanzaba a bloquear (Cancelar/X quedan
+    // deshabilitados y el clic afuera se ignora, pero Escape no pasaba por
+    // ninguno de los dos).
+    dlgDevolver.addEventListener("cancel", (e) => {
+      if (devolucionEnCurso) e.preventDefault();
+    });
+    const formDevolver = document.getElementById("form-devolver");
+    const errDevolver = document.getElementById("err-devolver");
+    const devolverResumen = document.getElementById("devolver-resumen");
+    let arriendoADevolver = null;
+
+    const selectorFotosDevolucion = crearSelectorFotos({
+      idCamara: "dv-factura", idArchivo: "dv-factura-archivo", idElegida: "dv-factura-elegida",
+      idBotonCamara: "btn-dv-factura-camara", idBotonArchivo: "btn-dv-factura-archivo",
+    });
+
+    listaArriendos.addEventListener("click", (e) => {
       const id = e.target.getAttribute?.("data-devolver");
       if (!id) return;
       const a = arriendos.find((x) => x.id === id);
       if (!a) return;
-      if (!confirm(`¿Marcar "${a.materialProducto}" (${fmtNum(a.cantidad)} unidad${a.cantidad === 1 ? "" : "es"}) como devuelta a ${a.empresa}? Se descuenta del stock.`)) return;
+      arriendoADevolver = a;
+      devolverResumen.textContent = `${a.materialProducto} — ${fmtNum(a.cantidad)} unidad${a.cantidad === 1 ? "" : "es"} · ${a.empresa}. Se descuenta del stock.`;
+      formDevolver.reset();
+      selectorFotosDevolucion.limpiar();
+      errDevolver.classList.add("hidden");
+      dlgDevolver.showModal();
+    });
+
+    formDevolver.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      if (!arriendoADevolver) return;
+      // Se guarda en una constante propia del envío (no se vuelve a leer
+      // "arriendoADevolver" después de esto): entre la subida de la foto
+      // y devolverHerramienta hay un buen rato de espera (hasta 20s por
+      // foto), y si en ese lapso se cierra este modal y se abre para OTRA
+      // herramienta, esa variable compartida ya apuntaría a la otra --
+      // terminaría devolviendo la herramienta equivocada. Los botones
+      // "Marcar devuelta" de la lista quedan bloqueados mientras tanto
+      // por lo mismo (ver más abajo), así que en la práctica no debería
+      // poder pasar, pero esta constante es la salvaguarda de fondo.
+      const arriendo = arriendoADevolver;
+      errDevolver.classList.add("hidden");
+      const btn = document.getElementById("btn-guardar-devolver");
+      btn.disabled = true; btn.textContent = "Guardando…";
+      // También se bloquean Cancelar/X y el clic afuera (vía
+      // "devolucionEnCurso", ver cerrarAlClickAfuera más arriba): si se
+      // pudiera cerrar el modal ahora y el envío fallara después (ej. se
+      // corta la conexión a mitad de la subida), el error quedaría escrito
+      // en un modal ya cerrado -- invisible, sin ningún flash() de
+      // respaldo -- y el usuario creería que sí quedó devuelta.
+      devolucionEnCurso = true;
+      alternarBotonesLista([listaArriendos, dlgDevolver], true);
       try {
-        await devolverHerramienta(a);
+        const facturas = await subirFacturasEntrada(selectorFotosDevolucion.obtenerElegidas(), "devoluciones");
+        await devolverHerramienta(arriendo, {
+          observacion: document.getElementById("dv-observacion").value,
+          facturas,
+        });
+        dlgDevolver.close();
         flash("Herramienta marcada como devuelta.");
       } catch (err) {
-        flash(err.message, "error");
+        errDevolver.textContent = err.message;
+        errDevolver.classList.remove("hidden");
+      } finally {
+        devolucionEnCurso = false;
+        btn.disabled = false; btn.textContent = "Marcar devuelta";
+        alternarBotonesLista([listaArriendos, dlgDevolver], false);
       }
     });
 
@@ -727,8 +878,13 @@
     // pero eso también pasa al clicar dentro del padding del cuadro (no
     // sobre un hijo). Por eso se compara contra su posición real en
     // pantalla: solo cierra si el clic cayó fuera de ese rectángulo.
-    function cerrarAlClickAfuera(dialog) {
+    // "bloqueado()" es para el caso de "Marcar herramienta devuelta": con un
+    // envío en curso no debe poder cerrarse ni por acá (ver más abajo, el
+    // botón Cancelar/X de ese modal en particular también queda
+    // deshabilitado mientras tanto, por la misma razón).
+    function cerrarAlClickAfuera(dialog, bloqueado = () => false) {
       dialog.addEventListener("click", (e) => {
+        if (bloqueado()) return;
         const r = dialog.getBoundingClientRect();
         const dentro = e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom;
         if (!dentro) dialog.close();
@@ -1112,49 +1268,11 @@
       },
     });
 
-    // ── Fotos de la factura/guía (opcional, pueden ser varias): dos
-    // botones, "Tomar foto" y "Elegir archivo", cada uno con su propia
-    // entrada de archivo oculta -- separados porque mezclar
-    // accept="image/*,.pdf" con capture="environment" en un solo campo
-    // hace que en varios celulares ya no salte la cámara sola. Cada vez
-    // que se elige algo (con cualquiera de los dos) se AGREGA a la lista,
-    // no la reemplaza -- "Tomar foto" de a una (la cámara nativa no deja
-    // elegir varias), "Elegir archivo" permite varias de una vez.
-    const eFacturaCamara = document.getElementById("e-factura");
-    const eFacturaArchivo = document.getElementById("e-factura-archivo");
-    const eFacturaElegida = document.getElementById("e-factura-elegida");
-    let facturasElegidasEntrante = [];
-
-    function renderFacturasElegidas() {
-      eFacturaElegida.innerHTML = facturasElegidasEntrante.map((archivo, i) => `
-        <span class="badge badge-muted" style="display:inline-flex; align-items:center; gap:6px; margin:2px 6px 2px 0;">
-          📎 ${esc(archivo.name)}
-          <button type="button" class="btn-quitar-factura" data-idx="${i}" aria-label="Quitar" style="border:none; background:none; cursor:pointer; font-weight:700; line-height:1; padding:0;">×</button>
-        </span>`).join("");
-    }
-    function agregarFacturasEntrante(archivos) {
-      facturasElegidasEntrante.push(...[...archivos].filter(Boolean));
-      renderFacturasElegidas();
-    }
-    eFacturaElegida.addEventListener("click", (e) => {
-      const btn = e.target.closest("[data-idx]");
-      if (!btn) return;
-      facturasElegidasEntrante.splice(Number(btn.getAttribute("data-idx")), 1);
-      renderFacturasElegidas();
+    // ── Fotos de la factura/guía (opcional, pueden ser varias) ──────────
+    const selectorFotosEntrante = crearSelectorFotos({
+      idCamara: "e-factura", idArchivo: "e-factura-archivo", idElegida: "e-factura-elegida",
+      idBotonCamara: "btn-e-factura-camara", idBotonArchivo: "btn-e-factura-archivo",
     });
-    // Se limpia el valor del <input> tras leerlo: si no, elegir DE NUEVO el
-    // mismo archivo (p. ej. sacar la misma foto dos veces) no dispara
-    // "change" la segunda vez, porque el navegador ve el mismo valor.
-    eFacturaCamara.addEventListener("change", () => {
-      agregarFacturasEntrante(eFacturaCamara.files);
-      eFacturaCamara.value = "";
-    });
-    eFacturaArchivo.addEventListener("change", () => {
-      agregarFacturasEntrante(eFacturaArchivo.files);
-      eFacturaArchivo.value = "";
-    });
-    document.getElementById("btn-e-factura-camara").addEventListener("click", () => eFacturaCamara.click());
-    document.getElementById("btn-e-factura-archivo").addEventListener("click", () => eFacturaArchivo.click());
 
     // ── Flete asociado (opcional): buscador simple, igual patrón que el
     // de Pedido de Materiales -- se crea/edita aparte, en Fletes. ─────────
@@ -1218,8 +1336,7 @@
       itemsManualSeleccionados = [nuevaFilaManual()];
       renderItemsManual();
       errEntrante.classList.add("hidden");
-      facturasElegidasEntrante = [];
-      renderFacturasElegidas();
+      selectorFotosEntrante.limpiar();
       camposArriendo.classList.add("hidden");
       actualizarVistaEntrante();
       dlgEntrante.showModal();
@@ -1245,7 +1362,7 @@
         // Las mismas fotos de factura/guía van para todo este registro,
         // aunque sean varios productos a la vez (del mismo PM, o varios
         // manuales) -- no hace falta subirlas más de una vez.
-        const facturas = await subirFacturasEntrada(facturasElegidasEntrante);
+        const facturas = await subirFacturasEntrada(selectorFotosEntrante.obtenerElegidas());
 
         // Tipo de adquisición (solo aplica en la página Herramientas): si
         // es arrendada, es la misma empresa para todos los productos de
