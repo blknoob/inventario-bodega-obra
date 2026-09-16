@@ -346,11 +346,12 @@
       return `<option value="" ${valorElegido ? "" : "selected"} disabled hidden>Elegir un tipo</option>${opciones}`;
     }
 
-    // Consumibles y EPP son justamente lo que se controla por alerta de
-    // stock bajo (a diferencia de herramientas/equipo) -- sin un mínimo
-    // mayor que cero, "nivelStock()" nunca los marca como "bajo" y la
-    // alerta nunca aparece, aunque se estén por acabar.
-    const CATEGORIAS_CON_ALERTA = ["consumible", "epp"];
+    // El EPP es lo único que se obliga a traer un mínimo mayor que cero
+    // (sin eso, "nivelStock()" nunca lo marca como "bajo" y la alerta de
+    // stock bajo nunca aparece). En Consumibles el mínimo queda opcional
+    // y puede quedar en 0 -- simplemente no dispara la alerta de "bajo"
+    // (sigue avisando cuando llega a 0 unidades, eso no depende del mínimo).
+    const CATEGORIAS_CON_ALERTA = ["epp"];
     function validarStockMinimo(categoria, stockMinimo) {
       if (CATEGORIAS_CON_ALERTA.includes(categoria) && !(Number(stockMinimo) > 0)) {
         throw new Error("indica un stock mínimo mayor que 0 para poder mostrar la alerta de stock bajo.");
@@ -757,8 +758,6 @@
         item.categoria = fila.querySelector(".im-categoria")?.value || "";
         item.unidad = fila.querySelector(".im-unidad")?.value || "";
         item.medida = fila.querySelector(".im-medida")?.value || "";
-        item.centroGestion = fila.querySelector(".im-centro-gestion")?.value || "";
-        item.centroCosto = fila.querySelector(".im-centro-costo")?.value || "";
         item.stockMinimo = fila.querySelector(".im-minimo")?.value ?? 0;
         item.descripcion = fila.querySelector(".im-descripcion")?.value || "";
         item.tipoHerramienta = fila.querySelector(".im-tipo-herramienta")?.value || "";
@@ -810,18 +809,8 @@
                 <label>Medida <span class="muted">(opcional)</span></label>
                 <input type="text" class="im-medida" maxlength="40" placeholder="Ej: 1/2 pulgada, 25 kg…" value="${esc(item.medida || "")}" />
               </div>
-              <div class="row">
-                <div class="field">
-                  <label>Centro de gestión <span class="muted">(opcional)</span></label>
-                  <input type="text" class="im-centro-gestion" maxlength="60" value="${esc(item.centroGestion || "")}" />
-                </div>
-                <div class="field">
-                  <label>Centro de costo <span class="muted">(opcional)</span></label>
-                  <input type="text" class="im-centro-costo" maxlength="60" value="${esc(item.centroCosto || "")}" />
-                </div>
-              </div>
               <div class="field">
-                <label>Stock mínimo (alerta) <span class="muted">— obligatorio en Consumibles y EPP</span></label>
+                <label>Stock mínimo (alerta) <span class="muted">— obligatorio en EPP</span></label>
                 <input type="number" class="im-minimo" min="0" step="any" value="${item.stockMinimo ?? 0}" />
               </div>
               <div class="field">
@@ -1009,7 +998,7 @@
                 <select class="ie-categoria">${optsCategoriaNuevo(item.categoriaElegida)}</select>
               </div>
               <div class="field">
-                <label>Stock mínimo (alerta) <span class="muted">— obligatorio en Consumibles y EPP</span></label>
+                <label>Stock mínimo (alerta) <span class="muted">— obligatorio en EPP</span></label>
                 <input type="number" class="ie-minimo" min="0" step="any" value="${item.stockMinimo ?? 0}" />
               </div>
             </div>` : ""}
@@ -1437,8 +1426,6 @@
                   obra: obraActiva(),
                   unidad: fila.querySelector(".im-unidad").value,
                   medida: fila.querySelector(".im-medida").value,
-                  centroGestion: fila.querySelector(".im-centro-gestion").value,
-                  centroCosto: fila.querySelector(".im-centro-costo").value,
                   stockMinimo: fila.querySelector(".im-minimo").value,
                   ubicacion,
                   descripcion: fila.querySelector(".im-descripcion").value,
