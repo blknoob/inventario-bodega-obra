@@ -13,9 +13,11 @@ import {
   setDoc,
   deleteDoc,
   onSnapshot,
+  query,
   serverTimestamp,
   updateDoc,
   runTransaction,
+  where,
 } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
 import {
   ref,
@@ -26,6 +28,7 @@ import {
 import { db, storage } from "./firebase-config.js";
 import { usuarioActual } from "./auth.js";
 import { MODO_DEMO, PEDIDOS_DEMO, ORDENES_DEMO, bloquearEnDemo } from "./demo.js";
+import { OBRAS } from "./obra.js";
 
 const pedidosRef = collection(db, "pedidos_materiales");
 const ordenesRef = collection(db, "ordenes_compra");
@@ -33,14 +36,14 @@ const ordenesRef = collection(db, "ordenes_compra");
 /** Días sin llegar completo a bodega a partir de los cuales un ítem entra en alerta. */
 export const DIAS_ALERTA_SIN_LLEGAR = 10;
 
-/** Escucha en tiempo real todos los Pedidos de Materiales (PM). */
-export function escucharPedidos(onCambio, onError) {
+/** Escucha en tiempo real los Pedidos de Materiales (PM) de una obra. */
+export function escucharPedidos(obra, onCambio, onError) {
   if (MODO_DEMO) {
-    onCambio([...PEDIDOS_DEMO].sort((a, b) => b.creadoEn.toDate() - a.creadoEn.toDate()));
+    onCambio(PEDIDOS_DEMO.filter((p) => p.obra === obra).sort((a, b) => b.creadoEn.toDate() - a.creadoEn.toDate()));
     return () => {};
   }
   return onSnapshot(
-    pedidosRef,
+    query(pedidosRef, where("obra", "==", obra)),
     (snap) => {
       const items = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
       items.sort((a, b) => (b.creadoEn?.toDate?.() ?? 0) - (a.creadoEn?.toDate?.() ?? 0));
@@ -125,7 +128,7 @@ export async function crearPedido({ numero, solicitante, observacion, items, arc
     numero: numero?.trim() || "",
     solicitante: solicitante?.trim() || "",
     observacion: observacion?.trim() || "",
-    obra: obra || "",
+    obra: obra || OBRAS[0].valor,
     items: itemsLimpios,
     archivo: archivoInfo,
     creadoPor: email,

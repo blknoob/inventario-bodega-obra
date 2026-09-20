@@ -300,7 +300,7 @@
     import { escucharPedidos, escucharOrdenes, anotarOrdenDeCompra, cantidadRecibidaDe } from "./js/compras.js";
     import { escucharFletes, etiquetaTipoFlete } from "./js/fletes.js";
     import { escucharArriendos, crearArriendo, devolverHerramienta } from "./js/herramientas.js";
-    import { obraActiva, escucharObraActiva, esDeObraActiva } from "./js/obra.js";
+    import { obraActiva, escucharConObraActiva } from "./js/obra.js";
 
     // Esta misma página sirve para cuatro vistas: "Materiales" (todo menos
     // EPP/Herramientas), "EPPs" (?categoria=epp), "Herramientas"
@@ -396,14 +396,13 @@
       : TITULOS_PAGINA[categoriaPagina]?.[0] || "Tipos de material";
 
     // ── Estado y render ───────────────────────────────────────────────────
-    // Catálogo completo tal cual llega de Firestore, sin filtrar todavía por
-    // obra ni por modo -- se guarda para poder refiltrar al cambiar de obra
-    // (ver recalcularMateriales) sin tener que esperar un nuevo snapshot.
-    let materialesRaw = [];
+    // Catálogo de la obra activa (ya filtrado por el servidor), sin filtrar
+    // todavía por modo -- se guarda para poder recalcular sin esperar un
+    // nuevo snapshot cuando cambia el modo de la página.
     let materiales = [];
     // Catálogo completo sin filtrar por modo (materiales + EPP): solo para
     // saber a qué categoría pertenece un ítem esperado, sin mezclarlo en la
-    // vista de esta página. Sí queda acotado a la obra activa.
+    // vista de esta página.
     let materialesTodos = [];
     // Arriendos de herramientas pendientes por devolver -- se declara acá
     // (antes del primer render()) para que la tarjeta/filtro de
@@ -542,7 +541,6 @@
       function render() {
         const q = normalizar(input.value);
         const items = pedidos
-          .filter((p) => esDeObraActiva(p.obra))
           .filter((p) => !q || [p.numero, p.solicitante].some((v) => normalizar(v).includes(q)))
           .slice(0, 30);
         lista.innerHTML = items.length
@@ -580,8 +578,8 @@
       const cat = filtroCat.value;
       // Ids de productos con al menos un arriendo aún pendiente por
       // devolver -- solo se usa (y solo se calcula lo pendiente) en
-      // Herramientas. Acotado a la obra activa, igual que el resto.
-      const idsArrendadas = new Set(arriendos.filter((a) => !a.devuelto && esDeObraActiva(a.obra)).map((a) => a.materialId));
+      // Herramientas.
+      const idsArrendadas = new Set(arriendos.filter((a) => !a.devuelto).map((a) => a.materialId));
       const vista = materiales.filter((m) =>
         (!cat || m.categoria === cat) &&
         (!filtroStock || nivelStock(m) === filtroStock) &&
@@ -657,12 +655,10 @@
     buscar.addEventListener("input", render);
     filtroCat.addEventListener("change", render);
 
-    // Recalcula materialesTodos/materiales desde materialesRaw, acotando
-    // primero a la obra activa (para no mezclar catálogo ni permitir que
-    // una entrada quede sumada al producto de la otra obra) y después al
-    // modo de esta página (categoría / alertas), igual que antes.
-    function recalcularMateriales() {
-      const items = materialesRaw.filter((m) => esDeObraActiva(m.obra));
+    // Recalcula materialesTodos/materiales según el modo de esta página
+    // (categoría / alertas) cada vez que llega un snapshot ya acotado a la
+    // obra activa.
+    function recalcularMateriales(items) {
       materialesTodos = items;
       materiales = modoAlertas
         ? items.filter((m) => nivelStock(m) !== "ok")
@@ -670,29 +666,28 @@
       render();
     }
 
-    escucharMateriales(
-      (items) => {
-        materialesRaw = items;
-        recalcularMateriales();
-      },
+    escucharConObraActiva(
+      escucharMateriales,
+      recalcularMateriales,
       (err) => {
         tbody.innerHTML = `<tr><td colspan="9" class="empty">Error al cargar: ${esc(err.message)}</td></tr>`;
       },
     );
-    escucharObraActiva(recalcularMateriales);
 
     // Pedidos de materiales (PM) y sus órdenes de compra (Seguimiento de
     // compra): para poder asociar un "Material entrante" a la orden que lo
-    // trajo, y para el buscador de "qué debería estar llegando".
+    // trajo, y para el buscador de "qué debería estar llegando". Las órdenes
+    // no se filtran por obra aparte: se cruzan por pmId contra un pedido ya
+    // acotado a la obra activa.
     let pedidos = [];
     let ordenesCompra = [];
-    escucharPedidos((items) => { pedidos = items; }, () => {});
+    escucharConObraActiva(escucharPedidos, (items) => { pedidos = items; }, () => {});
     escucharOrdenes((items) => { ordenesCompra = items; }, () => {});
 
     // Fletes: para poder vincular un "Material entrante" al traslado (y su
     // factura) que lo trajo. Se crean en la página Fletes, acá solo se eligen.
     let fletes = [];
-    escucharFletes((items) => { fletes = items; }, () => {});
+    escucharConObraActiva(escucharFletes, (items) => { fletes = items; }, () => {});
 
     // Arriendos de herramientas: solo importa en esta página (Herramientas)
     // -- ahí se muestra la lista de lo que sigue pendiente por devolver.
@@ -704,7 +699,7 @@
     const listaArriendos = document.getElementById("lista-arriendos");
     function renderArriendos() {
       if (!modoHerramienta) return;
-      const pendientes = arriendos.filter((a) => !a.devuelto && esDeObraActiva(a.obra));
+      const pendientes = arriendos.filter((a) => !a.devuelto);
       bloqueArriendos.classList.toggle("hidden", !pendientes.length);
       resumenArriendos.textContent = `${pendientes.length} herramienta${pendientes.length === 1 ? "" : "s"} arrendada${pendientes.length === 1 ? "" : "s"} por devolver`;
       listaArriendos.innerHTML = pendientes.map((a) => `
@@ -718,8 +713,7 @@
           </div>
         </div>`).join("");
     }
-    escucharArriendos((items) => { arriendos = items; renderArriendos(); render(); }, () => {});
-    escucharObraActiva(renderArriendos);
+    escucharConObraActiva(escucharArriendos, (items) => { arriendos = items; renderArriendos(); render(); }, () => {});
 
     // ── Marcar herramienta devuelta: la empresa arrendadora suele traer su
     // propia guía de devolución (constancia de que recibió la herramienta
@@ -1283,7 +1277,6 @@
     function renderFleteLista() {
       const q = normalizar(eFleteBuscar.value);
       const items = fletes
-        .filter((f) => esDeObraActiva(f.obra))
         .filter((f) => !q || normalizar(f.empresa).includes(q))
         .slice(0, 20);
       eFleteLista.innerHTML = items.length

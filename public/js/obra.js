@@ -5,9 +5,10 @@
 // Es un filtro de vista, no de permisos: sigue habiendo una sola cuenta de
 // bodega y la lectura sigue siendo pública para las dos obras -- lo único
 // que cambia es qué se ve (y a cuál obra queda asociado lo que se crea).
-// Se guarda en localStorage (por navegador, no por cuenta) y el cambio se
-// avisa con un evento de `window` para que las páginas que ya tienen datos
-// cargados puedan refiltrar sin volver a pedirlos.
+// El filtro va en la propia query de Firestore (where obra == activa), no en
+// el navegador: se guarda en localStorage (por navegador, no por cuenta) y el
+// cambio se avisa con un evento de `window` para que las páginas puedan
+// resuscribirse con la obra nueva (ver escucharConObraActiva más abajo).
 // ─────────────────────────────────────────────────────────────────────────────
 
 const CLAVE = "obraActiva";
@@ -51,13 +52,21 @@ export function escucharObraActiva(callback) {
 }
 
 /**
- * Compara el campo `obra` de un documento (material, movimiento, pedido,
- * flete, arriendo...) contra la obra activa. Un documento SIN `obra` -- todo
- * lo cargado antes de que existiera este filtro, incluidos los datos reales
- * ya en uso -- se trata como de la primera obra (CCLP II, la única que
- * existía) en vez de "ninguna obra": si se comparara con `===` a secas, esos
- * documentos dejarían de verse en toda la app en cuanto se desplegara esto.
+ * Suscribe una función `escucharX(obra, onCambio, onError, ...)` (de
+ * materiales.js, herramientas.js, fletes.js, compras.js) a la obra activa, y
+ * la vuelve a suscribir con la obra nueva cada vez que cambia -- así el
+ * filtro por obra queda del lado del servidor (menos lecturas, colecciones
+ * más cortas para cada obra) en vez de traer todo y filtrar en el navegador.
+ * Devuelve la función para dejar de escuchar del todo.
  */
-export function esDeObraActiva(obraDoc) {
-  return (obraDoc || OBRAS[0].valor) === obraActiva();
+export function escucharConObraActiva(escucharX, onCambio, onError, ...extra) {
+  let dejarDeEscuchar = escucharX(obraActiva(), onCambio, onError, ...extra);
+  const dejarDeEscucharCambioObra = escucharObraActiva(() => {
+    dejarDeEscuchar();
+    dejarDeEscuchar = escucharX(obraActiva(), onCambio, onError, ...extra);
+  });
+  return () => {
+    dejarDeEscuchar();
+    dejarDeEscucharCambioObra();
+  };
 }

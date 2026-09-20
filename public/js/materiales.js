@@ -13,11 +13,13 @@ import {
   runTransaction,
   serverTimestamp,
   updateDoc,
+  where,
 } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-storage.js";
 import { db, storage } from "./firebase-config.js";
 import { usuarioActual } from "./auth.js";
 import { MODO_DEMO, MATERIALES_DEMO, MOVIMIENTOS_DEMO, bloquearEnDemo } from "./demo.js";
+import { OBRAS } from "./obra.js";
 
 const materialesRef = collection(db, "materiales");
 const movimientosRef = collection(db, "movimientos_materiales");
@@ -47,17 +49,17 @@ export function etiquetaTipoHerramienta(valor) {
 }
 
 /**
- * Escucha en tiempo real toda la colección de materiales.
- * Entrega un array ordenado por producto. Devuelve la función para desuscribirse.
+ * Escucha en tiempo real los materiales de una obra. Entrega un array
+ * ordenado por producto. Devuelve la función para desuscribirse.
  */
-export function escucharMateriales(onCambio, onError) {
+export function escucharMateriales(obra, onCambio, onError) {
   if (MODO_DEMO) {
-    onCambio([...MATERIALES_DEMO].sort((a, b) =>
+    onCambio(MATERIALES_DEMO.filter((m) => m.obra === obra).sort((a, b) =>
       a.producto.localeCompare(b.producto, "es", { sensitivity: "base" })));
     return () => {};
   }
   return onSnapshot(
-    materialesRef,
+    query(materialesRef, where("obra", "==", obra)),
     (snap) => {
       const items = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
       items.sort((a, b) =>
@@ -153,7 +155,7 @@ export async function registrarEntrada({ materialId, nuevoMaterial, cantidadReci
       if (!snap.exists()) throw new Error("El material ya no existe.");
       productoNombre = snap.data().producto;
       categoriaMovimiento = snap.data().categoria;
-      obraMovimiento = snap.data().obra || "";
+      obraMovimiento = snap.data().obra || OBRAS[0].valor;
       const actual = Number(snap.data().stock) || 0;
       resultante = Math.round((actual + cant) * 1000) / 1000;
       // La ubicación solo se toca si se indicó una -- si se deja en blanco
@@ -172,7 +174,7 @@ export async function registrarEntrada({ materialId, nuevoMaterial, cantidadReci
       materialDoc = doc(materialesRef);
       productoNombre = nuevoMaterial.producto.trim();
       categoriaMovimiento = nuevoMaterial.categoria;
-      obraMovimiento = nuevoMaterial.obra || "";
+      obraMovimiento = nuevoMaterial.obra || OBRAS[0].valor;
       resultante = cant;
       tx.set(materialDoc, {
         item,
@@ -276,7 +278,7 @@ export async function registrarSalida(materialId, {
       materialId,
       materialProducto: snap.data().producto,
       categoria: snap.data().categoria,
-      obra: snap.data().obra || "",
+      obra: snap.data().obra || OBRAS[0].valor,
       tipo: "salida",
       cantidad: cant,
       stockResultante: resultante,
@@ -313,15 +315,15 @@ export async function marcarSinReposicion(materialId, sinReposicion) {
 }
 
 /**
- * Escucha en tiempo real el historial de movimientos (entradas y salidas),
- * más recientes primero. Devuelve la función para desuscribirse.
+ * Escucha en tiempo real el historial de movimientos de una obra (entradas y
+ * salidas), más recientes primero. Devuelve la función para desuscribirse.
  */
-export function escucharMovimientos(onCambio, onError, { max = 300 } = {}) {
+export function escucharMovimientos(obra, onCambio, onError, { max = 300 } = {}) {
   if (MODO_DEMO) {
-    onCambio([...MOVIMIENTOS_DEMO].sort((a, b) => b.fecha.toDate() - a.fecha.toDate()));
+    onCambio(MOVIMIENTOS_DEMO.filter((m) => m.obra === obra).sort((a, b) => b.fecha.toDate() - a.fecha.toDate()));
     return () => {};
   }
-  const q = query(movimientosRef, orderBy("fecha", "desc"), limit(max));
+  const q = query(movimientosRef, where("obra", "==", obra), orderBy("fecha", "desc"), limit(max));
   return onSnapshot(
     q,
     (snap) => onCambio(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),

@@ -40,16 +40,12 @@
   <script type="module">
     import { montarTopbar } from "./js/ui.js";
     import { escucharMateriales, nivelStock } from "./js/materiales.js";
-    import { escucharObraActiva, esDeObraActiva } from "./js/obra.js";
+    import { escucharConObraActiva } from "./js/obra.js";
 
     montarTopbar("inicio");
     const errorConexion = document.getElementById("error-conexion");
 
-    // Se guarda sin filtrar para poder refiltrar por obra activa sin
-    // esperar un nuevo snapshot (ver escucharObraActiva más abajo).
-    let materialesRaw = [];
-    function actualizarStats() {
-      const items = materialesRaw.filter((m) => esDeObraActiva(m.obra));
+    function actualizarStats(items) {
       const materiales = items.filter((m) => !["epp", "herramienta"].includes(m.categoria));
       const epps = items.filter((m) => m.categoria === "epp");
       const herramientas = items.filter((m) => m.categoria === "herramienta");
@@ -60,17 +56,14 @@
       document.getElementById("stat-alertas").textContent = alertas;
     }
 
-    escucharMateriales(
-      (items) => {
-        materialesRaw = items;
-        actualizarStats();
-      },
+    escucharConObraActiva(
+      escucharMateriales,
+      actualizarStats,
       (err) => {
         errorConexion.textContent = "Error de conexión: " + err.message;
         errorConexion.classList.remove("hidden");
       },
     );
-    escucharObraActiva(actualizarStats);
   </script>
 </body>
 </html>

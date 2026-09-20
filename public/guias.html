@@ -100,7 +100,7 @@
     import { escucharFletes, crearFlete, eliminarFlete, TIPOS_FLETE, etiquetaTipoFlete } from "./js/fletes.js";
     import { escucharMovimientos, facturasDe } from "./js/materiales.js";
     import { ACTIVIDAD_DEVOLUCION_HERRAMIENTA } from "./js/constantes.js";
-    import { obraActiva, escucharObraActiva, esDeObraActiva } from "./js/obra.js";
+    import { obraActiva, escucharConObraActiva } from "./js/obra.js";
 
     montarTopbar("guias");
 
@@ -134,10 +134,6 @@
     document.getElementById("f-tipo").innerHTML =
       TIPOS_FLETE.map((t) => `<option value="${t.valor}">${t.etiqueta}</option>`).join("");
 
-    // Sin filtrar todavía por obra -- se guardan para poder refiltrar al
-    // cambiar de obra activa sin esperar un nuevo snapshot.
-    let fletesRaw = [];
-    let movimientosRaw = [];
     let fletes = [];
     let movimientos = [];
     let filtroTipo = ""; // "" | "ingreso" | "devolucion" | "traslado"
@@ -322,21 +318,16 @@
 
     buscar.addEventListener("input", render);
 
-    function recalcularGuias() {
-      fletes = fletesRaw.filter((f) => esDeObraActiva(f.obra));
-      movimientos = movimientosRaw.filter((m) => esDeObraActiva(m.obra));
-      render();
-    }
-
-    escucharFletes(
-      (items) => { fletesRaw = items; recalcularGuias(); },
+    escucharConObraActiva(
+      escucharFletes,
+      (items) => { fletes = items; render(); },
       (err) => { lista.innerHTML = `<div class="card"><p class="empty">Error al cargar: ${esc(err.message)}</p></div>`; },
     );
-    escucharMovimientos(
-      (items) => { movimientosRaw = items; recalcularGuias(); },
+    escucharConObraActiva(
+      escucharMovimientos,
+      (items) => { movimientos = items; render(); },
       () => {},
     );
-    escucharObraActiva(recalcularGuias);
 
     // ── Modales: apertura/cierre comunes ────────────────────────────────
     document.querySelectorAll("dialog [data-close]").forEach((b) =>
