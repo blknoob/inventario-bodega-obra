@@ -100,7 +100,7 @@
       escucharPedidos, escucharOrdenes, crearPedido, eliminarPedido,
       leerItemsDeExcel, itemsSinLlegar, cantidadRecibidaDe, DIAS_ALERTA_SIN_LLEGAR,
     } from "./js/compras.js";
-    import { obraActiva, escucharObraActiva, esDeObraActiva } from "./js/obra.js";
+    import { obraActiva, escucharConObraActiva } from "./js/obra.js";
 
     montarTopbar("compras");
 
@@ -114,11 +114,9 @@
         d.toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" });
     };
 
-    // Sin filtrar todavía por obra -- se guarda para poder refiltrar al
-    // cambiar de obra activa sin esperar un nuevo snapshot. Las órdenes de
-    // compra no se filtran aparte: siempre se cruzan por pmId contra un
-    // pedido ya acotado a la obra activa, así que quedan correctas igual.
-    let pedidosRaw = [];
+    // Las órdenes de compra no se filtran por obra aparte: siempre se cruzan
+    // por pmId contra un pedido ya acotado a la obra activa, así que quedan
+    // correctas igual.
     let pedidos = [];
     let ordenes = [];
     const lista = document.getElementById("lista-pedidos");
@@ -209,20 +207,15 @@
 
     buscar.addEventListener("input", render);
 
-    function recalcularPedidos() {
-      pedidos = pedidosRaw.filter((p) => esDeObraActiva(p.obra));
-      render();
-    }
-
-    escucharPedidos(
-      (items) => { pedidosRaw = items; recalcularPedidos(); },
+    escucharConObraActiva(
+      escucharPedidos,
+      (items) => { pedidos = items; render(); },
       (err) => { lista.innerHTML = `<div class="card"><p class="empty">Error al cargar: ${esc(err.message)}</p></div>`; },
     );
     escucharOrdenes(
       (items) => { ordenes = items; render(); },
       () => {},
     );
-    escucharObraActiva(recalcularPedidos);
 
     // ── Modales: apertura/cierre comunes ────────────────────────────────
     document.querySelectorAll("dialog [data-close]").forEach((b) =>

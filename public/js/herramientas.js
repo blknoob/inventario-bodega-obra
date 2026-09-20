@@ -21,26 +21,29 @@ import {
   doc,
   setDoc,
   onSnapshot,
+  query,
   runTransaction,
   serverTimestamp,
+  where,
 } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { usuarioActual } from "./auth.js";
 import { MODO_DEMO, ARRIENDOS_DEMO, bloquearEnDemo } from "./demo.js";
 import { ACTIVIDAD_DEVOLUCION_HERRAMIENTA } from "./constantes.js";
+import { OBRAS } from "./obra.js";
 
 const arriendosRef = collection(db, "arriendos_herramienta");
 const materialesRef = collection(db, "materiales");
 const movimientosRef = collection(db, "movimientos_materiales");
 
-/** Escucha en tiempo real todos los arriendos (pendientes y ya devueltos), más recientes primero. */
-export function escucharArriendos(onCambio, onError) {
+/** Escucha en tiempo real los arriendos de una obra (pendientes y ya devueltos), más recientes primero. */
+export function escucharArriendos(obra, onCambio, onError) {
   if (MODO_DEMO) {
-    onCambio([...ARRIENDOS_DEMO].sort((a, b) => b.creadoEn.toDate() - a.creadoEn.toDate()));
+    onCambio(ARRIENDOS_DEMO.filter((a) => a.obra === obra).sort((a, b) => b.creadoEn.toDate() - a.creadoEn.toDate()));
     return () => {};
   }
   return onSnapshot(
-    arriendosRef,
+    query(arriendosRef, where("obra", "==", obra)),
     (snap) => {
       const items = snap.docs
         .map((d) => ({ id: d.id, ...d.data() }))
@@ -67,7 +70,7 @@ export async function crearArriendo({ materialId, materialProducto, cantidad, em
   await setDoc(arriendoDoc, {
     materialId,
     materialProducto,
-    obra: obra || "",
+    obra: obra || OBRAS[0].valor,
     cantidad: cant,
     empresa: empresa.trim(),
     movimientoEntradaId: movimientoEntradaId || null,
@@ -112,7 +115,7 @@ export async function devolverHerramienta(arriendo, { observacion, facturas } = 
         materialId: arriendo.materialId,
         materialProducto: snap.data().producto,
         categoria: snap.data().categoria,
-        obra: snap.data().obra || arriendo.obra || "",
+        obra: snap.data().obra || arriendo.obra || OBRAS[0].valor,
         tipo: "salida",
         cantidad: arriendo.cantidad,
         stockResultante: resultante,

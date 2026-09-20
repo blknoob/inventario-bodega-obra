@@ -18,7 +18,9 @@ import {
   setDoc,
   deleteDoc,
   onSnapshot,
+  query,
   serverTimestamp,
+  where,
 } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
 import {
   ref,
@@ -29,6 +31,7 @@ import {
 import { db, storage } from "./firebase-config.js";
 import { usuarioActual } from "./auth.js";
 import { MODO_DEMO, FLETES_DEMO, bloquearEnDemo } from "./demo.js";
+import { OBRAS } from "./obra.js";
 
 const fletesRef = collection(db, "fletes");
 
@@ -41,14 +44,14 @@ export function etiquetaTipoFlete(valor) {
   return TIPOS_FLETE.find((t) => t.valor === valor)?.etiqueta ?? valor;
 }
 
-/** Escucha en tiempo real todos los fletes, más recientes primero. */
-export function escucharFletes(onCambio, onError) {
+/** Escucha en tiempo real los fletes de una obra, más recientes primero. */
+export function escucharFletes(obra, onCambio, onError) {
   if (MODO_DEMO) {
-    onCambio([...FLETES_DEMO].sort((a, b) => b.creadoEn.toDate() - a.creadoEn.toDate()));
+    onCambio(FLETES_DEMO.filter((f) => f.obra === obra).sort((a, b) => b.creadoEn.toDate() - a.creadoEn.toDate()));
     return () => {};
   }
   return onSnapshot(
-    fletesRef,
+    query(fletesRef, where("obra", "==", obra)),
     (snap) => {
       const items = snap.docs
         .map((d) => ({ id: d.id, ...d.data() }))
@@ -92,7 +95,7 @@ export async function crearFlete({ empresa, tipo, detalle, observacion, factura,
   await setDoc(fleteDoc, {
     empresa: empresa.trim(),
     tipo,
-    obra: obra || "",
+    obra: obra || OBRAS[0].valor,
     detalle: detalle?.trim() || "",
     observacion: observacion?.trim() || "",
     factura: facturaInfo,
