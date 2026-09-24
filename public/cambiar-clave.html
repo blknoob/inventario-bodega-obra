@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cambiar clave | Inventario</title>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <div class="login-shell">
+    <div class="login-box">
+      <h1 id="titulo">Crea tu clave</h1>
+      <p class="sub" id="subtitulo">Hola <strong id="quien">…</strong>. Es tu primer ingreso: reemplaza la clave temporal por una tuya.</p>
+
+      <div id="error" class="alert alert-error hidden"></div>
+
+      <form id="form-clave">
+        <div class="field">
+          <label for="clave">Clave nueva</label>
+          <input type="password" id="clave" required minlength="8" autocomplete="new-password" />
+        </div>
+        <div class="field">
+          <label for="clave2">Repite la clave</label>
+          <input type="password" id="clave2" required minlength="8" autocomplete="new-password" />
+        </div>
+        <p class="text-sm muted" style="margin-top:-4px; margin-bottom:14px;">Mínimo 8 caracteres, con letras y números.</p>
+        <label class="text-sm" style="display:flex; align-items:center; gap:6px; margin-bottom:14px;">
+          <input type="checkbox" id="ver-clave" style="width:auto;" /> Mostrar clave
+        </label>
+        <button type="submit" class="btn btn-primary btn-block" id="btn-guardar">Guardar clave</button>
+      </form>
+
+      <a class="back" href="#" id="btn-salir">Salir</a>
+    </div>
+  </div>
+
+  <script type="module">
+    import { cambiarClave, validarClaveNueva, cerrarSesion, inicioDeRol, observarPerfil } from "./js/auth.js";
+
+    const params = new URLSearchParams(location.search);
+    const volverParam = params.get("volver");
+    const volver = volverParam && /^[\w-]+(\.html)?(\?.*)?$/.test(volverParam) && !volverParam.startsWith("cambiar-clave") ? volverParam : null;
+
+    const form = document.getElementById("form-clave");
+    const errorBox = document.getElementById("error");
+    const btn = document.getElementById("btn-guardar");
+    const clave = document.getElementById("clave");
+    const clave2 = document.getElementById("clave2");
+    let perfil = null;
+
+    // Sin sesión, al login. Con sesión (clave temporal o no), se queda: sirve
+    // también para cambiar la clave cuando uno quiera.
+    observarPerfil((p) => {
+      if (!p) { location.replace("login.html?volver=cambiar-clave.html"); return; }
+      perfil = p;
+      document.getElementById("quien").textContent = p.nombre;
+      if (!p.debeCambiarClave) {
+        document.getElementById("titulo").textContent = "Cambiar clave";
+        document.getElementById("subtitulo").firstChild.textContent = "Sesión de ";
+        document.getElementById("subtitulo").lastChild.textContent = ".";
+      }
+    });
+
+    document.getElementById("ver-clave").addEventListener("change", (e) => {
+      clave.type = clave2.type = e.target.checked ? "text" : "password";
+    });
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      errorBox.classList.add("hidden");
+      const mostrarError = (msg) => { errorBox.textContent = msg; errorBox.classList.remove("hidden"); };
+      const invalida = validarClaveNueva(clave.value);
+      if (invalida) { mostrarError(invalida); clave.focus(); return; }
+      if (clave.value !== clave2.value) { mostrarError("Las dos claves no coinciden."); clave2.focus(); return; }
+
+      btn.disabled = true;
+      btn.textContent = "Guardando…";
+      try {
+        await cambiarClave(clave.value);
+        location.replace(volver || inicioDeRol(perfil?.rol));
+      } catch (err) {
+        mostrarError(err.message);
+        btn.disabled = false;
+        btn.textContent = "Guardar clave";
+      }
+    });
+
+    document.getElementById("btn-salir").addEventListener("click", async (e) => {
+      e.preventDefault();
+      await cerrarSesion();
+      location.href = "index.html";
+    });
+  </script>
+</body>
+</html>

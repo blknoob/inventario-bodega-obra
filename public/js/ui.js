@@ -2,13 +2,14 @@
 // UI compartida — barra superior y estado de sesión
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { observarSesion, cerrarSesion } from "./auth.js";
+import { observarPerfil, cerrarSesion, esSolicitante } from "./auth.js";
 import { MODO_DEMO } from "./demo.js";
-import { OBRAS, obraActiva, setObraActiva } from "./obra.js";
+import { OBRAS, obraActiva, setObraActiva, escucharConObraActiva } from "./obra.js";
+import { escucharValesPendientes } from "./vales.js";
 
 /**
  * Monta la barra superior en <header id="topbar"> y refleja el estado de sesión.
- * @param {string} activo  clave de la sección activa: 'inicio' | 'materiales' | 'epps' | 'herramientas' | 'historial' | 'compras' | 'guias' | 'bodega'
+ * @param {string} activo  clave de la sección activa: 'inicio' | 'materiales' | 'epps' | 'herramientas' | 'historial' | 'compras' | 'guias' | 'vales' | 'bodega'
  */
 export function montarTopbar(activo = "") {
   const header = document.getElementById("topbar");
@@ -62,27 +63,53 @@ export function montarTopbar(activo = "") {
     toggle.setAttribute("aria-expanded", "false");
   });
 
-  if (MODO_DEMO) {
-    // En demo mostramos los controles de bodega para ver la interfaz completa.
-    document.body.classList.add("es-bodega");
-  }
-
   const slot = header.querySelector("#nav-session");
-  slot.innerHTML = `<a href="login.html">Ingreso bodega</a>`; // hasta que resuelva la sesión
-  observarSesion((user) => {
-    if (!MODO_DEMO) document.body.classList.toggle("es-bodega", !!user);
-    if (user) {
+  slot.innerHTML = `<a href="login.html">Ingresar</a>`; // hasta que resuelva la sesión
+  let dejarDeContarVales = null;
+  observarPerfil((perfil) => {
+    // Los controles de bodega (clase .only-bodega) solo con rol bodega: una
+    // cuenta de capataz/supervisor/prevencionista también tiene sesión, pero
+    // no puede editar el inventario (las reglas se lo rechazarían igual).
+    // En demo el perfil es simulado (bodega por defecto, ver js/auth.js).
+    const esBodega = perfil?.rol === "bodega";
+    document.body.classList.toggle("es-bodega", esBodega);
+    dejarDeContarVales?.();
+    dejarDeContarVales = null;
+
+    if (!perfil) {
+      slot.innerHTML = `<a href="login.html">Ingresar</a>`;
+      return;
+    }
+    // Clave temporal: hasta definir la propia no puede seguir navegando con sesión.
+    if (perfil.debeCambiarClave && !location.pathname.endsWith("cambiar-clave.html")) {
+      location.replace(`cambiar-clave.html?volver=${encodeURIComponent(location.pathname.split("/").pop() + location.search)}`);
+      return;
+    }
+    if (esBodega || esSolicitante(perfil.rol)) {
       slot.innerHTML = `
-        <a href="bodega.html" class="${activo === "bodega" ? "active" : ""}">Panel bodega</a>
+        <a href="vales.html" class="${activo === "vales" ? "active" : ""}">Vales <span class="badge badge-warn hidden" id="nav-vales-pendientes"></span></a>
+        ${esBodega ? `<a href="bodega.html" class="${activo === "bodega" ? "active" : ""}">Panel bodega</a>` : ""}
         <a href="#" id="btn-logout">Salir</a>
       `;
-      slot.querySelector("#btn-logout").addEventListener("click", async (e) => {
-        e.preventDefault();
-        await cerrarSesion();
-        location.href = "index.html";
-      });
     } else {
-      slot.innerHTML = `<a href="login.html">Ingreso bodega</a>`;
+      // Sesión sin rol asignado: no puede hacer nada más que salir.
+      slot.innerHTML = `<a href="#" id="btn-logout">Salir</a>`;
+    }
+    slot.querySelector("#btn-logout").addEventListener("click", async (e) => {
+      e.preventDefault();
+      if (MODO_DEMO) return;
+      await cerrarSesion();
+      location.href = "index.html";
+    });
+
+    // Aviso de vales por entregar (solo bodega, que es quien los entrega).
+    if (esBodega) {
+      const contador = slot.querySelector("#nav-vales-pendientes");
+      dejarDeContarVales = escucharConObraActiva(
+        escucharValesPendientes,
+        (n) => { contador.textContent = n; contador.classList.toggle("hidden", !n); },
+        () => contador.classList.add("hidden"),
+      );
     }
   });
 }

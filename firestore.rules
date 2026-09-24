@@ -3,19 +3,34 @@ rules_version = '2';
 // ─────────────────────────────────────────────────────────────────────────────
 // Reglas de seguridad de Firestore — Inventario de bodega
 //
-// Modelo de acceso (Tramo 1):
-//   - Lectura PÚBLICA: cualquiera puede consultar el inventario sin cuenta
-//     (supervisores, jefes de terreno, administración).
-//   - Escritura solo con sesión iniciada (cuenta única de bodega).
+// Modelo de acceso:
+//   - Lectura PÚBLICA del inventario: cualquiera puede consultarlo sin cuenta.
+//   - Escritura del inventario solo con rol "bodega".
+//   - Capataz / supervisor / prevencionista (roles "capataz", "supervisor",
+//     "prevencionista") solo pueden crear vales de entrega (y ver los suyos).
 //
-// En un tramo posterior se puede endurecer con roles reales (custom claims).
+// El rol es un custom claim ("rol") del token de Firebase Auth, asignado con
+// el Admin SDK (scripts/usuarios.mjs) -- el navegador no puede cambiarlo.
 // ─────────────────────────────────────────────────────────────────────────────
 
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    function rol() {
+      return request.auth != null ? request.auth.token.get("rol", "") : "";
+    }
+
     function bodega() {
-      return request.auth != null;
+      return rol() == "bodega";
+    }
+
+    function solicitante() {
+      return rol() in ["capataz", "supervisor", "prevencionista"];
+    }
+
+    // Qué puede pedir cada rol en un vale (igual que ROLES en js/auth.js).
+    function tipoValeDelRol() {
+      return rol() == "prevencionista" ? "epp" : "material";
     }
 
     // Colecciones del inventario. Se irán poblando por tramos:
@@ -48,6 +63,47 @@ service cloud.firestore {
     match /contadores/{id} {
       allow read: if true;
       allow write: if bodega();
+      // El correlativo de vales lo avanza quien crea el vale: solo de a uno.
+      allow create, update: if id == "vales" && solicitante()
+        && request.resource.data.keys().hasOnly(["valor"])
+        && request.resource.data.valor == (resource == null ? 0 : resource.data.valor) + 1;
+    }
+
+    // Vales de entrega (js/vales.js). Nacen "pendiente" (sin tocar stock);
+    // bodega los pasa a "entregado" (misma transacción que descuenta el stock
+    // y crea los movimientos) o "rechazado". Nunca se borran.
+    match /vales/{id} {
+      allow read: if bodega()
+        || (request.auth != null && resource.data.solicitanteUid == request.auth.uid);
+      allow create: if solicitante()
+        && request.resource.data.solicitanteUid == request.auth.uid
+        && request.resource.data.solicitanteRol == rol()
+        && request.resource.data.tipo == tipoValeDelRol()
+        && request.resource.data.estado == "pendiente"
+        && request.resource.data.obra is string
+        && request.resource.data.trabajador is string && request.resource.data.trabajador.size() > 0
+        && request.resource.data.actividad is string && request.resource.data.actividad.size() > 0
+        && request.resource.data.items is list
+        && request.resource.data.items.size() > 0 && request.resource.data.items.size() <= 30
+        && request.resource.data.creadoEn == request.time
+        && request.resource.data.numero == getAfter(/databases/$(database)/documents/contadores/vales).data.valor;
+      allow update: if bodega()
+        && resource.data.estado == "pendiente"
+        && request.resource.data.estado in ["entregado", "rechazado"]
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+             "estado", "entregadoPor", "entregadoEn", "movimientoIds",
+             "rechazadoPor", "rechazadoEn", "motivoRechazo"]);
+      allow delete: if false;
+    }
+
+    // Marca de que la persona ya reemplazó su clave temporal (ver
+    // cambiar-clave.html). Cada uno solo ve y escribe la suya.
+    match /usuarios/{uid} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow create, update: if request.auth != null && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(["claveDefinida", "definidaEn"])
+        && request.resource.data.claveDefinida == true;
+      allow delete: if false;
     }
 
     // Seguimiento de compra: Pedido de Materiales (PM) -> Orden(es) de compra.

@@ -3,3 +3,6 @@ node_modules/
 *.log
 .DS_Store
 .env
+
+# Claves de cuenta de servicio (Admin SDK): nunca al repo.
+*firebase-adminsdk*.json

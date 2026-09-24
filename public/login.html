@@ -3,14 +3,14 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Ingreso bodega | Inventario</title>
+  <title>Ingreso | Inventario</title>
   <link rel="stylesheet" href="css/styles.css" />
 </head>
 <body>
   <div class="login-shell">
     <div class="login-box">
-      <h1>Ingreso de bodega</h1>
-      <p class="sub">Solo el personal de bodega necesita iniciar sesión para cargar movimientos.</p>
+      <h1>Ingreso</h1>
+      <p class="sub">Bodega, capataz, supervisor y prevencionista. Para solo consultar el inventario no hace falta cuenta.</p>
 
       <div id="error" class="alert alert-error hidden"></div>
 
@@ -36,18 +36,34 @@
   </div>
 
   <script type="module">
-    import { iniciarSesion, observarSesion } from "./js/auth.js";
+    import { iniciarSesion, observarPerfil, cerrarSesion, inicioDeRol } from "./js/auth.js";
 
     const params = new URLSearchParams(location.search);
-    const volver = params.get("volver") || "bodega.html";
+    // Solo se vuelve a una página propia del sitio (nada de "//otro-sitio").
+    const volverParam = params.get("volver");
+    const volver = volverParam && /^[\w-]+(\.html)?(\?.*)?$/.test(volverParam) ? volverParam : null;
+
+    const errorBox = document.getElementById("error");
+    let entrando = false;
+
+    function seguir(perfil) {
+      if (!perfil.rol) {
+        errorBox.textContent = "Tu cuenta no tiene un rol asignado. Pídele a bodega que lo revise.";
+        errorBox.classList.remove("hidden");
+        cerrarSesion();
+        return false;
+      }
+      const destino = volver || inicioDeRol(perfil.rol);
+      location.replace(perfil.debeCambiarClave ? `cambiar-clave.html?volver=${encodeURIComponent(destino)}` : destino);
+      return true;
+    }
 
     // Si ya hay sesión activa, no tiene sentido mostrar el login.
-    observarSesion((user) => {
-      if (user) location.replace(volver);
+    observarPerfil((perfil) => {
+      if (perfil && !entrando) seguir(perfil);
     });
 
     const form = document.getElementById("form-login");
-    const errorBox = document.getElementById("error");
     const btn = document.getElementById("btn-entrar");
 
     // Ojito para mostrar/ocultar la contraseña mientras se escribe.
@@ -67,10 +83,12 @@
       errorBox.classList.add("hidden");
       btn.disabled = true;
       btn.textContent = "Entrando…";
+      entrando = true;
       try {
-        await iniciarSesion(form.email.value, form.password.value);
-        location.replace(volver);
+        const perfil = await iniciarSesion(form.email.value, form.password.value);
+        if (!seguir(perfil)) { entrando = false; btn.disabled = false; btn.textContent = "Entrar"; }
       } catch (err) {
+        entrando = false;
         errorBox.textContent = err.message;
         errorBox.classList.remove("hidden");
         btn.disabled = false;
