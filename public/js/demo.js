@@ -125,3 +125,58 @@ export const ARRIENDOS_DEMO = [
     creadoPor: "bodega@demo.cl", creadoEn: hace(300000),
   },
 ];
+
+// Vales de entrega (ver js/vales.js). Los uid calzan con el perfil simulado
+// de cada rol en modo demo (js/auth.js/perfilDemo: ?rol=capataz, etc.).
+export const VALES_DEMO = [
+  {
+    id: "v3", numero: 3, obra: "cclp2", tipo: "material", trabajador: "Pedro Muñoz", actividad: "Moldaje losa nivel 4",
+    observacion: "", items: [
+      { materialId: "d1", producto: "Cemento Portland 25 kg", unidad: "sacos", cantidad: 5 },
+      { materialId: "d6", producto: "Fierro estriado Ø10", unidad: "barras", cantidad: 12 },
+    ],
+    solicitanteUid: "demo-capataz", solicitanteNombre: "Carlos Urbina", solicitanteEmail: "capataz@demo.cl", solicitanteRol: "capataz",
+    estado: "pendiente", creadoEn: hace(900),
+  },
+  {
+    id: "v2", numero: 2, obra: "cclp2", tipo: "epp", trabajador: "Luis Vera", actividad: "Enfierradura",
+    observacion: "Guantes se rompieron", items: [
+      { materialId: "d2", producto: "Guantes de cabritilla", unidad: "pares", cantidad: 20 },
+    ],
+    solicitanteUid: "demo-prevencionista", solicitanteNombre: "Inti Henriquez", solicitanteEmail: "prevencionista@demo.cl", solicitanteRol: "prevencionista",
+    estado: "pendiente", creadoEn: hace(3000),
+  },
+  {
+    id: "v1", numero: 1, obra: "cclp2", tipo: "material", trabajador: "Juan Soto", actividad: "Fundaciones",
+    observacion: "", items: [
+      { materialId: "d6", producto: "Fierro estriado Ø10", unidad: "barras", cantidad: 30 },
+    ],
+    solicitanteUid: "demo-supervisor", solicitanteNombre: "Alejandro Pastrian", solicitanteEmail: "supervisor@demo.cl", solicitanteRol: "supervisor",
+    estado: "entregado", creadoEn: hace(401000), entregadoPor: "bodega@demo.cl", entregadoEn: hace(400000), movimientoIds: ["m4"],
+  },
+  {
+    id: "v4", numero: 4, obra: "cclp2", tipo: "epp", trabajador: "Pedro Muñoz", actividad: "Moldaje losa nivel 4",
+    observacion: "", items: [
+      { materialId: "d4", producto: "Casco de seguridad", unidad: "unidades", cantidad: 1 },
+      { materialId: "d2", producto: "Guantes de cabritilla", unidad: "pares", cantidad: 2 },
+    ],
+    solicitanteUid: "demo-prevencionista", solicitanteNombre: "Inti Henriquez", solicitanteEmail: "prevencionista@demo.cl", solicitanteRol: "prevencionista",
+    estado: "entregado", creadoEn: hace(7400), entregadoPor: "bodega@demo.cl", entregadoEn: hace(7200), movimientoIds: [],
+  },
+  {
+    id: "v5", numero: 5, obra: "cclp2", tipo: "material", trabajador: "Luis Vera", actividad: "Radier sector B",
+    observacion: "", items: [
+      { materialId: "d1", producto: "Cemento Portland 25 kg", unidad: "sacos", cantidad: 10 },
+    ],
+    solicitanteUid: "demo-capataz", solicitanteNombre: "Carlos Urbina", solicitanteEmail: "capataz@demo.cl", solicitanteRol: "capataz",
+    estado: "entregado", creadoEn: hace(7000), entregadoPor: "bodega@demo.cl", entregadoEn: hace(6600), movimientoIds: [],
+  },
+  {
+    id: "v6", numero: 6, obra: "cclp2", tipo: "material", trabajador: "Juan Soto", actividad: "Fundaciones",
+    observacion: "", items: [
+      { materialId: "d6", producto: "Fierro estriado Ø10", unidad: "barras", cantidad: 200 },
+    ],
+    solicitanteUid: "demo-capataz", solicitanteNombre: "Carlos Urbina", solicitanteEmail: "capataz@demo.cl", solicitanteRol: "capataz",
+    estado: "rechazado", creadoEn: hace(180000), rechazadoPor: "bodega@demo.cl", rechazadoEn: hace(172800), motivoRechazo: "No hay stock suficiente, llega el lunes",
+  },
+];

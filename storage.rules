@@ -5,14 +5,14 @@ rules_version = '2';
 //
 // Mismo modelo de acceso que Firestore: lectura pública (cualquiera puede
 // descargar el Excel de un pedido o el PDF de una orden de compra), escritura
-// solo con sesión de bodega. Límite de tamaño para evitar archivos gigantes.
+// solo con rol "bodega" (custom claim, ver firestore.rules). Límite de tamaño para evitar archivos gigantes.
 // ─────────────────────────────────────────────────────────────────────────────
 
 service firebase.storage {
   match /b/{bucket}/o {
 
     function bodega() {
-      return request.auth != null;
+      return request.auth != null && request.auth.token.get("rol", "") == "bodega";
     }
 
     function tamanoOk() {

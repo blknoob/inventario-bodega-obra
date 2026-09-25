@@ -7,6 +7,23 @@
         { "fieldPath": "obra", "order": "ASCENDING" },
         { "fieldPath": "fecha", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "vales",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "obra", "order": "ASCENDING" },
+        { "fieldPath": "creadoEn", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "vales",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "solicitanteUid", "order": "ASCENDING" },
+        { "fieldPath": "obra", "order": "ASCENDING" },
+        { "fieldPath": "creadoEn", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

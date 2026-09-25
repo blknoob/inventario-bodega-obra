@@ -1,0 +1,9 @@
+{
+  "name": "inventario-bodega-scripts",
+  "private": true,
+  "type": "module",
+  "description": "Scripts de administración (Admin SDK). No se despliegan: firebase.json solo publica public/.",
+  "dependencies": {
+    "firebase-admin": "^13.0.0"
+  }
+}

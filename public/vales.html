@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Vales | Inventario de Bodega</title>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <header id="topbar"></header>
+
+  <div class="wrap">
+    <div id="flash" class="alert hidden"></div>
+
+    <div class="page-head">
+      <h1>Vales de entrega</h1>
+      <p id="titulo-sub">Cargando…</p>
+    </div>
+
+    <!-- ── Capataz / supervisor / prevencionista: pedir un vale ──────────── -->
+    <div class="card hidden" id="bloque-nuevo" style="margin-bottom:18px;">
+      <h2 class="card-titulo" id="nuevo-titulo">Nuevo vale</h2>
+      <form id="form-vale">
+        <div id="err-vale" class="alert alert-error hidden"></div>
+        <div class="row">
+          <div class="field">
+            <label for="v-trabajador">Nombre del trabajador</label>
+            <input type="text" id="v-trabajador" required maxlength="80" autocomplete="off" />
+          </div>
+          <div class="field">
+            <label for="v-actividad">Actividad</label>
+            <input type="text" id="v-actividad" required maxlength="80" autocomplete="off" />
+          </div>
+        </div>
+
+        <label>Productos</label>
+        <div id="v-items"></div>
+        <button type="button" class="btn btn-ghost btn-block" id="btn-agregar-item" style="margin-top:8px; margin-bottom:14px;">+ Agregar otro producto</button>
+
+        <div class="field">
+          <label for="v-observacion">Observación <span class="muted">(opcional)</span></label>
+          <input type="text" id="v-observacion" maxlength="160" />
+        </div>
+        <div class="modal-foot" style="margin-top:0;">
+          <button type="submit" class="btn btn-primary" id="btn-enviar-vale">Enviar vale a bodega</button>
+        </div>
+      </form>
+    </div>
+
+    <!-- ── Listado (bodega: todos los de la obra; resto: los propios) ────── -->
+    <div class="grid grid-estados" style="margin-bottom: 18px;">
+      <button type="button" class="stat" data-estado="pendiente">
+        <div class="label">Por entregar</div>
+        <div class="value stock-bajo" id="stat-pendiente">—</div>
+      </button>
+      <button type="button" class="stat" data-estado="entregado">
+        <div class="label">Entregados</div>
+        <div class="value stock-ok" id="stat-entregado">—</div>
+      </button>
+      <button type="button" class="stat" data-estado="rechazado">
+        <div class="label">Rechazados</div>
+        <div class="value stock-cero" id="stat-rechazado">—</div>
+      </button>
+    </div>
+
+    <div class="card">
+      <div class="toolbar">
+        <div class="filters">
+          <input type="search" id="buscar" placeholder="Buscar trabajador, actividad, producto, N.º…" autocomplete="off" />
+          <select id="filtro-tipo" class="hidden">
+            <option value="">Materiales y EPP</option>
+            <option value="material">Materiales</option>
+            <option value="epp">EPP</option>
+          </select>
+        </div>
+      </div>
+      <div id="lista-vales"><p class="empty">Cargando…</p></div>
+    </div>
+  </div>
+
+  <!-- ── Modal: entregar o rechazar (bodega) ────────────────────────────── -->
+  <dialog id="dlg-accion">
+    <div class="modal-head">
+      <h3 id="accion-titulo">Entregar vale</h3>
+      <button type="button" class="modal-close" data-close>&times;</button>
+    </div>
+    <form id="form-accion">
+      <div id="err-accion" class="alert alert-error hidden"></div>
+      <div id="accion-resumen" class="text-sm" style="margin-bottom:12px;"></div>
+      <div class="field hidden" id="bloque-motivo">
+        <label for="a-motivo">Motivo del rechazo</label>
+        <input type="text" id="a-motivo" maxlength="160" />
+      </div>
+      <div class="modal-foot">
+        <button type="button" class="btn btn-ghost" data-close>Cancelar</button>
+        <button type="submit" class="btn btn-primary" id="btn-accion">Entregar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script type="module">
+    import { montarTopbar, flash } from "./js/ui.js";
+    import { requerirRol, etiquetaRol, ROLES } from "./js/auth.js";
+    import { escucharMateriales } from "./js/materiales.js";
+    import {
+      TIPOS_VALE, ESTADOS_VALE, MAX_ITEMS_VALE, numeroValeTexto, materialesParaVale,
+      crearVale, entregarVale, rechazarVale, escucharValesObra, escucharMisVales,
+    } from "./js/vales.js";
+    import { obraActiva, etiquetaObra, escucharConObraActiva, escucharObraActiva } from "./js/obra.js";
+
+    montarTopbar("vales");
+
+    const fmtNum = (n) => (Number(n) || 0).toLocaleString("es-CL", { maximumFractionDigits: 3 });
+    const fmtFecha = (ts) => {
+      const d = ts?.toDate?.();
+      if (!d) return "—";
+      return d.toLocaleDateString("es-CL") + " " +
+        d.toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" });
+    };
+    const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) =>
+      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+    const normalizar = (s) => String(s || "").trim().toLowerCase()
+      .normalize("NFD").replace(/[̀-ͯ]/g, "");
+
+    const listaVales = document.getElementById("lista-vales");
+    const buscar = document.getElementById("buscar");
+    const filtroTipo = document.getElementById("filtro-tipo");
+    const statCards = [...document.querySelectorAll("button.stat[data-estado]")];
+
+    let perfil = null;
+    let esBodega = false;
+    let materiales = []; // catálogo de la obra activa (todas las categorías)
+    let vales = [];
+    // Siempre hay una pestaña elegida: "Por entregar" es un listado (ahí se
+    // actúa); "Entregados" y "Rechazados" se ven en un calendario, por el día
+    // en que se entregaron/rechazaron.
+    let filtroEstado = "pendiente";
+    let mesCalendario = null; // Date del día 1 del mes que se muestra
+    let diaElegido = null;    // "YYYY-MM-DD"
+
+    // ── Listado ─────────────────────────────────────────────────────────
+    function setFiltroEstado(estado) {
+      filtroEstado = estado;
+      mesCalendario = null; // al cambiar de pestaña, vuelve al día más reciente con vales
+      diaElegido = null;
+      statCards.forEach((c) => c.classList.toggle("active", c.dataset.estado === filtroEstado));
+      render();
+    }
+    statCards.forEach((c) => c.addEventListener("click", () => setFiltroEstado(c.dataset.estado)));
+    buscar.addEventListener("input", render);
+    filtroTipo.addEventListener("change", render);
+
+    function coincide(v, q) {
+      if (!q) return true;
+      return [numeroValeTexto(v.numero), v.trabajador, v.actividad, v.solicitanteNombre, ...v.items.map((it) => it.producto)]
+        .some((t) => normalizar(t).includes(q));
+    }
+
+    function tarjetaVale(v) {
+      const estado = ESTADOS_VALE[v.estado] || { etiqueta: v.estado, badge: "badge-muted" };
+      const pendiente = v.estado === "pendiente";
+      const filas = v.items.map((it) => {
+        const m = materiales.find((x) => x.id === it.materialId);
+        const stock = m ? Number(m.stock) || 0 : null;
+        const falta = pendiente && (stock === null || Number(it.cantidad) > stock);
+        const stockTxt = !pendiente ? "" : stock === null
+          ? `<span class="stock-cero">ya no existe</span>`
+          : `<span class="${falta ? "stock-cero" : "muted"}">stock ${fmtNum(stock)}</span>`;
+        return `
+          <tr>
+            <td>${esc(it.producto)}</td>
+            <td class="text-right nowrap"><strong>${fmtNum(it.cantidad)}</strong> ${esc(it.unidad)}</td>
+            ${pendiente ? `<td class="text-right nowrap text-sm">${stockTxt}</td>` : ""}
+          </tr>`;
+      }).join("");
+
+      const pie = [];
+      if (v.estado === "entregado") pie.push(`Entregado ${fmtFecha(v.entregadoEn)} por ${esc(v.entregadoPor || "bodega")}`);
+      if (v.estado === "rechazado") pie.push(`Rechazado ${fmtFecha(v.rechazadoEn)}: <strong>${esc(v.motivoRechazo)}</strong>`);
+
+      return `
+        <div class="vale-card" data-vale="${v.id}">
+          <div class="vale-head">
+            <div>
+              <strong>${numeroValeTexto(v.numero)}</strong>
+              <span class="badge badge-muted">${esc(TIPOS_VALE[v.tipo]?.etiqueta ?? v.tipo)}</span>
+              <span class="badge ${estado.badge}">${esc(estado.etiqueta)}</span>
+            </div>
+            <span class="text-sm muted nowrap">Pedido ${fmtFecha(v.creadoEn)}</span>
+          </div>
+          <div class="vale-datos text-sm">
+            <span><span class="muted">Trabajador:</span> <strong>${esc(v.trabajador)}</strong></span>
+            <span><span class="muted">Actividad:</span> ${esc(v.actividad)}</span>
+            ${esBodega ? `<span><span class="muted">Pide:</span> ${esc(v.solicitanteNombre)} (${esc(etiquetaRol(v.solicitanteRol))})</span>` : ""}
+          </div>
+          ${v.observacion ? `<p class="text-sm" style="margin:6px 0 0;"><span class="muted">Observación:</span> ${esc(v.observacion)}</p>` : ""}
+          <table class="vale-items"><tbody>${filas}</tbody></table>
+          ${pie.length ? `<p class="text-sm muted" style="margin:8px 0 0;">${pie.join(" · ")}</p>` : ""}
+          ${esBodega && pendiente ? `
+            <div class="row-actions" style="margin-top:10px; justify-content:flex-end;">
+              <button type="button" class="btn btn-ghost btn-danger btn-xs" data-rechazar="${v.id}">Rechazar</button>
+              <button type="button" class="btn btn-primary btn-xs" data-entregar="${v.id}">Entregar</button>
+            </div>` : ""}
+        </div>`;
+    }
+
+    // "YYYY-MM-DD" en horario local.
+    const fechaISO = (d) =>
+      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const fechaCierre = (v) => (v.estado === "entregado" ? v.entregadoEn : v.rechazadoEn)?.toDate?.() || null;
+    const mayuscula = (t) => t.charAt(0).toUpperCase() + t.slice(1);
+    const fmtHora = (d) => d.toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" });
+
+    // Un vale ya cerrado, colapsado a una línea; se abre para ver el detalle.
+    function valeDesplegable(v) {
+      const d = fechaCierre(v);
+      const productos = v.items.length === 1 ? "1 producto" : `${v.items.length} productos`;
+      return `
+        <details class="vale-desplegable">
+          <summary>
+            <strong>${numeroValeTexto(v.numero)}</strong>
+            <span>${esc(v.trabajador)}</span>
+            <span class="muted">${esc(v.actividad)} · ${productos}</span>
+            <span class="muted nowrap">${d ? fmtHora(d) : ""}</span>
+          </summary>
+          ${tarjetaVale(v)}
+        </details>`;
+    }
+
+    function calendario(porDia) {
+      const anio = mesCalendario.getFullYear();
+      const mes = mesCalendario.getMonth();
+      const hoy = fechaISO(new Date());
+      // Lunes primero: getDay() da 0 para domingo.
+      const desfase = (new Date(anio, mes, 1).getDay() + 6) % 7;
+      const diasMes = new Date(anio, mes + 1, 0).getDate();
+      const celdas = [];
+      for (let i = 0; i < desfase; i++) celdas.push(`<span class="cal-dia vacio"></span>`);
+      for (let dia = 1; dia <= diasMes; dia++) {
+        const iso = fechaISO(new Date(anio, mes, dia));
+        const n = porDia.get(iso)?.length || 0;
+        const clases = ["cal-dia", n ? "con-vales" : "", iso === diaElegido ? "elegido" : "", iso === hoy ? "hoy" : ""].join(" ");
+        celdas.push(`
+          <button type="button" class="${clases}" data-dia="${iso}" ${n ? "" : "disabled"} aria-label="${dia}${n ? `, ${n} vale${n === 1 ? "" : "s"}` : ""}">
+            <span>${dia}</span>${n ? `<span class="cal-n">${n}</span>` : ""}
+          </button>`);
+      }
+      const titulo = mayuscula(mesCalendario.toLocaleDateString("es-CL", { month: "long", year: "numeric" }));
+      return `
+        <div class="calendario">
+          <div class="cal-head">
+            <button type="button" class="btn btn-ghost btn-xs" data-mes="-1" aria-label="Mes anterior">‹</button>
+            <strong class="cal-titulo">${esc(titulo)}</strong>
+            <button type="button" class="btn btn-ghost btn-xs" data-mes="1" aria-label="Mes siguiente">›</button>
+          </div>
+          <div class="cal-grilla">
+            ${["L", "M", "M", "J", "V", "S", "D"].map((d) => `<span class="cal-semana">${d}</span>`).join("")}
+            ${celdas.join("")}
+          </div>
+        </div>`;
+    }
+
+    function render() {
+      if (!perfil) return;
+      const q = normalizar(buscar.value);
+      const tipo = filtroTipo.value;
+      const base = vales.filter((v) => !tipo || v.tipo === tipo);
+      for (const estado of Object.keys(ESTADOS_VALE)) {
+        document.getElementById(`stat-${estado}`).textContent = base.filter((v) => v.estado === estado).length;
+      }
+      const vista = base.filter((v) => v.estado === filtroEstado && coincide(v, q));
+      const sinVales = `<p class="empty">${vales.length ? "Sin vales para este filtro." : esBodega ? "Aún no llegan vales en esta obra." : "Aún no has enviado vales en esta obra."}</p>`;
+
+      if (filtroEstado === "pendiente") {
+        // Del más antiguo al más nuevo: orden de llegada a bodega.
+        vista.reverse();
+        listaVales.innerHTML = vista.length ? vista.map(tarjetaVale).join("") : sinVales;
+        return;
+      }
+
+      const porDia = new Map();
+      for (const v of vista) {
+        const d = fechaCierre(v);
+        if (!d) continue; // recién cerrado: la hora del servidor llega en el próximo snapshot
+        const iso = fechaISO(d);
+        if (!porDia.has(iso)) porDia.set(iso, []);
+        porDia.get(iso).push(v);
+      }
+      // Sin día elegido (recién abierta la pestaña): el más reciente con vales, o hoy.
+      if (!diaElegido) {
+        diaElegido = [...porDia.keys()].sort().pop() || fechaISO(new Date());
+      }
+      if (!mesCalendario) {
+        const [a, m] = diaElegido.split("-").map(Number);
+        mesCalendario = new Date(a, m - 1, 1);
+      }
+      const delDia = (porDia.get(diaElegido) || [])
+        .sort((a, b) => fechaCierre(b) - fechaCierre(a));
+      const [a, m, d] = diaElegido.split("-").map(Number);
+      const tituloDia = mayuscula(new Date(a, m - 1, d).toLocaleDateString("es-CL", { weekday: "long", day: "numeric", month: "long" }));
+      const accion = filtroEstado === "entregado" ? "entregados" : "rechazados";
+
+      listaVales.innerHTML = `
+        <div class="vales-calendario">
+          ${calendario(porDia)}
+          <div class="vales-del-dia">
+            <h3 class="text-sm" style="margin:0 0 10px;">${esc(tituloDia)}</h3>
+            ${delDia.length
+              ? delDia.map(valeDesplegable).join("")
+              : `<p class="empty" style="padding:16px 0;">${porDia.size ? `Ningún vale ${accion} este día.` : `Sin vales ${accion}${q || tipo ? " para este filtro" : ""}.`}</p>`}
+          </div>
+        </div>`;
+    }
+
+    // Navegación del calendario (delegada: el calendario se redibuja entero).
+    listaVales.addEventListener("click", (e) => {
+      const dia = e.target.closest("[data-dia]");
+      if (dia) { diaElegido = dia.dataset.dia; render(); return; }
+      const mes = e.target.closest("[data-mes]");
+      if (mes) {
+        mesCalendario = new Date(mesCalendario.getFullYear(), mesCalendario.getMonth() + Number(mes.dataset.mes), 1);
+        render();
+      }
+    });
+
+    // ── Entregar / rechazar (bodega) ────────────────────────────────────
+    const dlgAccion = document.getElementById("dlg-accion");
+    const formAccion = document.getElementById("form-accion");
+    const errAccion = document.getElementById("err-accion");
+    const btnAccion = document.getElementById("btn-accion");
+    const motivoInput = document.getElementById("a-motivo");
+    let accion = null; // { tipo: "entregar" | "rechazar", valeId }
+    let enviandoAccion = false;
+
+    function abrirAccion(tipo, valeId) {
+      const v = vales.find((x) => x.id === valeId);
+      if (!v) return;
+      accion = { tipo, valeId };
+      const entregar = tipo === "entregar";
+      document.getElementById("accion-titulo").textContent = `${entregar ? "Entregar" : "Rechazar"} ${numeroValeTexto(v.numero)}`;
+      document.getElementById("accion-resumen").innerHTML = `
+        <p style="margin:0 0 6px;">Para <strong>${esc(v.trabajador)}</strong> — ${esc(v.actividad)}</p>
+        <ul style="margin:0; padding-left:18px;">${v.items.map((it) => `<li>${esc(it.producto)}: <strong>${fmtNum(it.cantidad)}</strong> ${esc(it.unidad)}</li>`).join("")}</ul>
+        ${entregar ? `<p class="muted" style="margin:8px 0 0;">Se descuenta del stock y queda registrado en el Historial.</p>` : ""}`;
+      document.getElementById("bloque-motivo").classList.toggle("hidden", entregar);
+      motivoInput.required = !entregar;
+      motivoInput.value = "";
+      btnAccion.textContent = entregar ? "Marcar entregado" : "Rechazar vale";
+      btnAccion.className = `btn ${entregar ? "btn-primary" : "btn-danger-solid"}`;
+      errAccion.classList.add("hidden");
+      dlgAccion.showModal();
+      if (!entregar) motivoInput.focus();
+    }
+
+    listaVales.addEventListener("click", (e) => {
+      const entregar = e.target.closest("[data-entregar]");
+      const rechazar = e.target.closest("[data-rechazar]");
+      if (entregar) abrirAccion("entregar", entregar.dataset.entregar);
+      if (rechazar) abrirAccion("rechazar", rechazar.dataset.rechazar);
+    });
+
+    // Con un envío en curso no se puede cerrar (ni por X, Cancelar, clic
+    // afuera o Escape): reabrirlo para otro vale a mitad de camino haría
+    // que el aviso final hable del vale equivocado.
+    dlgAccion.querySelectorAll("[data-close]").forEach((b) =>
+      b.addEventListener("click", () => { if (!enviandoAccion) dlgAccion.close(); }));
+    dlgAccion.addEventListener("cancel", (e) => { if (enviandoAccion) e.preventDefault(); });
+    dlgAccion.addEventListener("click", (e) => {
+      if (enviandoAccion) return;
+      const r = dlgAccion.getBoundingClientRect();
+      const dentro = e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom;
+      if (!dentro) dlgAccion.close();
+    });
+
+    formAccion.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      if (!accion || enviandoAccion) return;
+      const { tipo, valeId } = accion; // capturado: no releer `accion` después de un await
+      const numero = numeroValeTexto(vales.find((x) => x.id === valeId)?.numero);
+      errAccion.classList.add("hidden");
+      enviandoAccion = true;
+      const textoBoton = btnAccion.textContent;
+      btnAccion.disabled = true;
+      btnAccion.textContent = "Guardando…";
+      dlgAccion.querySelectorAll("[data-close]").forEach((b) => { b.disabled = true; });
+      try {
+        if (tipo === "entregar") {
+          await entregarVale(valeId);
+          flash(`${numero} entregado. Stock descontado.`);
+        } else {
+          await rechazarVale(valeId, motivoInput.value);
+          flash(`${numero} rechazado.`);
+        }
+        enviandoAccion = false;
+        dlgAccion.close();
+      } catch (err) {
+        errAccion.textContent = err.message;
+        errAccion.classList.remove("hidden");
+      } finally {
+        enviandoAccion = false;
+        btnAccion.disabled = false;
+        btnAccion.textContent = textoBoton;
+        dlgAccion.querySelectorAll("[data-close]").forEach((b) => { b.disabled = false; });
+      }
+    });
+
+    // ── Nuevo vale (capataz / supervisor / prevencionista) ──────────────
+    const formVale = document.getElementById("form-vale");
+    const errVale = document.getElementById("err-vale");
+    const itemsCont = document.getElementById("v-items");
+    const btnAgregar = document.getElementById("btn-agregar-item");
+    const btnEnviar = document.getElementById("btn-enviar-vale");
+    let enviandoVale = false;
+
+    const catalogoVale = () => materialesParaVale(perfil?.rol, materiales);
+
+    function agregarFila() {
+      const fila = document.createElement("div");
+      fila.className = "vale-fila";
+      fila.innerHTML = `
+        <div class="field vale-fila-producto" style="position:relative;">
+          <input type="text" class="vf-buscar buscador-input" placeholder="Busca el producto…" autocomplete="off" aria-label="Producto" />
+          <input type="hidden" class="vf-id" />
+          <div class="vf-lista buscador-lista hidden"></div>
+          <p class="text-sm muted vf-stock" style="margin:4px 0 0;"></p>
+        </div>
+        <div class="field vale-fila-cantidad">
+          <input type="number" class="vf-cantidad" min="0" step="any" placeholder="Cant." aria-label="Cantidad" inputmode="decimal" />
+        </div>
+        <button type="button" class="btn btn-ghost btn-xs btn-danger vf-quitar" aria-label="Quitar producto">✕</button>`;
+      itemsCont.appendChild(fila);
+      cablearFila(fila);
+      actualizarBotonesFilas();
+      return fila;
+    }
+
+    function actualizarBotonesFilas() {
+      const filas = itemsCont.querySelectorAll(".vale-fila");
+      filas.forEach((f) => { f.querySelector(".vf-quitar").style.visibility = filas.length > 1 ? "visible" : "hidden"; });
+      btnAgregar.disabled = enviandoVale || filas.length >= MAX_ITEMS_VALE;
+    }
+
+    function textoStock(m, cantidad) {
+      if (!m) return "";
+      const stock = Number(m.stock) || 0;
+      const aviso = Number(cantidad) > stock ? ` — <span class="stock-bajo">pides más de lo que hay; bodega podría no alcanzar a entregarlo</span>` : "";
+      return `Stock en bodega: ${fmtNum(stock)} ${esc(m.unidad)}${aviso}`;
+    }
+
+    function refrescarStockFilas() {
+      itemsCont.querySelectorAll(".vale-fila").forEach((fila) => {
+        const m = materiales.find((x) => x.id === fila.querySelector(".vf-id").value);
+        fila.querySelector(".vf-stock").innerHTML = textoStock(m, fila.querySelector(".vf-cantidad").value);
+      });
+    }
+
+    function cablearFila(fila) {
+      const input = fila.querySelector(".vf-buscar");
+      const oculto = fila.querySelector(".vf-id");
+      const lista = fila.querySelector(".vf-lista");
+      const stockTxt = fila.querySelector(".vf-stock");
+      const cantidad = fila.querySelector(".vf-cantidad");
+
+      function renderLista() {
+        const q = normalizar(input.value);
+        const items = catalogoVale()
+          .filter((m) => !q || normalizar(m.producto).includes(q))
+          .slice(0, 30);
+        lista.innerHTML = items.length
+          ? items.map((m) => `
+              <button type="button" class="btn btn-ghost btn-xs" data-id="${m.id}">
+                ${esc(m.producto)}${m.medida ? ` (${esc(m.medida)})` : ""} — stock ${fmtNum(m.stock)} ${esc(m.unidad)}
+              </button>`).join("")
+          : `<div class="text-sm muted empty">${catalogoVale().length ? "Sin resultados." : "No hay productos cargados en esta obra."}</div>`;
+        lista.classList.remove("hidden");
+      }
+
+      function elegir(m) {
+        if (m) input.value = m.producto;
+        oculto.value = m?.id || "";
+        stockTxt.innerHTML = textoStock(m, cantidad.value);
+        lista.classList.add("hidden");
+      }
+
+      input.addEventListener("focus", renderLista);
+      input.addEventListener("input", () => {
+        const exacto = catalogoVale().find((m) => normalizar(m.producto) === normalizar(input.value));
+        elegir(exacto || null);
+        renderLista();
+      });
+      input.addEventListener("keydown", (e) => { if (e.key === "Escape") lista.classList.add("hidden"); });
+      lista.addEventListener("click", (e) => {
+        const b = e.target.closest("[data-id]");
+        if (!b) return;
+        elegir(materiales.find((x) => x.id === b.dataset.id));
+        cantidad.focus();
+      });
+      cantidad.addEventListener("input", () => {
+        stockTxt.innerHTML = textoStock(materiales.find((x) => x.id === oculto.value), cantidad.value);
+      });
+      fila.querySelector(".vf-quitar").addEventListener("click", () => {
+        if (enviandoVale) return;
+        fila.remove();
+        actualizarBotonesFilas();
+      });
+    }
+
+    // Clic fuera de un buscador cierra su lista.
+    document.addEventListener("click", (e) => {
+      itemsCont.querySelectorAll(".vale-fila").forEach((fila) => {
+        if (!fila.querySelector(".vale-fila-producto").contains(e.target)) fila.querySelector(".vf-lista").classList.add("hidden");
+      });
+    });
+
+    function iniciarFormulario() {
+      itemsCont.innerHTML = "";
+      agregarFila();
+    }
+
+    btnAgregar.addEventListener("click", () => {
+      agregarFila().querySelector(".vf-buscar").focus();
+    });
+
+    // Si cambia la obra con productos ya elegidos, esos productos son de la
+    // otra obra: se parte de cero para no mandar un vale mezclado.
+    escucharObraActiva(() => {
+      if (perfil && !esBodega && !enviandoVale) iniciarFormulario();
+    });
+
+    formVale.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      if (enviandoVale) return;
+      errVale.classList.add("hidden");
+      const filas = [...itemsCont.querySelectorAll(".vale-fila")];
+      try {
+        const items = [];
+        for (const fila of filas) {
+          const buscarInput = fila.querySelector(".vf-buscar");
+          const cantidadInput = fila.querySelector(".vf-cantidad");
+          const m = materiales.find((x) => x.id === fila.querySelector(".vf-id").value);
+          if (!m) {
+            buscarInput.focus();
+            throw new Error(buscarInput.value.trim()
+              ? `"${buscarInput.value.trim()}" no está en el catálogo: elígelo de la lista.`
+              : "Elige un producto de la lista en cada fila (o quita la fila vacía).");
+          }
+          if (!(Number(cantidadInput.value) > 0)) {
+            cantidadInput.focus();
+            throw new Error(`${m.producto}: ingresa la cantidad.`);
+          }
+          items.push({ materialId: m.id, producto: m.producto, unidad: m.unidad, cantidad: cantidadInput.value });
+        }
+
+        enviandoVale = true;
+        btnEnviar.disabled = true;
+        btnEnviar.textContent = "Enviando…";
+        actualizarBotonesFilas();
+        const { numero } = await crearVale({
+          perfil,
+          obra: obraActiva(),
+          trabajador: document.getElementById("v-trabajador").value,
+          actividad: document.getElementById("v-actividad").value,
+          observacion: document.getElementById("v-observacion").value,
+          items,
+        });
+        formVale.reset();
+        iniciarFormulario();
+        flash(`${numeroValeTexto(numero)} enviado a bodega (${etiquetaObra(obraActiva())}).`);
+      } catch (err) {
+        errVale.textContent = err.message;
+        errVale.classList.remove("hidden");
+      } finally {
+        enviandoVale = false;
+        btnEnviar.disabled = false;
+        btnEnviar.textContent = "Enviar vale a bodega";
+        actualizarBotonesFilas();
+      }
+    });
+    // Al final a propósito: en modo demo el perfil llega de inmediato (sin
+    // esperar a Firebase), y todo lo de arriba tiene que existir ya.
+    requerirRol(Object.keys(ROLES), (p) => {
+      if (perfil) return; // ya montado (no duplicar listeners)
+      perfil = p;
+      esBodega = p.rol === "bodega";
+      const tipoVale = TIPOS_VALE[ROLES[p.rol].tipoVale];
+      if (esBodega) {
+        document.querySelector(".page-head h1").textContent = "Bandeja de entrada";
+        document.title = "Bandeja de entrada | Inventario de Bodega";
+      }
+      document.getElementById("titulo-sub").textContent = esBodega
+        ? "Vales que piden capataz, supervisor y prevencionista. Al marcarlo entregado se descuenta el stock y queda en el Historial."
+        : `${p.nombre} · ${etiquetaRol(p.rol)}. Pide ${tipoVale.etiqueta.toLowerCase()} a bodega para un trabajador; el stock se descuenta cuando bodega lo entrega.`;
+      document.getElementById("nuevo-titulo").textContent = tipoVale ? `Nuevo vale de ${tipoVale.etiqueta}` : "";
+      document.getElementById("bloque-nuevo").classList.toggle("hidden", esBodega);
+      filtroTipo.classList.toggle("hidden", !esBodega);
+      setFiltroEstado("pendiente");
+      if (!esBodega) iniciarFormulario();
+
+      escucharConObraActiva(
+        escucharMateriales,
+        (items) => { materiales = items; render(); refrescarStockFilas(); },
+        (err) => flash(`Error al cargar el catálogo: ${err.message}`, "error"),
+      );
+      escucharConObraActiva(
+        esBodega ? escucharValesObra : escucharMisVales(p.user.uid),
+        (items) => { vales = items; render(); },
+        (err) => { listaVales.innerHTML = `<p class="empty">Error al cargar: ${esc(err.message)}</p>`; },
+      );
+    });
+  </script>
+</body>
+</html>

@@ -33,7 +33,7 @@
     <div class="card">
       <div class="toolbar">
         <div class="filters">
-          <input type="search" id="buscar" placeholder="Buscar producto, persona, proveedor…" autocomplete="off" />
+          <input type="search" id="buscar" placeholder="Buscar producto, persona, proveedor, vale…" autocomplete="off" />
           <select id="filtro-tipo">
             <option value="">Todos los movimientos</option>
             <option value="entrada">Entrantes</option>
@@ -167,7 +167,8 @@
         if (m.supervisor) partes.push(["Supervisor", esc(m.supervisor)]);
         if (m.actividad) partes.push(["Actividad", esc(m.actividad)]);
         if (m.zona) partes.push(["Zona", esc(m.zona)]);
-        if (m.numeroVale) partes.push(["Vale", esc(m.numeroVale)]);
+        if (m.numeroVale) partes.push(["Vale", m.valeId ? `${esc(m.numeroVale)} <a href="vales.html" class="text-sm">(ver en Vales)</a>` : esc(m.numeroVale)]);
+        if (m.solicitadoPor) partes.push(["Solicitado por", esc(m.solicitadoPor)]);
         if (m.observacion) partes.push(["Observación", esc(m.observacion)]);
       }
       partes.push(["Responsable", esc(m.responsable) || "—"]);
@@ -185,7 +186,7 @@
         (!cat || m.categoria === cat) &&
         (!fecha || (m.fecha?.toDate?.() && fechaISO(m.fecha.toDate()) === fecha)) &&
         (!soloSinOC || (m.tipo === "entrada" && !m.ordenCompraNumero)) &&
-        (!q || [m.materialProducto, m.personaRetira, m.proveedor, m.supervisor, m.responsable]
+        (!q || [m.materialProducto, m.personaRetira, m.proveedor, m.supervisor, m.responsable, m.numeroVale, m.solicitadoPor]
           .some((v) => (v || "").toLowerCase().includes(q))));
 
       const entradas = movimientos.filter((m) => m.tipo === "entrada");

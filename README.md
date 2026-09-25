@@ -3,7 +3,10 @@
 Control en tiempo real de **materiales** (consumibles, EPP, equipos) y **herramientas**
 (manuales, eléctricas, inalámbricas) de la bodega de una obra.
 
-- **Bodega** inicia sesión y carga ingresos/salidas.
+- **Bodega** inicia sesión y carga ingresos/salidas, y entrega los vales.
+- **Capataz / supervisor** (materiales) y **prevencionista de riesgos** (EPP) inician
+  sesión para pedir vales de entrega para un trabajador (`vales.html`); el stock se
+  descuenta cuando bodega marca el vale como entregado.
 - **Todo el equipo** (supervisores, jefes de terreno, administración) consulta el
   inventario sin necesidad de cuenta.
 - Base de datos en **Firebase / Firestore**: los cambios se ven al instante en
@@ -40,7 +43,28 @@ firebase.json         Config de Hosting + Firestore
 | `materiales` | Un doc por tipo de material: `nombre, categoria, unidad, stock, stockMinimo, ubicacion, descripcion`. `stock` se actualiza solo al registrar movimientos. |
 | `movimientos_materiales` | Registro histórico inmutable: `materialId, materialNombre, tipo (entrada), cantidad, stockResultante, proveedor, documento, motivo, responsable, fecha`. |
 
+| `vales` | Vale de entrega: `numero, obra, tipo (material/epp), trabajador, actividad, items[], solicitante*, estado (pendiente/entregado/rechazado)`. Al entregarlo se crea un movimiento de salida por producto con `numeroVale` y `valeId`. |
+| `usuarios` | `usuarios/{uid}.claveDefinida`: la persona ya reemplazó su clave temporal. |
+
 Registrar una llegada suma al `stock` y crea el movimiento en una sola transacción atómica.
+
+### Cuentas y roles
+
+El rol de cada cuenta es un custom claim (`rol`: `bodega`, `capataz`, `supervisor`,
+`prevencionista`) que solo se asigna con el Admin SDK. Las cuentas están listadas en
+`scripts/usuarios.mjs`; para crearlas o cambiarles el rol:
+
+```bash
+cd scripts && npm install
+GOOGLE_APPLICATION_CREDENTIALS=/ruta/a/clave-admin.json node usuarios.mjs
+```
+
+Las cuentas nuevas quedan con una clave temporal (el script la imprime) y en su primer
+ingreso la app las obliga a crear su propia clave (mín. 8 caracteres, letras y números).
+`node usuarios.mjs --reiniciar-clave correo@dpc.cl` le da una clave temporal nueva a
+alguien que olvidó la suya. La clave de administrador **nunca** va al repo.
+
+En modo demo se puede ver cada rol con `?rol=capataz` (o `supervisor`, `prevencionista`, `bodega`).
 
 ## Puesta en marcha (una sola vez)
 
@@ -125,4 +149,5 @@ navegador, sin servidor ni costo adicional.
 - [ ] **Tramo 4** — Herramientas: inventario (manual/eléctrica/inalámbrica) + estados.
 - [ ] **Tramo 5** — Herramientas: préstamo y devolución + historial.
 - [ ] **Tramo 6** — Dashboard: totales, alertas, filtros y botón **Exportar a Excel (.xlsx)** (inventario + movimientos).
-- [ ] **Tramo 7** — Pulido: offline/PWA, reportes, roles reales.
+- [ ] **Tramo 7** — Pulido: offline/PWA, reportes.
+- [x] **Vales de entrega** — roles (custom claims), vales de materiales/EPP con entrega por bodega.

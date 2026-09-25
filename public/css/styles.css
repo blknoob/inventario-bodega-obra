@@ -562,6 +562,81 @@ body.es-bodega .only-bodega { display: revert; }
 body.es-bodega .only-bodega.row-actions { display: flex; }
 
 /* ── Responsive (celular / pantallas angostas) ─────────────────────────── */
+/* Vales de entrega (vales.html). */
+.card-titulo { font-size: 15px; margin-bottom: 14px; }
+.vale-card { border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; margin-bottom: 10px; background: var(--surface); }
+.vale-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+.vale-head strong { font-size: 15px; margin-right: 4px; }
+.vale-datos { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 6px; }
+.vale-items { width: 100%; margin-top: 8px; border-collapse: collapse; }
+.vale-items td { padding: 5px 0; border-top: 1px solid var(--line); font-size: 13px; }
+.vale-items td + td { padding-left: 12px; }
+.vale-fila { display: flex; gap: 8px; align-items: flex-start; margin-bottom: 8px; }
+.vale-fila .field { margin-bottom: 0; }
+.vale-fila-producto { flex: 1; min-width: 0; }
+.vale-fila-cantidad { width: 96px; flex-shrink: 0; }
+.vale-fila .vf-quitar { margin-top: 5px; flex-shrink: 0; }
+/* Calendario de vales entregados/rechazados: mes a la izquierda, vales del
+   día elegido a la derecha (apilados en pantallas angostas). */
+.vales-calendario { display: grid; grid-template-columns: minmax(260px, 340px) 1fr; gap: 20px; align-items: start; }
+.cal-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.cal-titulo { font-size: 14px; }
+.cal-grilla { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.cal-semana { text-align: center; font-size: 11px; font-weight: 700; color: var(--muted); padding: 4px 0; }
+.cal-dia {
+  position: relative; aspect-ratio: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  border: 1px solid transparent; border-radius: 8px; background: transparent; font: inherit; font-size: 13px; color: var(--muted);
+}
+.cal-dia.vacio { visibility: hidden; }
+.cal-dia.hoy { border-color: var(--line); }
+.cal-dia.con-vales { background: var(--bg); color: var(--ink); font-weight: 700; cursor: pointer; }
+.cal-dia.con-vales:hover { border-color: var(--info); }
+.cal-dia.elegido { background: var(--info); color: #fff; border-color: var(--info); }
+.cal-n { font-size: 10px; font-weight: 700; line-height: 1; margin-top: 2px; color: var(--info); }
+.cal-dia.elegido .cal-n { color: #fff; }
+.vale-desplegable { border: 1px solid var(--line); border-radius: 8px; margin-bottom: 8px; background: var(--surface); }
+.vale-desplegable summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; padding: 10px 14px; cursor: pointer; font-size: 13px; }
+.vale-desplegable summary .nowrap { margin-left: auto; }
+.vale-desplegable[open] summary { border-bottom: 1px solid var(--line); }
+.vale-desplegable .vale-card { border: none; margin: 0; }
+@media (max-width: 760px) {
+  .vales-calendario { grid-template-columns: 1fr; }
+}
+.grid.grid-estados { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (max-width: 640px) {
+  /* Calendario de vales entregados/rechazados: mes a la izquierda, vales del
+   día elegido a la derecha (apilados en pantallas angostas). */
+.vales-calendario { display: grid; grid-template-columns: minmax(260px, 340px) 1fr; gap: 20px; align-items: start; }
+.cal-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.cal-titulo { font-size: 14px; }
+.cal-grilla { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.cal-semana { text-align: center; font-size: 11px; font-weight: 700; color: var(--muted); padding: 4px 0; }
+.cal-dia {
+  position: relative; aspect-ratio: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  border: 1px solid transparent; border-radius: 8px; background: transparent; font: inherit; font-size: 13px; color: var(--muted);
+}
+.cal-dia.vacio { visibility: hidden; }
+.cal-dia.hoy { border-color: var(--line); }
+.cal-dia.con-vales { background: var(--bg); color: var(--ink); font-weight: 700; cursor: pointer; }
+.cal-dia.con-vales:hover { border-color: var(--info); }
+.cal-dia.elegido { background: var(--info); color: #fff; border-color: var(--info); }
+.cal-n { font-size: 10px; font-weight: 700; line-height: 1; margin-top: 2px; color: var(--info); }
+.cal-dia.elegido .cal-n { color: #fff; }
+.vale-desplegable { border: 1px solid var(--line); border-radius: 8px; margin-bottom: 8px; background: var(--surface); }
+.vale-desplegable summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; padding: 10px 14px; cursor: pointer; font-size: 13px; }
+.vale-desplegable summary .nowrap { margin-left: auto; }
+.vale-desplegable[open] summary { border-bottom: 1px solid var(--line); }
+.vale-desplegable .vale-card { border: none; margin: 0; }
+@media (max-width: 760px) {
+  .vales-calendario { grid-template-columns: 1fr; }
+}
+.grid.grid-estados { gap: 8px; }
+  .grid-estados .stat { padding: 10px; }
+  .grid-estados .stat .label { font-size: 10px; }
+}
+.btn-danger-solid { background: var(--danger); color: #fff; }
+.btn-danger-solid:hover { background: #991b1b; }
+
 @media (max-width: 640px) {
   /* auto-fill con minmax(200px,1fr) puede pasarse de ancho en celulares
      angostos y generar scroll horizontal de toda la página: forzamos 1 columna. */
