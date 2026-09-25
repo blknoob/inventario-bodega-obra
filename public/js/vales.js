@@ -66,14 +66,14 @@ export async function crearVale({ perfil, obra, trabajador, actividad, observaci
   if (MODO_DEMO) bloquearEnDemo();
   const tipo = ROLES[perfil?.rol]?.tipoVale;
   if (!tipo) throw new Error("Tu cuenta no puede crear vales.");
-  if (!trabajador?.trim()) throw new Error("Indica el nombre del trabajador.");
+  if (!trabajador?.trim()) throw new Error("Indica nombre del trabajador.");
   if (!actividad?.trim()) throw new Error("Indica la actividad.");
 
   const porMaterial = new Map();
   for (const it of items || []) {
     const cant = Number(it.cantidad);
-    if (!it.materialId) throw new Error("Selecciona un producto de la lista en cada fila.");
-    if (!(cant > 0)) throw new Error(`${it.producto}: la cantidad debe ser mayor que cero.`);
+    if (!it.materialId) throw new Error("Selecciona un producto de la lista.");
+    if (!(cant > 0)) throw new Error(`${it.producto}: la cantidad debe ser mayor a 0.`);
     const previo = porMaterial.get(it.materialId);
     porMaterial.set(it.materialId, {
       materialId: it.materialId,
@@ -137,7 +137,7 @@ export async function entregarVale(valeId) {
     const faltantes = [];
     vale.items.forEach((it, i) => {
       const snap = materialesSnap[i];
-      if (!snap.exists()) { faltantes.push(`${it.producto}: ya no existe en el catálogo`); return; }
+      if (!snap.exists()) { faltantes.push(`${it.producto}: No existe en stock`); return; }
       if (!TIPOS_VALE[vale.tipo]?.admite(snap.data().categoria)) {
         faltantes.push(`${it.producto}: no corresponde a un vale de ${TIPOS_VALE[vale.tipo]?.etiqueta ?? vale.tipo}`);
         return;

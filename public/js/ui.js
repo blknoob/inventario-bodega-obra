@@ -87,7 +87,7 @@ export function montarTopbar(activo = "") {
     }
     if (esBodega || esSolicitante(perfil.rol)) {
       slot.innerHTML = `
-        <a href="vales.html" class="${activo === "vales" ? "active" : ""}">Vales <span class="badge badge-warn hidden" id="nav-vales-pendientes"></span></a>
+        <a href="vales.html" class="${activo === "vales" ? "active" : ""}" title="${esBodega ? "Vales por entregar" : "Mis vales"}">${esBodega ? "Bandeja de entrada" : "Vales"} <span class="badge badge-warn hidden" id="nav-vales-pendientes"></span></a>
         ${esBodega ? `<a href="bodega.html" class="${activo === "bodega" ? "active" : ""}">Panel bodega</a>` : ""}
         <a href="#" id="btn-logout">Salir</a>
       `;

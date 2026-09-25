@@ -475,6 +475,10 @@
       perfil = p;
       esBodega = p.rol === "bodega";
       const tipoVale = TIPOS_VALE[ROLES[p.rol].tipoVale];
+      if (esBodega) {
+        document.querySelector(".page-head h1").textContent = "Bandeja de entrada";
+        document.title = "Bandeja de entrada | Inventario de Bodega";
+      }
       document.getElementById("titulo-sub").textContent = esBodega
         ? "Vales que piden capataz, supervisor y prevencionista. Al marcarlo entregado se descuenta el stock y queda en el Historial."
         : `${p.nombre} · ${etiquetaRol(p.rol)}. Pide ${tipoVale.etiqueta.toLowerCase()} a bodega para un trabajador; el stock se descuenta cuando bodega lo entrega.`;
