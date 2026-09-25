@@ -23,11 +23,15 @@ export function montarTopbar(activo = "") {
   header.className = "topbar";
   header.innerHTML = `
     <a class="brand" href="index.html">Control de Inventario <b>DPC</b></a>
-    <select id="selector-obra" class="selector-obra" title="Obra activa" aria-label="Obra activa">${optsObra}</select>
+    <div class="topbar-obra">
+      <select id="selector-obra" class="selector-obra" title="Obra activa" aria-label="Obra activa">${optsObra}</select>
+      <span class="sesion-actual hidden" id="sesion-actual"></span>
+    </div>
     <button type="button" class="menu-toggle" id="menu-toggle" aria-label="Abrir menú" aria-expanded="false" aria-controls="topbar-nav">
       <span class="bar"></span><span class="bar"></span><span class="bar"></span>
     </button>
     <nav id="topbar-nav">
+      <span class="sesion-actual sesion-actual-menu hidden" id="sesion-actual-menu"></span>
       ${link("index.html", "inicio", "Inicio")}
       ${link("materiales.html", "materiales", "Materiales")}
       ${link("materiales.html?categoria=epp", "epps", "EPPs")}
@@ -73,6 +77,16 @@ export function montarTopbar(activo = "") {
     // En demo el perfil es simulado (bodega por defecto, ver js/auth.js).
     const esBodega = perfil?.rol === "bodega";
     document.body.classList.toggle("es-bodega", esBodega);
+
+    // "Sesión: Carlos Urbina" junto al selector de obra (y arriba del menú
+    // en celular). La cuenta de bodega no tiene nombre propio: "Bodega".
+    const nombreSesion = !perfil ? "" : perfil.user.displayName || (esBodega ? "Bodega" : perfil.nombre);
+    for (const id of ["sesion-actual", "sesion-actual-menu"]) {
+      const el = header.querySelector(`#${id}`);
+      el.innerHTML = "";
+      if (nombreSesion) el.append("Sesión: ", Object.assign(document.createElement("b"), { textContent: nombreSesion }));
+      el.classList.toggle("hidden", !nombreSesion);
+    }
     dejarDeContarVales?.();
     dejarDeContarVales = null;
 

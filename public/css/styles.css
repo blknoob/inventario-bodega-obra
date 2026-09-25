@@ -98,6 +98,10 @@ a { color: var(--info); }
   cursor: pointer;
 }
 .topbar .selector-obra:hover { background: rgba(255, 255, 255, .18); }
+.topbar-obra { display: flex; align-items: center; gap: 12px; flex: 0 1 auto; min-width: 0; }
+.sesion-actual { font-size: 13px; color: #cbd2d9; white-space: nowrap; }
+.sesion-actual b { color: #fff; font-weight: 600; }
+.sesion-actual-menu { display: none; }
 .topbar .selector-obra option { color: var(--ink); }
 
 /* Botón hamburguesa: oculto en desktop, se muestra en el media query de abajo. */
@@ -680,6 +684,10 @@ body.es-bodega .only-bodega.row-actions { display: flex; }
   .topbar nav.open { display: flex; }
   .topbar nav a { font-size: 14px; padding: 10px 12px; }
   .topbar nav > .badge { align-self: flex-start; margin: 6px 12px 0; }
+  /* En celular no cabe junto al selector: va arriba del menú desplegable. */
+  .topbar-obra .sesion-actual { display: none; }
+  .sesion-actual-menu { display: block; padding: 6px 12px 10px; margin-bottom: 4px; border-bottom: 1px solid rgba(255, 255, 255, .12); }
+  .sesion-actual-menu.hidden { display: none; }
 
   .wrap { padding: 16px 14px 36px; }
   .page-head h1 { font-size: 19px; }
