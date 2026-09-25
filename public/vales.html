@@ -14,7 +14,7 @@
 
     <div class="page-head">
       <h1>Vales de entrega</h1>
-      <p id="titulo-sub">Cargando…</p>
+      <p id="titulo-sub"></p>
     </div>
 
     <!-- ── Capataz / supervisor / prevencionista: pedir un vale ──────────── -->
@@ -587,9 +587,12 @@
         document.querySelector(".page-head h1").textContent = "Bandeja de entrada";
         document.title = "Bandeja de entrada | Inventario de Bodega";
       }
-      document.getElementById("titulo-sub").textContent = esBodega
+      // Solo bodega lleva subtítulo; quien pide ve directo el formulario.
+      const tituloSub = document.getElementById("titulo-sub");
+      tituloSub.textContent = esBodega
         ? "Vales que piden capataz, supervisor y prevencionista. Al marcarlo entregado se descuenta el stock y queda en el Historial."
-        : `${p.nombre} · ${etiquetaRol(p.rol)}. Pide ${tipoVale.etiqueta.toLowerCase()} a bodega para un trabajador; el stock se descuenta cuando bodega lo entrega.`;
+        : "";
+      tituloSub.classList.toggle("hidden", !esBodega);
       document.getElementById("nuevo-titulo").textContent = tipoVale ? `Nuevo vale de ${tipoVale.etiqueta}` : "";
       document.getElementById("bloque-nuevo").classList.toggle("hidden", esBodega);
       filtroTipo.classList.toggle("hidden", !esBodega);
