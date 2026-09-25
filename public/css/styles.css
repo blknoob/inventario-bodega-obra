@@ -78,6 +78,10 @@ a { color: var(--info); }
 .topbar nav a:hover,
 .topbar nav a.active { background: rgba(255, 255, 255, .12); color: #fff; }
 .topbar .session { font-size: 12px; color: var(--muted); }
+/* Los enlaces de sesión (Bandeja de entrada / Panel bodega / Salir) se
+   cargan dentro de #nav-session: "contents" los deja como hijos directos
+   del nav, para que se alineen igual que el resto (apilados en celular). */
+#nav-session { display: contents; }
 
 /* Selector de obra (CCLP II / Data Centers): divide materiales, EPP y
    herramientas de la misma bodega. Va en la barra siempre visible, no
@@ -675,6 +679,7 @@ body.es-bodega .only-bodega.row-actions { display: flex; }
   }
   .topbar nav.open { display: flex; }
   .topbar nav a { font-size: 14px; padding: 10px 12px; }
+  .topbar nav > .badge { align-self: flex-start; margin: 6px 12px 0; }
 
   .wrap { padding: 16px 14px 36px; }
   .page-head h1 { font-size: 19px; }
