@@ -131,12 +131,18 @@
     let esBodega = false;
     let materiales = []; // catálogo de la obra activa (todas las categorías)
     let vales = [];
-    // Bodega entra directo a lo que tiene que hacer: los vales por entregar.
-    let filtroEstado = "";
+    // Siempre hay una pestaña elegida: "Por entregar" es un listado (ahí se
+    // actúa); "Entregados" y "Rechazados" se ven en un calendario, por el día
+    // en que se entregaron/rechazaron.
+    let filtroEstado = "pendiente";
+    let mesCalendario = null; // Date del día 1 del mes que se muestra
+    let diaElegido = null;    // "YYYY-MM-DD"
 
     // ── Listado ─────────────────────────────────────────────────────────
     function setFiltroEstado(estado) {
-      filtroEstado = filtroEstado === estado ? "" : estado;
+      filtroEstado = estado;
+      mesCalendario = null; // al cambiar de pestaña, vuelve al día más reciente con vales
+      diaElegido = null;
       statCards.forEach((c) => c.classList.toggle("active", c.dataset.estado === filtroEstado));
       render();
     }
@@ -180,7 +186,7 @@
               <span class="badge badge-muted">${esc(TIPOS_VALE[v.tipo]?.etiqueta ?? v.tipo)}</span>
               <span class="badge ${estado.badge}">${esc(estado.etiqueta)}</span>
             </div>
-            <span class="text-sm muted nowrap">${fmtFecha(v.creadoEn)}</span>
+            <span class="text-sm muted nowrap">Pedido ${fmtFecha(v.creadoEn)}</span>
           </div>
           <div class="vale-datos text-sm">
             <span><span class="muted">Trabajador:</span> <strong>${esc(v.trabajador)}</strong></span>
@@ -198,6 +204,62 @@
         </div>`;
     }
 
+    // "YYYY-MM-DD" en horario local.
+    const fechaISO = (d) =>
+      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const fechaCierre = (v) => (v.estado === "entregado" ? v.entregadoEn : v.rechazadoEn)?.toDate?.() || null;
+    const mayuscula = (t) => t.charAt(0).toUpperCase() + t.slice(1);
+    const fmtHora = (d) => d.toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" });
+
+    // Un vale ya cerrado, colapsado a una línea; se abre para ver el detalle.
+    function valeDesplegable(v) {
+      const d = fechaCierre(v);
+      const productos = v.items.length === 1 ? "1 producto" : `${v.items.length} productos`;
+      return `
+        <details class="vale-desplegable">
+          <summary>
+            <strong>${numeroValeTexto(v.numero)}</strong>
+            <span>${esc(v.trabajador)}</span>
+            <span class="muted">${esc(v.actividad)} · ${productos}</span>
+            <span class="muted nowrap">${d ? fmtHora(d) : ""}</span>
+          </summary>
+          ${tarjetaVale(v)}
+        </details>`;
+    }
+
+    function calendario(porDia) {
+      const anio = mesCalendario.getFullYear();
+      const mes = mesCalendario.getMonth();
+      const hoy = fechaISO(new Date());
+      // Lunes primero: getDay() da 0 para domingo.
+      const desfase = (new Date(anio, mes, 1).getDay() + 6) % 7;
+      const diasMes = new Date(anio, mes + 1, 0).getDate();
+      const celdas = [];
+      for (let i = 0; i < desfase; i++) celdas.push(`<span class="cal-dia vacio"></span>`);
+      for (let dia = 1; dia <= diasMes; dia++) {
+        const iso = fechaISO(new Date(anio, mes, dia));
+        const n = porDia.get(iso)?.length || 0;
+        const clases = ["cal-dia", n ? "con-vales" : "", iso === diaElegido ? "elegido" : "", iso === hoy ? "hoy" : ""].join(" ");
+        celdas.push(`
+          <button type="button" class="${clases}" data-dia="${iso}" ${n ? "" : "disabled"} aria-label="${dia}${n ? `, ${n} vale${n === 1 ? "" : "s"}` : ""}">
+            <span>${dia}</span>${n ? `<span class="cal-n">${n}</span>` : ""}
+          </button>`);
+      }
+      const titulo = mayuscula(mesCalendario.toLocaleDateString("es-CL", { month: "long", year: "numeric" }));
+      return `
+        <div class="calendario">
+          <div class="cal-head">
+            <button type="button" class="btn btn-ghost btn-xs" data-mes="-1" aria-label="Mes anterior">‹</button>
+            <strong class="cal-titulo">${esc(titulo)}</strong>
+            <button type="button" class="btn btn-ghost btn-xs" data-mes="1" aria-label="Mes siguiente">›</button>
+          </div>
+          <div class="cal-grilla">
+            ${["L", "M", "M", "J", "V", "S", "D"].map((d) => `<span class="cal-semana">${d}</span>`).join("")}
+            ${celdas.join("")}
+          </div>
+        </div>`;
+    }
+
     function render() {
       if (!perfil) return;
       const q = normalizar(buscar.value);
@@ -206,14 +268,60 @@
       for (const estado of Object.keys(ESTADOS_VALE)) {
         document.getElementById(`stat-${estado}`).textContent = base.filter((v) => v.estado === estado).length;
       }
-      const vista = base.filter((v) => (!filtroEstado || v.estado === filtroEstado) && coincide(v, q));
-      // Los por entregar, del más antiguo al más nuevo (orden de llegada a
-      // bodega); el resto, del más reciente al más antiguo.
-      if (filtroEstado === "pendiente") vista.reverse();
-      listaVales.innerHTML = vista.length
-        ? vista.map(tarjetaVale).join("")
-        : `<p class="empty">${vales.length ? "Sin vales para este filtro." : esBodega ? "Aún no llegan vales en esta obra." : "Aún no has enviado vales en esta obra."}</p>`;
+      const vista = base.filter((v) => v.estado === filtroEstado && coincide(v, q));
+      const sinVales = `<p class="empty">${vales.length ? "Sin vales para este filtro." : esBodega ? "Aún no llegan vales en esta obra." : "Aún no has enviado vales en esta obra."}</p>`;
+
+      if (filtroEstado === "pendiente") {
+        // Del más antiguo al más nuevo: orden de llegada a bodega.
+        vista.reverse();
+        listaVales.innerHTML = vista.length ? vista.map(tarjetaVale).join("") : sinVales;
+        return;
+      }
+
+      const porDia = new Map();
+      for (const v of vista) {
+        const d = fechaCierre(v);
+        if (!d) continue; // recién cerrado: la hora del servidor llega en el próximo snapshot
+        const iso = fechaISO(d);
+        if (!porDia.has(iso)) porDia.set(iso, []);
+        porDia.get(iso).push(v);
+      }
+      // Sin día elegido (recién abierta la pestaña): el más reciente con vales, o hoy.
+      if (!diaElegido) {
+        diaElegido = [...porDia.keys()].sort().pop() || fechaISO(new Date());
+      }
+      if (!mesCalendario) {
+        const [a, m] = diaElegido.split("-").map(Number);
+        mesCalendario = new Date(a, m - 1, 1);
+      }
+      const delDia = (porDia.get(diaElegido) || [])
+        .sort((a, b) => fechaCierre(b) - fechaCierre(a));
+      const [a, m, d] = diaElegido.split("-").map(Number);
+      const tituloDia = mayuscula(new Date(a, m - 1, d).toLocaleDateString("es-CL", { weekday: "long", day: "numeric", month: "long" }));
+      const accion = filtroEstado === "entregado" ? "entregados" : "rechazados";
+
+      listaVales.innerHTML = `
+        <div class="vales-calendario">
+          ${calendario(porDia)}
+          <div class="vales-del-dia">
+            <h3 class="text-sm" style="margin:0 0 10px;">${esc(tituloDia)}</h3>
+            ${delDia.length
+              ? delDia.map(valeDesplegable).join("")
+              : `<p class="empty" style="padding:16px 0;">${porDia.size ? `Ningún vale ${accion} este día.` : `Sin vales ${accion}${q || tipo ? " para este filtro" : ""}.`}</p>`}
+          </div>
+        </div>`;
     }
+
+    // Navegación del calendario (delegada: el calendario se redibuja entero).
+    listaVales.addEventListener("click", (e) => {
+      const dia = e.target.closest("[data-dia]");
+      if (dia) { diaElegido = dia.dataset.dia; render(); return; }
+      const mes = e.target.closest("[data-mes]");
+      if (mes) {
+        mesCalendario = new Date(mesCalendario.getFullYear(), mesCalendario.getMonth() + Number(mes.dataset.mes), 1);
+        render();
+      }
+    });
 
     // ── Entregar / rechazar (bodega) ────────────────────────────────────
     const dlgAccion = document.getElementById("dlg-accion");
@@ -485,7 +593,7 @@
       document.getElementById("nuevo-titulo").textContent = tipoVale ? `Nuevo vale de ${tipoVale.etiqueta}` : "";
       document.getElementById("bloque-nuevo").classList.toggle("hidden", esBodega);
       filtroTipo.classList.toggle("hidden", !esBodega);
-      if (esBodega) setFiltroEstado("pendiente");
+      setFiltroEstado("pendiente");
       if (!esBodega) iniciarFormulario();
 
       escucharConObraActiva(

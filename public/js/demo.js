@@ -154,4 +154,29 @@ export const VALES_DEMO = [
     solicitanteUid: "demo-supervisor", solicitanteNombre: "Alejandro Pastrian", solicitanteEmail: "supervisor@demo.cl", solicitanteRol: "supervisor",
     estado: "entregado", creadoEn: hace(401000), entregadoPor: "bodega@demo.cl", entregadoEn: hace(400000), movimientoIds: ["m4"],
   },
+  {
+    id: "v4", numero: 4, obra: "cclp2", tipo: "epp", trabajador: "Pedro Muñoz", actividad: "Moldaje losa nivel 4",
+    observacion: "", items: [
+      { materialId: "d4", producto: "Casco de seguridad", unidad: "unidades", cantidad: 1 },
+      { materialId: "d2", producto: "Guantes de cabritilla", unidad: "pares", cantidad: 2 },
+    ],
+    solicitanteUid: "demo-prevencionista", solicitanteNombre: "Inti Henriquez", solicitanteEmail: "prevencionista@demo.cl", solicitanteRol: "prevencionista",
+    estado: "entregado", creadoEn: hace(7400), entregadoPor: "bodega@demo.cl", entregadoEn: hace(7200), movimientoIds: [],
+  },
+  {
+    id: "v5", numero: 5, obra: "cclp2", tipo: "material", trabajador: "Luis Vera", actividad: "Radier sector B",
+    observacion: "", items: [
+      { materialId: "d1", producto: "Cemento Portland 25 kg", unidad: "sacos", cantidad: 10 },
+    ],
+    solicitanteUid: "demo-capataz", solicitanteNombre: "Carlos Urbina", solicitanteEmail: "capataz@demo.cl", solicitanteRol: "capataz",
+    estado: "entregado", creadoEn: hace(7000), entregadoPor: "bodega@demo.cl", entregadoEn: hace(6600), movimientoIds: [],
+  },
+  {
+    id: "v6", numero: 6, obra: "cclp2", tipo: "material", trabajador: "Juan Soto", actividad: "Fundaciones",
+    observacion: "", items: [
+      { materialId: "d6", producto: "Fierro estriado Ø10", unidad: "barras", cantidad: 200 },
+    ],
+    solicitanteUid: "demo-capataz", solicitanteNombre: "Carlos Urbina", solicitanteEmail: "capataz@demo.cl", solicitanteRol: "capataz",
+    estado: "rechazado", creadoEn: hace(180000), rechazadoPor: "bodega@demo.cl", rechazadoEn: hace(172800), motivoRechazo: "No hay stock suficiente, llega el lunes",
+  },
 ];
