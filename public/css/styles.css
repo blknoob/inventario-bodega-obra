@@ -686,7 +686,8 @@ body.es-bodega .only-bodega.row-actions { display: flex; }
   .topbar nav > .badge { align-self: flex-start; margin: 6px 12px 0; }
   /* En celular no cabe junto al selector: va arriba del menú desplegable. */
   .topbar-obra .sesion-actual { display: none; }
-  .sesion-actual-menu { display: block; padding: 6px 12px 10px; margin-bottom: 4px; border-bottom: 1px solid rgba(255, 255, 255, .12); }
+  .sesion-actual-menu { display: block; text-align: right; padding: 6px 12px 10px; margin-bottom: 4px; border-bottom: 1px solid rgba(255, 255, 255, .12); }
+  .sesion-actual-menu b { font-weight: 400; color: #cbd2d9; }
   .sesion-actual-menu.hidden { display: none; }
 
   .wrap { padding: 16px 14px 36px; }
