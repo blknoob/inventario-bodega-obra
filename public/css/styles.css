@@ -610,7 +610,13 @@ body.es-bodega .only-bodega.row-actions { display: flex; }
 @media (max-width: 760px) {
   .vales-calendario { grid-template-columns: 1fr; }
 }
-.grid.grid-estados { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.grid.grid-estados { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+/* QR de aprobación del vale (vales.html) y página del trabajador (aprobar.html). */
+.qr-cuerpo { padding: 20px; }
+.qr-imagen { width: min(260px, 100%); margin: 0 auto; background: #fff; border-radius: 8px; }
+.qr-imagen svg { display: block; width: 100%; height: auto; }
+.aprobar-box { max-width: 440px; }
+.aprobar-box .btn-block { padding: 14px; font-size: 16px; }
 @media (max-width: 640px) {
   /* Calendario de vales entregados/rechazados: mes a la izquierda, vales del
    día elegido a la derecha (apilados en pantallas angostas). */
@@ -638,7 +644,7 @@ body.es-bodega .only-bodega.row-actions { display: flex; }
 @media (max-width: 760px) {
   .vales-calendario { grid-template-columns: 1fr; }
 }
-.grid.grid-estados { gap: 8px; }
+.grid.grid-estados { gap: 8px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .grid-estados .stat { padding: 10px; }
   .grid-estados .stat .label { font-size: 10px; }
 }

@@ -2,7 +2,14 @@
 // Vales de entrega — capataz/supervisor piden materiales, prevencionista pide
 // EPP, para un trabajador; bodega los entrega (descuenta stock) o los rechaza.
 // ─────────────────────────────────────────────────────────────────────────────
-// Un vale nace "pendiente" (Por entregar) y NO toca el stock: el descuento
+// Un vale nace "por_aprobar": el trabajador que va a retirar escanea un QR
+// (aprobar.html?t=<token>, sin cuenta) y confirma el listado; recién ahí pasa
+// a "pendiente" (Por entregar) y le aparece a bodega. El token es el id de un
+// documento aparte (aprobaciones_vale/{token}) con una copia de lo pedido:
+// quien lo tiene puede leer ese documento y aprobarlo, nada más -- los vales
+// siguen visibles solo para bodega y para quien los pidió.
+//
+// Ningún estado antes de "entregado" toca el stock: el descuento
 // ocurre recién cuando bodega lo marca "entregado", en una sola transacción
 // que revisa el stock de todos sus productos, descuenta, deja un movimiento de
 // salida por producto en el Historial (movimientos_materiales, con el número
@@ -12,6 +19,7 @@
 import {
   collection,
   doc,
+  getDoc,
   limit,
   onSnapshot,
   orderBy,
@@ -19,6 +27,7 @@ import {
   runTransaction,
   serverTimestamp,
   where,
+  writeBatch,
 } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { usuarioActual, ROLES, etiquetaRol } from "./auth.js";
@@ -27,6 +36,7 @@ import { OBRAS } from "./obra.js";
 
 const valesRef = collection(db, "vales");
 const movimientosRef = collection(db, "movimientos_materiales");
+const aprobacionesRef = collection(db, "aprobaciones_vale");
 const contadorValesDoc = doc(db, "contadores", "vales");
 
 // "material" = todo lo que se ve en la página Materiales (sin EPP ni
@@ -37,9 +47,12 @@ export const TIPOS_VALE = {
 };
 
 export const ESTADOS_VALE = {
+  por_aprobar: { etiqueta: "Por aprobar", badge: "badge-info" },
   pendiente: { etiqueta: "Por entregar", badge: "badge-warn" },
   entregado: { etiqueta: "Entregado", badge: "badge-ok" },
   rechazado: { etiqueta: "Rechazado", badge: "badge-danger" },
+  // Lo anuló quien lo pidió, antes de que el trabajador lo aprobara.
+  anulado: { etiqueta: "Anulado", badge: "badge-muted" },
 };
 
 // Tope de productos por vale (también en firestore.rules).
@@ -56,6 +69,11 @@ export function materialesParaVale(rol, materiales) {
 }
 
 const redondear = (n) => Math.round(n * 1000) / 1000;
+
+/** Enlace que abre el QR de un vale: la página donde el trabajador lo aprueba. */
+export function enlaceAprobacion(token) {
+  return new URL(`aprobar.html?t=${encodeURIComponent(token)}`, location.href).href;
+}
 
 /**
  * Crea un vale pendiente con correlativo automático (V-0001, V-0002...).
@@ -87,11 +105,14 @@ export async function crearVale({ perfil, obra, trabajador, actividad, observaci
   if (itemsFinal.length > MAX_ITEMS_VALE) throw new Error(`Un vale admite hasta ${MAX_ITEMS_VALE} productos.`);
 
   const nuevoValeRef = doc(valesRef);
+  // Id automático de Firestore (~120 bits al azar): imposible de adivinar,
+  // así que solo lo conoce quien tenga el QR.
+  const aprobacionRef = doc(aprobacionesRef);
+  const token = aprobacionRef.id;
   const numero = await runTransaction(db, async (tx) => {
     const contadorSnap = await tx.get(contadorValesDoc);
     const siguiente = (Number(contadorSnap.data()?.valor) || 0) + 1;
-    tx.set(contadorValesDoc, { valor: siguiente });
-    tx.set(nuevoValeRef, {
+    const comun = {
       numero: siguiente,
       obra: obra || OBRAS[0].valor,
       tipo,
@@ -99,16 +120,23 @@ export async function crearVale({ perfil, obra, trabajador, actividad, observaci
       actividad: actividad.trim(),
       observacion: observacion?.trim() || "",
       items: itemsFinal,
-      solicitanteUid: perfil.user.uid,
       solicitanteNombre: perfil.nombre || "",
-      solicitanteEmail: perfil.email || "",
       solicitanteRol: perfil.rol,
-      estado: "pendiente",
+    };
+    tx.set(contadorValesDoc, { valor: siguiente });
+    tx.set(nuevoValeRef, {
+      ...comun,
+      solicitanteUid: perfil.user.uid,
+      solicitanteEmail: perfil.email || "",
+      estado: "por_aprobar",
+      tokenAprobacion: token,
       creadoEn: serverTimestamp(),
     });
+    // Lo que ve el trabajador al escanear (sin email ni uid de nadie).
+    tx.set(aprobacionRef, { ...comun, valeId: nuevoValeRef.id, aprobado: false, creadoEn: serverTimestamp() });
     return siguiente;
   });
-  return { id: nuevoValeRef.id, numero };
+  return { id: nuevoValeRef.id, numero, token };
 }
 
 /**
@@ -183,6 +211,76 @@ export async function entregarVale(valeId) {
       entregadoEn: serverTimestamp(),
       movimientoIds,
     });
+  });
+}
+
+/** Lo que ve el trabajador al abrir el QR (o null si el enlace no sirve). */
+export async function leerAprobacion(token) {
+  if (!token) return null;
+  if (MODO_DEMO) {
+    const v = VALES_DEMO.find((x) => x.tokenAprobacion === token);
+    return v ? { id: token, ...v, valeId: v.id, aprobado: !!v.aprobadoEn, anulado: v.estado === "anulado" } : null;
+  }
+  const snap = await getDoc(doc(aprobacionesRef, token));
+  return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+}
+
+/**
+ * El trabajador aprueba lo que va a retirar: el vale pasa a "pendiente" (le
+ * aparece a bodega). Sin sesión: las reglas lo permiten solo si se aprueba
+ * a la vez el documento del token, en el mismo lote.
+ */
+export async function aprobarVale(token, valeId) {
+  if (MODO_DEMO) bloquearEnDemo();
+  const batch = writeBatch(db);
+  batch.update(doc(aprobacionesRef, token), { aprobado: true, aprobadoEn: serverTimestamp() });
+  batch.update(doc(valesRef, valeId), { estado: "pendiente", aprobadoEn: serverTimestamp() });
+  try {
+    await batch.commit();
+  } catch (err) {
+    if (err.code === "permission-denied" || err.code === "not-found") {
+      throw new Error("No se pudo aprobar: la solicitud ya fue aprobada o fue anulada.");
+    }
+    if (err.code === "unavailable") throw new Error("Sin conexión. Revisa tu internet e intenta de nuevo.");
+    throw err;
+  }
+}
+
+/**
+ * Aprobación en bodega, para el trabajador sin celular: llega al mesón, bodega
+ * le muestra el listado y, si está de acuerdo, lo marca aprobado. Queda
+ * anotado quién de bodega lo aprobó (para distinguirlo del QR), y el QR
+ * también queda aprobado.
+ */
+export async function aprobarValeEnBodega(valeId) {
+  if (MODO_DEMO) bloquearEnDemo();
+  const email = usuarioActual()?.email ?? null;
+  const valeDoc = doc(valesRef, valeId);
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(valeDoc);
+    if (!snap.exists()) throw new Error("El vale ya no existe.");
+    if (snap.data().estado !== "por_aprobar") throw new Error("Este vale ya no está por aprobar.");
+    tx.update(doc(aprobacionesRef, snap.data().tokenAprobacion), { aprobado: true, aprobadoEn: serverTimestamp() });
+    tx.update(valeDoc, { estado: "pendiente", aprobadoEn: serverTimestamp(), aprobadoEnBodegaPor: email });
+  });
+}
+
+/**
+ * Quien pidió el vale lo anula mientras el trabajador todavía no lo aprueba
+ * (se equivocó, o el trabajador no está de acuerdo). El QR deja de servir:
+ * su documento queda marcado "anulado" en la misma transacción.
+ */
+export async function anularVale(valeId) {
+  if (MODO_DEMO) bloquearEnDemo();
+  const valeDoc = doc(valesRef, valeId);
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(valeDoc);
+    if (!snap.exists()) throw new Error("El vale ya no existe.");
+    if (snap.data().estado !== "por_aprobar") {
+      throw new Error("El trabajador ya lo aprobó: ya no se puede anular (bodega puede rechazarlo).");
+    }
+    tx.update(valeDoc, { estado: "anulado", anuladoEn: serverTimestamp() });
+    tx.update(doc(aprobacionesRef, snap.data().tokenAprobacion), { anulado: true });
   });
 }
 

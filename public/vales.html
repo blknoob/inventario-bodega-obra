@@ -42,13 +42,17 @@
           <input type="text" id="v-observacion" maxlength="160" />
         </div>
         <div class="modal-foot" style="margin-top:0;">
-          <button type="submit" class="btn btn-primary" id="btn-enviar-vale">Enviar vale a bodega</button>
+          <button type="submit" class="btn btn-primary" id="btn-enviar-vale">Crear vale y mostrar QR</button>
         </div>
       </form>
     </div>
 
     <!-- ── Listado (bodega: todos los de la obra; resto: los propios) ────── -->
     <div class="grid grid-estados" style="margin-bottom: 18px;">
+      <button type="button" class="stat" data-estado="por_aprobar">
+        <div class="label">Por aprobar</div>
+        <div class="value" id="stat-por_aprobar">—</div>
+      </button>
       <button type="button" class="stat" data-estado="pendiente">
         <div class="label">Por entregar</div>
         <div class="value stock-bajo" id="stat-pendiente">—</div>
@@ -58,7 +62,7 @@
         <div class="value stock-ok" id="stat-entregado">—</div>
       </button>
       <button type="button" class="stat" data-estado="rechazado">
-        <div class="label">Rechazados</div>
+        <div class="label">Rechazados / anulados</div>
         <div class="value stock-cero" id="stat-rechazado">—</div>
       </button>
     </div>
@@ -98,13 +102,31 @@
     </form>
   </dialog>
 
+  <!-- ── Modal: QR para que el trabajador apruebe (quien pide) ──────────── -->
+  <dialog id="dlg-qr">
+    <div class="modal-head">
+      <h3 id="qr-titulo">Aprobación del trabajador</h3>
+      <button type="button" class="modal-close" data-close>&times;</button>
+    </div>
+    <div class="qr-cuerpo">
+      <p class="text-sm" id="qr-instruccion" style="margin:0 0 12px;"></p>
+      <div id="qr-imagen" class="qr-imagen"></div>
+      <div id="qr-estado" class="alert alert-info" style="margin:12px 0 0;"></div>
+      <div class="modal-foot">
+        <button type="button" class="btn btn-ghost" id="btn-qr-compartir">Compartir enlace</button>
+        <button type="button" class="btn btn-primary" data-close>Listo</button>
+      </div>
+    </div>
+  </dialog>
+
   <script type="module">
+    import qrcode from "https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/+esm";
     import { montarTopbar, flash } from "./js/ui.js";
     import { requerirRol, etiquetaRol, ROLES } from "./js/auth.js";
     import { escucharMateriales } from "./js/materiales.js";
     import {
       TIPOS_VALE, ESTADOS_VALE, MAX_ITEMS_VALE, numeroValeTexto, materialesParaVale,
-      crearVale, entregarVale, rechazarVale, escucharValesObra, escucharMisVales,
+      crearVale, entregarVale, rechazarVale, escucharValesObra, escucharMisVales, enlaceAprobacion, anularVale, aprobarValeEnBodega,
     } from "./js/vales.js";
     import { obraActiva, etiquetaObra, escucharConObraActiva, escucharObraActiva } from "./js/obra.js";
 
@@ -159,6 +181,7 @@
     function tarjetaVale(v) {
       const estado = ESTADOS_VALE[v.estado] || { etiqueta: v.estado, badge: "badge-muted" };
       const pendiente = v.estado === "pendiente";
+      const porAprobar = v.estado === "por_aprobar";
       const filas = v.items.map((it) => {
         const m = materiales.find((x) => x.id === it.materialId);
         const stock = m ? Number(m.stock) || 0 : null;
@@ -175,7 +198,13 @@
       }).join("");
 
       const pie = [];
+      if (v.aprobadoEn) {
+        pie.push(v.aprobadoEnBodegaPor
+          ? `Aprobado por el trabajador en bodega ${fmtFecha(v.aprobadoEn)} (${esc(v.aprobadoEnBodegaPor)})`
+          : `Aprobado por el trabajador con QR ${fmtFecha(v.aprobadoEn)}`);
+      }
       if (v.estado === "entregado") pie.push(`Entregado ${fmtFecha(v.entregadoEn)} por ${esc(v.entregadoPor || "bodega")}`);
+      if (v.estado === "anulado") pie.push(`Anulado ${fmtFecha(v.anuladoEn)} por quien lo pidió`);
       if (v.estado === "rechazado") pie.push(`Rechazado ${fmtFecha(v.rechazadoEn)}: <strong>${esc(v.motivoRechazo)}</strong>`);
 
       return `
@@ -196,6 +225,18 @@
           ${v.observacion ? `<p class="text-sm" style="margin:6px 0 0;"><span class="muted">Observación:</span> ${esc(v.observacion)}</p>` : ""}
           <table class="vale-items"><tbody>${filas}</tbody></table>
           ${pie.length ? `<p class="text-sm muted" style="margin:8px 0 0;">${pie.join(" · ")}</p>` : ""}
+          ${porAprobar ? `<p class="text-sm muted" style="margin:8px 0 0;">${esBodega
+            ? `Esperando que ${esc(v.trabajador)} lo apruebe con el QR. Si no tiene celular, puede aprobarlo aquí en bodega.`
+            : `Esperando que ${esc(v.trabajador)} lo apruebe con el QR (o en bodega, si no tiene celular).`}</p>` : ""}
+          ${porAprobar && esBodega ? `
+            <div class="row-actions" style="margin-top:10px; justify-content:flex-end;">
+              <button type="button" class="btn btn-primary btn-xs" data-aprobar="${v.id}">Aprobar en bodega</button>
+            </div>` : ""}
+          ${porAprobar && !esBodega && v.tokenAprobacion ? `
+            <div class="row-actions" style="margin-top:10px; justify-content:flex-end;">
+              <button type="button" class="btn btn-ghost btn-danger btn-xs" data-anular="${v.id}">Anular</button>
+              <button type="button" class="btn btn-primary btn-xs" data-qr="${v.id}">Mostrar QR</button>
+            </div>` : ""}
           ${esBodega && pendiente ? `
             <div class="row-actions" style="margin-top:10px; justify-content:flex-end;">
               <button type="button" class="btn btn-ghost btn-danger btn-xs" data-rechazar="${v.id}">Rechazar</button>
@@ -207,7 +248,9 @@
     // "YYYY-MM-DD" en horario local.
     const fechaISO = (d) =>
       `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-    const fechaCierre = (v) => (v.estado === "entregado" ? v.entregadoEn : v.rechazadoEn)?.toDate?.() || null;
+    const fechaCierre = (v) => ({ entregado: v.entregadoEn, rechazado: v.rechazadoEn, anulado: v.anuladoEn })[v.estado]?.toDate?.() || null;
+    // Los anulados se ven junto a los rechazados (ninguno se entregó).
+    const pestanaDe = (v) => (v.estado === "anulado" ? "rechazado" : v.estado);
     const mayuscula = (t) => t.charAt(0).toUpperCase() + t.slice(1);
     const fmtHora = (d) => d.toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" });
 
@@ -265,15 +308,16 @@
       const q = normalizar(buscar.value);
       const tipo = filtroTipo.value;
       const base = vales.filter((v) => !tipo || v.tipo === tipo);
-      for (const estado of Object.keys(ESTADOS_VALE)) {
-        document.getElementById(`stat-${estado}`).textContent = base.filter((v) => v.estado === estado).length;
+      for (const c of statCards) {
+        document.getElementById(`stat-${c.dataset.estado}`).textContent = base.filter((v) => pestanaDe(v) === c.dataset.estado).length;
       }
-      const vista = base.filter((v) => v.estado === filtroEstado && coincide(v, q));
+      const vista = base.filter((v) => pestanaDe(v) === filtroEstado && coincide(v, q));
       const sinVales = `<p class="empty">${vales.length ? "Sin vales para este filtro." : esBodega ? "Aún no llegan vales en esta obra." : "Aún no has enviado vales en esta obra."}</p>`;
 
-      if (filtroEstado === "pendiente") {
-        // Del más antiguo al más nuevo: orden de llegada a bodega.
-        vista.reverse();
+      if (filtroEstado === "pendiente" || filtroEstado === "por_aprobar") {
+        // Por entregar: del más antiguo al más nuevo (orden de llegada a
+        // bodega). Por aprobar: el recién pedido arriba.
+        if (filtroEstado === "pendiente") vista.reverse();
         listaVales.innerHTML = vista.length ? vista.map(tarjetaVale).join("") : sinVales;
         return;
       }
@@ -298,7 +342,7 @@
         .sort((a, b) => fechaCierre(b) - fechaCierre(a));
       const [a, m, d] = diaElegido.split("-").map(Number);
       const tituloDia = mayuscula(new Date(a, m - 1, d).toLocaleDateString("es-CL", { weekday: "long", day: "numeric", month: "long" }));
-      const accion = filtroEstado === "entregado" ? "entregados" : "rechazados";
+      const accion = filtroEstado === "entregado" ? "entregados" : "rechazados ni anulados";
 
       listaVales.innerHTML = `
         <div class="vales-calendario">
@@ -329,34 +373,41 @@
     const errAccion = document.getElementById("err-accion");
     const btnAccion = document.getElementById("btn-accion");
     const motivoInput = document.getElementById("a-motivo");
-    let accion = null; // { tipo: "entregar" | "rechazar", valeId }
+    let accion = null; // { tipo: "entregar" | "rechazar" | "aprobar", valeId }
     let enviandoAccion = false;
 
     function abrirAccion(tipo, valeId) {
       const v = vales.find((x) => x.id === valeId);
       if (!v) return;
       accion = { tipo, valeId };
-      const entregar = tipo === "entregar";
-      document.getElementById("accion-titulo").textContent = `${entregar ? "Entregar" : "Rechazar"} ${numeroValeTexto(v.numero)}`;
+      const rechazar = tipo === "rechazar";
+      const titulos = { entregar: "Entregar", rechazar: "Rechazar", aprobar: "Aprobar en bodega" };
+      const notas = {
+        entregar: "Se descuenta del stock y queda registrado en el Historial.",
+        aprobar: `Muéstrale o léele el listado a <strong>${esc(v.trabajador)}</strong>. Confirma solo si está de acuerdo con lo que va a retirar; después puedes entregarlo.`,
+      };
+      document.getElementById("accion-titulo").textContent = `${titulos[tipo]} ${numeroValeTexto(v.numero)}`;
       document.getElementById("accion-resumen").innerHTML = `
         <p style="margin:0 0 6px;">Para <strong>${esc(v.trabajador)}</strong> — ${esc(v.actividad)}</p>
         <ul style="margin:0; padding-left:18px;">${v.items.map((it) => `<li>${esc(it.producto)}: <strong>${fmtNum(it.cantidad)}</strong> ${esc(it.unidad)}</li>`).join("")}</ul>
-        ${entregar ? `<p class="muted" style="margin:8px 0 0;">Se descuenta del stock y queda registrado en el Historial.</p>` : ""}`;
-      document.getElementById("bloque-motivo").classList.toggle("hidden", entregar);
-      motivoInput.required = !entregar;
+        ${notas[tipo] ? `<p class="muted" style="margin:8px 0 0;">${notas[tipo]}</p>` : ""}`;
+      document.getElementById("bloque-motivo").classList.toggle("hidden", !rechazar);
+      motivoInput.required = rechazar;
       motivoInput.value = "";
-      btnAccion.textContent = entregar ? "Marcar entregado" : "Rechazar vale";
-      btnAccion.className = `btn ${entregar ? "btn-primary" : "btn-danger-solid"}`;
+      btnAccion.textContent = { entregar: "Marcar entregado", rechazar: "Rechazar vale", aprobar: "El trabajador aprueba" }[tipo];
+      btnAccion.className = `btn ${rechazar ? "btn-danger-solid" : "btn-primary"}`;
       errAccion.classList.add("hidden");
       dlgAccion.showModal();
-      if (!entregar) motivoInput.focus();
+      if (rechazar) motivoInput.focus();
     }
 
     listaVales.addEventListener("click", (e) => {
       const entregar = e.target.closest("[data-entregar]");
       const rechazar = e.target.closest("[data-rechazar]");
+      const aprobar = e.target.closest("[data-aprobar]");
       if (entregar) abrirAccion("entregar", entregar.dataset.entregar);
       if (rechazar) abrirAccion("rechazar", rechazar.dataset.rechazar);
+      if (aprobar) abrirAccion("aprobar", aprobar.dataset.aprobar);
     });
 
     // Con un envío en curso no se puede cerrar (ni por X, Cancelar, clic
@@ -387,6 +438,10 @@
         if (tipo === "entregar") {
           await entregarVale(valeId);
           flash(`${numero} entregado. Stock descontado.`);
+        } else if (tipo === "aprobar") {
+          await aprobarValeEnBodega(valeId);
+          flash(`${numero} aprobado en bodega. Ya puedes entregarlo.`);
+          setFiltroEstado("pendiente");
         } else {
           await rechazarVale(valeId, motivoInput.value);
           flash(`${numero} rechazado.`);
@@ -401,6 +456,79 @@
         btnAccion.disabled = false;
         btnAccion.textContent = textoBoton;
         dlgAccion.querySelectorAll("[data-close]").forEach((b) => { b.disabled = false; });
+      }
+    });
+
+    // ── QR de aprobación (quien pide) ───────────────────────────────────
+    const dlgQr = document.getElementById("dlg-qr");
+    const qrEstado = document.getElementById("qr-estado");
+    const btnCompartir = document.getElementById("btn-qr-compartir");
+    let qrValeId = null;
+    let qrEnlace = "";
+
+    function refrescarEstadoQr() {
+      const v = vales.find((x) => x.id === qrValeId);
+      if (!v || v.estado === "por_aprobar") {
+        qrEstado.className = "alert alert-info";
+        qrEstado.textContent = "Esperando la aprobación del trabajador…";
+      } else {
+        qrEstado.className = "alert alert-ok";
+        qrEstado.textContent = v.estado === "pendiente"
+          ? "✓ Aprobado por el trabajador. Ya le aparece a bodega: puede ir a retirar."
+          : `✓ Aprobado por el trabajador (${(ESTADOS_VALE[v.estado]?.etiqueta ?? v.estado).toLowerCase()}).`;
+      }
+    }
+
+    // `datos` sirve recién creado el vale, antes de que llegue el snapshot.
+    function abrirQr(valeId, datos) {
+      const v = vales.find((x) => x.id === valeId) || datos;
+      if (!v?.tokenAprobacion) return;
+      qrValeId = valeId;
+      qrEnlace = enlaceAprobacion(v.tokenAprobacion);
+      const qr = qrcode(0, "M");
+      qr.addData(qrEnlace);
+      qr.make();
+      document.getElementById("qr-imagen").innerHTML = qr.createSvgTag({ cellSize: 6, margin: 2, scalable: true });
+      document.getElementById("qr-titulo").textContent = `${numeroValeTexto(v.numero)} — aprobación del trabajador`;
+      document.getElementById("qr-instruccion").innerHTML =
+        `Pídele a <strong>${esc(v.trabajador)}</strong> que escanee este código con la cámara de su celular y apruebe lo que va a retirar. Recién aprobado, el vale le llega a bodega.`;
+      btnCompartir.textContent = navigator.share ? "Compartir enlace" : "Copiar enlace";
+      refrescarEstadoQr();
+      dlgQr.showModal();
+    }
+
+    btnCompartir.addEventListener("click", async () => {
+      if (navigator.share) {
+        try { await navigator.share({ title: "Aprobar vale", url: qrEnlace }); } catch { /* cancelado */ }
+        return;
+      }
+      try {
+        await navigator.clipboard.writeText(qrEnlace);
+        btnCompartir.textContent = "¡Copiado!";
+      } catch {
+        prompt("Copia este enlace:", qrEnlace);
+      }
+    });
+    dlgQr.querySelectorAll("[data-close]").forEach((b) => b.addEventListener("click", () => dlgQr.close()));
+    dlgQr.addEventListener("click", (e) => {
+      const r = dlgQr.getBoundingClientRect();
+      const dentro = e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom;
+      if (!dentro) dlgQr.close();
+    });
+    listaVales.addEventListener("click", async (e) => {
+      const b = e.target.closest("[data-qr]");
+      if (b) abrirQr(b.dataset.qr);
+      const anular = e.target.closest("[data-anular]");
+      if (!anular || anular.disabled) return;
+      const v = vales.find((x) => x.id === anular.dataset.anular);
+      if (!v || !confirm(`¿Anular ${numeroValeTexto(v.numero)} de ${v.trabajador}? El QR deja de servir y el vale no llega a bodega.`)) return;
+      anular.disabled = true;
+      try {
+        await anularVale(v.id);
+        flash(`${numeroValeTexto(v.numero)} anulado.`);
+      } catch (err) {
+        flash(err.message, "error");
+        anular.disabled = false;
       }
     });
 
@@ -555,24 +683,27 @@
         btnEnviar.disabled = true;
         btnEnviar.textContent = "Enviando…";
         actualizarBotonesFilas();
-        const { numero } = await crearVale({
+        const trabajador = document.getElementById("v-trabajador").value.trim();
+        const { id, numero, token } = await crearVale({
           perfil,
           obra: obraActiva(),
-          trabajador: document.getElementById("v-trabajador").value,
+          trabajador,
           actividad: document.getElementById("v-actividad").value,
           observacion: document.getElementById("v-observacion").value,
           items,
         });
         formVale.reset();
         iniciarFormulario();
-        flash(`${numeroValeTexto(numero)} enviado a bodega (${etiquetaObra(obraActiva())}).`);
+        flash(`${numeroValeTexto(numero)} creado (${etiquetaObra(obraActiva())}). Falta que el trabajador lo apruebe con el QR.`);
+        setFiltroEstado("por_aprobar");
+        abrirQr(id, { numero, trabajador, tokenAprobacion: token });
       } catch (err) {
         errVale.textContent = err.message;
         errVale.classList.remove("hidden");
       } finally {
         enviandoVale = false;
         btnEnviar.disabled = false;
-        btnEnviar.textContent = "Enviar vale a bodega";
+        btnEnviar.textContent = "Crear vale y mostrar QR";
         actualizarBotonesFilas();
       }
     });
@@ -590,13 +721,15 @@
       // Solo bodega lleva subtítulo; quien pide ve directo el formulario.
       const tituloSub = document.getElementById("titulo-sub");
       tituloSub.textContent = esBodega
-        ? "Vales que piden capataz, supervisor y prevencionista. Al marcarlo entregado se descuenta el stock y queda en el Historial."
+        ? "Vales que piden capataz, supervisor y prevencionista, ya aprobados por el trabajador que retira. Al marcarlo entregado se descuenta el stock y queda en el Historial."
         : "";
       tituloSub.classList.toggle("hidden", !esBodega);
       document.getElementById("nuevo-titulo").textContent = tipoVale ? `Nuevo vale de ${tipoVale.etiqueta}` : "";
       document.getElementById("bloque-nuevo").classList.toggle("hidden", esBodega);
       filtroTipo.classList.toggle("hidden", !esBodega);
-      setFiltroEstado("pendiente");
+      // Bodega parte en lo que tiene que entregar; quien pide, en lo que
+      // falta que el trabajador apruebe.
+      setFiltroEstado(esBodega ? "pendiente" : "por_aprobar");
       if (!esBodega) iniciarFormulario();
 
       escucharConObraActiva(
@@ -606,7 +739,7 @@
       );
       escucharConObraActiva(
         esBodega ? escucharValesObra : escucharMisVales(p.user.uid),
-        (items) => { vales = items; render(); },
+        (items) => { vales = items; render(); if (dlgQr.open) refrescarEstadoQr(); },
         (err) => { listaVales.innerHTML = `<p class="empty">Error al cargar: ${esc(err.message)}</p>`; },
       );
     });

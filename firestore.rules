@@ -69,9 +69,10 @@ service cloud.firestore {
         && request.resource.data.valor == (resource == null ? 0 : resource.data.valor) + 1;
     }
 
-    // Vales de entrega (js/vales.js). Nacen "pendiente" (sin tocar stock);
-    // bodega los pasa a "entregado" (misma transacción que descuenta el stock
-    // y crea los movimientos) o "rechazado". Nunca se borran.
+    // Vales de entrega (js/vales.js). Nacen "por_aprobar": el trabajador los
+    // aprueba escaneando un QR (sin cuenta) y pasan a "pendiente"; bodega los
+    // pasa a "entregado" (misma transacción que descuenta el stock y crea los
+    // movimientos) o "rechazado". Nunca tocan el stock antes. Nunca se borran.
     match /vales/{id} {
       allow read: if bodega()
         || (request.auth != null && resource.data.solicitanteUid == request.auth.uid);
@@ -79,7 +80,9 @@ service cloud.firestore {
         && request.resource.data.solicitanteUid == request.auth.uid
         && request.resource.data.solicitanteRol == rol()
         && request.resource.data.tipo == tipoValeDelRol()
-        && request.resource.data.estado == "pendiente"
+        && request.resource.data.estado == "por_aprobar"
+        && request.resource.data.tokenAprobacion is string
+        && existsAfter(/databases/$(database)/documents/aprobaciones_vale/$(request.resource.data.tokenAprobacion))
         && request.resource.data.obra is string
         && request.resource.data.trabajador is string && request.resource.data.trabajador.size() > 0
         && request.resource.data.actividad is string && request.resource.data.actividad.size() > 0
@@ -87,12 +90,83 @@ service cloud.firestore {
         && request.resource.data.items.size() > 0 && request.resource.data.items.size() <= 30
         && request.resource.data.creadoEn == request.time
         && request.resource.data.numero == getAfter(/databases/$(database)/documents/contadores/vales).data.valor;
-      allow update: if bodega()
+      allow update: if (bodega()
         && resource.data.estado == "pendiente"
         && request.resource.data.estado in ["entregado", "rechazado"]
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
              "estado", "entregadoPor", "entregadoEn", "movimientoIds",
-             "rechazadoPor", "rechazadoEn", "motivoRechazo"]);
+             "rechazadoPor", "rechazadoEn", "motivoRechazo"]))
+        // Aprobación del trabajador (sin sesión): solo junto con la del
+        // documento de su token, en el mismo lote (ver aprobaciones_vale).
+        || (resource.data.estado == "por_aprobar"
+        && request.resource.data.estado == "pendiente"
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["estado", "aprobadoEn"])
+        && request.resource.data.aprobadoEn == request.time
+        && get(/databases/$(database)/documents/aprobaciones_vale/$(resource.data.tokenAprobacion)).data.aprobado == false
+        && getAfter(/databases/$(database)/documents/aprobaciones_vale/$(resource.data.tokenAprobacion)).data.aprobado == true)
+        // Aprobación en bodega (trabajador sin celular): queda anotado quién.
+        || (bodega()
+        && resource.data.estado == "por_aprobar"
+        && request.resource.data.estado == "pendiente"
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["estado", "aprobadoEn", "aprobadoEnBodegaPor"])
+        && request.resource.data.aprobadoEn == request.time
+        && request.resource.data.aprobadoEnBodegaPor == request.auth.token.email
+        && getAfter(/databases/$(database)/documents/aprobaciones_vale/$(resource.data.tokenAprobacion)).data.aprobado == true)
+        // Quien lo pidió lo anula antes de que el trabajador lo apruebe (su
+        // QR se anula en el mismo lote).
+        || (request.auth != null && resource.data.solicitanteUid == request.auth.uid
+        && resource.data.estado == "por_aprobar"
+        && request.resource.data.estado == "anulado"
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["estado", "anuladoEn"])
+        && request.resource.data.anuladoEn == request.time
+        && getAfter(/databases/$(database)/documents/aprobaciones_vale/$(resource.data.tokenAprobacion)).data.get("anulado", false) == true);
+      allow delete: if false;
+    }
+
+    // Copia de lo pedido en un vale, para el trabajador que lo aprueba con el
+    // QR. El id del documento es el secreto (va en el QR): se puede leer uno
+    // conociendo su id, pero no listar la colección.
+    match /aprobaciones_vale/{token} {
+      function valeDespues() {
+        return getAfter(/databases/$(database)/documents/vales/$(request.resource.data.valeId)).data;
+      }
+      allow get: if true;
+      allow list: if false;
+      // Nace en la misma transacción que su vale, y con lo mismo que él.
+      allow create: if solicitante()
+        && request.resource.data.keys().hasOnly([
+             "valeId", "numero", "obra", "tipo", "trabajador", "actividad", "observacion",
+             "items", "solicitanteNombre", "solicitanteRol", "aprobado", "creadoEn"])
+        && request.resource.data.valeId is string
+        && valeDespues().tokenAprobacion == token
+        && valeDespues().solicitanteUid == request.auth.uid
+        && valeDespues().estado == "por_aprobar"
+        && request.resource.data.numero == valeDespues().numero
+        && request.resource.data.obra == valeDespues().obra
+        && request.resource.data.tipo == valeDespues().tipo
+        && request.resource.data.trabajador == valeDespues().trabajador
+        && request.resource.data.actividad == valeDespues().actividad
+        && request.resource.data.observacion == valeDespues().observacion
+        && request.resource.data.items == valeDespues().items
+        && request.resource.data.solicitanteNombre == valeDespues().solicitanteNombre
+        && request.resource.data.solicitanteRol == valeDespues().solicitanteRol
+        && request.resource.data.aprobado == false
+        && request.resource.data.creadoEn == request.time;
+      // Aprobar (cualquiera con el token, o bodega en el mesón): una sola
+      // vez, y el vale pasa a "pendiente" en el mismo lote.
+      allow update: if resource.data.aprobado == false
+        && request.resource.data.aprobado == true
+        && request.resource.data.aprobadoEn == request.time
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["aprobado", "aprobadoEn"])
+        && getAfter(/databases/$(database)/documents/vales/$(resource.data.valeId)).data.estado == "pendiente"
+        && resource.data.get("anulado", false) == false;
+      // Anular (quien pidió el vale): el vale pasa a "anulado" en el mismo lote.
+      allow update: if request.auth != null
+        && resource.data.aprobado == false
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["anulado"])
+        && request.resource.data.anulado == true
+        && get(/databases/$(database)/documents/vales/$(resource.data.valeId)).data.solicitanteUid == request.auth.uid
+        && getAfter(/databases/$(database)/documents/vales/$(resource.data.valeId)).data.estado == "anulado";
       allow delete: if false;
     }
 
