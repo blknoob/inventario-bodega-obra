@@ -130,6 +130,23 @@ export const ARRIENDOS_DEMO = [
 // de cada rol en modo demo (js/auth.js/perfilDemo: ?rol=capataz, etc.).
 export const VALES_DEMO = [
   {
+    id: "v7", numero: 7, obra: "cclp2", tipo: "material", trabajador: "Juan Soto", actividad: "Moldaje muro eje 3",
+    observacion: "", items: [
+      { materialId: "d1", producto: "Cemento Portland 25 kg", unidad: "sacos", cantidad: 4 },
+      { materialId: "d6", producto: "Fierro estriado Ø10", unidad: "barras", cantidad: 6 },
+    ],
+    solicitanteUid: "demo-capataz", solicitanteNombre: "Carlos Urbina", solicitanteEmail: "capataz@demo.cl", solicitanteRol: "capataz",
+    estado: "por_aprobar", tokenAprobacion: "demo-token", creadoEn: hace(120),
+  },
+  {
+    id: "v8", numero: 8, obra: "cclp2", tipo: "material", trabajador: "Pedro Muñoz", actividad: "Radier sector C",
+    observacion: "", items: [
+      { materialId: "d1", producto: "Cemento Portland 25 kg", unidad: "sacos", cantidad: 3 },
+    ],
+    solicitanteUid: "demo-capataz", solicitanteNombre: "Carlos Urbina", solicitanteEmail: "capataz@demo.cl", solicitanteRol: "capataz",
+    estado: "anulado", tokenAprobacion: "demo-anulado", creadoEn: hace(5400), anuladoEn: hace(5000),
+  },
+  {
     id: "v3", numero: 3, obra: "cclp2", tipo: "material", trabajador: "Pedro Muñoz", actividad: "Moldaje losa nivel 4",
     observacion: "", items: [
       { materialId: "d1", producto: "Cemento Portland 25 kg", unidad: "sacos", cantidad: 5 },

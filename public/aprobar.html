@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Aprobar vale | Inventario de Bodega</title>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <!-- Página del trabajador: la abre escaneando el QR del vale (sin cuenta).
+       Ve lo que le pidieron y lo aprueba antes de ir a bodega a retirarlo. -->
+  <div class="login-shell">
+    <div class="login-box aprobar-box">
+      <h1 id="titulo">Solicitud de retiro</h1>
+      <p class="sub" id="sub">Cargando…</p>
+
+      <div id="error" class="alert alert-error hidden"></div>
+      <div id="detalle" class="hidden">
+        <div class="vale-datos text-sm" style="margin-bottom:10px;">
+          <span><span class="muted">Trabajador:</span> <strong id="d-trabajador"></strong></span>
+          <span><span class="muted">Actividad:</span> <span id="d-actividad"></span></span>
+          <span><span class="muted">Pide:</span> <span id="d-solicitante"></span></span>
+          <span><span class="muted">Obra:</span> <span id="d-obra"></span></span>
+        </div>
+        <p class="text-sm hidden" id="d-observacion" style="margin:0 0 8px;"></p>
+        <table class="vale-items"><tbody id="d-items"></tbody></table>
+
+        <div id="estado" class="alert hidden" style="margin:16px 0 0;"></div>
+        <button type="button" class="btn btn-primary btn-block" id="btn-aprobar" style="margin-top:16px;">Apruebo solicitud</button>
+        <p class="text-sm muted" id="nota-aprobar" style="margin:10px 0 0; text-align:center;">Al aprobar, el vale le llega a bodega y puedes ir a retirarlo.</p>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { leerAprobacion, aprobarVale, numeroValeTexto, TIPOS_VALE } from "./js/vales.js";
+    import { etiquetaRol } from "./js/auth.js";
+    import { etiquetaObra } from "./js/obra.js";
+
+    const fmtNum = (n) => (Number(n) || 0).toLocaleString("es-CL", { maximumFractionDigits: 3 });
+    const fmtFecha = (ts) => {
+      const d = ts?.toDate?.();
+      if (!d) return "";
+      return d.toLocaleDateString("es-CL") + " " + d.toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" });
+    };
+    const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) =>
+      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+    const token = new URLSearchParams(location.search).get("t");
+    const sub = document.getElementById("sub");
+    const errorBox = document.getElementById("error");
+    const estado = document.getElementById("estado");
+    const btn = document.getElementById("btn-aprobar");
+    const nota = document.getElementById("nota-aprobar");
+    let aprobacion = null;
+
+    function mostrarError(msg) {
+      errorBox.textContent = msg;
+      errorBox.classList.remove("hidden");
+    }
+
+    function mostrarAprobado(cuando) {
+      estado.className = "alert alert-ok";
+      estado.textContent = `✓ Solicitud aprobada${cuando ? ` (${cuando})` : ""}. Ya puedes ir a bodega a retirar.`;
+      btn.classList.add("hidden");
+      nota.classList.add("hidden");
+    }
+
+    async function cargar() {
+      try {
+        aprobacion = await leerAprobacion(token);
+      } catch {
+        sub.textContent = "";
+        mostrarError("No se pudo cargar la solicitud. Revisa tu conexión y vuelve a escanear el código.");
+        return;
+      }
+      if (!aprobacion) {
+        sub.textContent = "";
+        mostrarError("Este enlace no corresponde a ninguna solicitud. Vuelve a escanear el código QR.");
+        return;
+      }
+      const a = aprobacion;
+      document.getElementById("titulo").textContent = `Vale ${numeroValeTexto(a.numero)}`;
+      sub.textContent = `Revisa lo que vas a retirar de bodega (${TIPOS_VALE[a.tipo]?.etiqueta ?? a.tipo}).`;
+      document.getElementById("d-trabajador").textContent = a.trabajador;
+      document.getElementById("d-actividad").textContent = a.actividad;
+      document.getElementById("d-solicitante").textContent = `${a.solicitanteNombre} (${etiquetaRol(a.solicitanteRol)})`;
+      document.getElementById("d-obra").textContent = etiquetaObra(a.obra);
+      if (a.observacion) {
+        const obs = document.getElementById("d-observacion");
+        obs.innerHTML = `<span class="muted">Observación:</span> ${esc(a.observacion)}`;
+        obs.classList.remove("hidden");
+      }
+      document.getElementById("d-items").innerHTML = a.items.map((it) => `
+        <tr>
+          <td>${esc(it.producto)}</td>
+          <td class="text-right nowrap"><strong>${fmtNum(it.cantidad)}</strong> ${esc(it.unidad)}</td>
+        </tr>`).join("");
+      document.getElementById("detalle").classList.remove("hidden");
+      if (a.aprobado) mostrarAprobado(fmtFecha(a.aprobadoEn));
+      else if (a.anulado) {
+        estado.className = "alert alert-error";
+        estado.textContent = "Esta solicitud fue anulada por quien la pidió. No hay nada que retirar con este vale.";
+        btn.classList.add("hidden");
+        nota.classList.add("hidden");
+      }
+    }
+
+    btn.addEventListener("click", async () => {
+      if (!aprobacion || btn.disabled) return;
+      errorBox.classList.add("hidden");
+      btn.disabled = true;
+      btn.textContent = "Aprobando…";
+      try {
+        await aprobarVale(token, aprobacion.valeId);
+        mostrarAprobado("");
+      } catch (err) {
+        mostrarError(err.message);
+        btn.disabled = false;
+        btn.textContent = "Apruebo solicitud";
+      }
+    });
+
+    cargar();
+  </script>
+</body>
+</html>
