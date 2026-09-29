@@ -15,7 +15,13 @@
       "**/node_modules/**"
     ],
     "cleanUrls": true,
-    "rewrites": []
+    "rewrites": [],
+    "headers": [
+      {
+        "source": "**",
+        "headers": [{ "key": "Cache-Control", "value": "no-cache" }]
+      }
+    ]
   },
   "emulators": {
     "auth": { "port": 9099 },
