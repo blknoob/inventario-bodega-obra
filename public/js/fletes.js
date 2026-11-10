@@ -32,6 +32,7 @@ import { db, storage } from "./firebase-config.js";
 import { usuarioActual } from "./auth.js";
 import { MODO_DEMO, FLETES_DEMO, bloquearEnDemo } from "./demo.js";
 import { OBRAS } from "./obra.js";
+import { comprimirImagen } from "./imagenes.js";
 
 const fletesRef = collection(db, "fletes");
 
@@ -69,14 +70,15 @@ function conTope(promesa, ms, mensaje) {
   ]);
 }
 
-async function subirFactura(fleteId, archivo) {
-  if (!archivo) return null;
+async function subirFactura(fleteId, original) {
+  if (!original) return null;
+  const archivo = await comprimirImagen(original); // ver js/imagenes.js
   const path = `fletes/${fleteId}/${archivo.name}`;
   const archivoRef = ref(storage, path);
   await conTope(
-    uploadBytes(archivoRef, archivo),
-    20000,
-    "No se pudo subir la factura (se demoró demasiado). Revisa que Firebase Storage esté activado para este proyecto.",
+    uploadBytes(archivoRef, archivo, { contentType: archivo.type || undefined }),
+    90000,
+    "No se pudo subir la factura (se demoró más de 90 s). Revisa la conexión a internet e inténtalo de nuevo.",
   );
   const url = await getDownloadURL(archivoRef);
   return { nombre: archivo.name, url, path };

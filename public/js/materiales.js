@@ -20,6 +20,7 @@ import { db, storage } from "./firebase-config.js";
 import { usuarioActual } from "./auth.js";
 import { MODO_DEMO, MATERIALES_DEMO, MOVIMIENTOS_DEMO, bloquearEnDemo } from "./demo.js";
 import { OBRAS, etiquetaObra } from "./obra.js";
+import { comprimirImagen } from "./imagenes.js";
 
 const materialesRef = collection(db, "materiales");
 const movimientosRef = collection(db, "movimientos_materiales");
@@ -94,7 +95,10 @@ export async function subirFacturasEntrada(archivos, carpetaBase = "entradas") {
   const lista = (archivos || []).filter(Boolean);
   if (!lista.length) return [];
   const carpeta = crypto.randomUUID(); // misma carpeta para todas las fotos de esta guía
-  return Promise.all(lista.map(async (archivo, i) => {
+  return Promise.all(lista.map(async (original, i) => {
+    // Fotos del celular a tamaño completo pesan varios MB y con señal móvil
+    // no alcanzaban a subir a tiempo: se achican antes (ver js/imagenes.js).
+    const archivo = await comprimirImagen(original);
     // El índice va en la ruta (no solo el nombre) porque dos fotos de la
     // misma guía pueden llegar con el mismo nombre de archivo (p. ej. la
     // cámara del celular nombra "image.jpg" a cada foto que toma): sin
@@ -102,9 +106,9 @@ export async function subirFacturasEntrada(archivos, carpetaBase = "entradas") {
     const path = `${carpetaBase}/${carpeta}/${i}-${archivo.name}`;
     const archivoRef = ref(storage, path);
     await conTope(
-      uploadBytes(archivoRef, archivo),
-      20000,
-      `No se pudo subir "${archivo.name}" (se demoró demasiado). Revisa que Firebase Storage esté activado para este proyecto.`,
+      uploadBytes(archivoRef, archivo, { contentType: archivo.type || undefined }),
+      90000,
+      `No se pudo subir "${archivo.name}" (se demoró más de 90 s). Revisa la conexión a internet e inténtalo de nuevo.`,
     );
     const url = await getDownloadURL(archivoRef);
     return { nombre: archivo.name, url, path };
