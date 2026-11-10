@@ -1,6 +1,6 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // Obra activa — para dividir materiales, EPP y herramientas de una misma
-// bodega entre distintas obras (ej: CCLP II y Data Centers).
+// bodega entre distintas obras (ej: CCLP II, Data Centers y ST5).
 // ─────────────────────────────────────────────────────────────────────────────
 // Es un filtro de vista, no de permisos: sigue habiendo una sola cuenta de
 // bodega y la lectura sigue siendo pública para las dos obras -- lo único
@@ -17,6 +17,7 @@ const EVENTO = "obra:cambio";
 export const OBRAS = [
   { valor: "cclp2", etiqueta: "CCLP II" },
   { valor: "data_centers", etiqueta: "Data Centers" },
+  { valor: "st5", etiqueta: "ST5" },
 ];
 
 export function etiquetaObra(valor) {

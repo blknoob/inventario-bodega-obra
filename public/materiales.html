@@ -100,11 +100,17 @@
       <div id="err-entrante" class="alert alert-error hidden"></div>
 
       <div class="field">
+        <label for="e-origen">Origen</label>
+        <select id="e-origen"></select>
+        <p class="text-sm muted hidden" id="e-origen-aviso" style="margin-top:6px;"></p>
+      </div>
+
+      <div class="field" id="bloque-e-documento">
         <label for="e-documento">N.º Orden de Compra <span class="muted">(opcional)</span></label>
         <input type="text" id="e-documento" maxlength="40" placeholder="" />
       </div>
 
-      <div class="field" style="position:relative;">
+      <div class="field" style="position:relative;" id="bloque-e-pedido">
         <label for="e-pedido-buscar">Pedido de Materiales (PM)</label>
         <input type="text" id="e-pedido-buscar" class="buscador-input" placeholder="Elige PM" autocomplete="off" />
         <input type="hidden" id="e-pedido" />
@@ -127,7 +133,7 @@
       </div>
 
       <div class="row" style="margin-top:14px;">
-        <div class="field">
+        <div class="field" id="bloque-e-proveedor">
           <label for="e-proveedor">Proveedor <span class="muted">(opcional)</span></label>
           <input type="text" id="e-proveedor" maxlength="80" />
         </div>
@@ -295,12 +301,12 @@
       CATEGORIAS, etiquetaCategoria, nivelStock,
       TIPOS_HERRAMIENTA, etiquetaTipoHerramienta,
       escucharMateriales, registrarEntrada, registrarSalida, eliminarMaterial, marcarSinReposicion,
-      subirFacturasEntrada,
+      subirFacturasEntrada, registrarTraslado,
     } from "./js/materiales.js";
     import { escucharPedidos, escucharOrdenes, anotarOrdenDeCompra, cantidadRecibidaDe } from "./js/compras.js";
     import { escucharFletes, etiquetaTipoFlete } from "./js/fletes.js";
     import { escucharArriendos, crearArriendo, devolverHerramienta } from "./js/herramientas.js";
-    import { obraActiva, escucharConObraActiva } from "./js/obra.js";
+    import { OBRAS, obraActiva, etiquetaObra, escucharConObraActiva, escucharObraActiva } from "./js/obra.js";
 
     // Esta misma página sirve para cuatro vistas: "Materiales" (todo menos
     // EPP/Herramientas), "EPPs" (?categoria=epp), "Herramientas"
@@ -658,11 +664,14 @@
     // Recalcula materialesTodos/materiales según el modo de esta página
     // (categoría / alertas) cada vez que llega un snapshot ya acotado a la
     // obra activa.
-    function recalcularMateriales(items) {
-      materialesTodos = items;
-      materiales = modoAlertas
+    function filtrarPorModoPagina(items) {
+      return modoAlertas
         ? items.filter((m) => nivelStock(m) !== "ok")
         : items.filter((m) => categoriaPagina ? m.categoria === categoriaPagina : !["epp", "herramienta"].includes(m.categoria));
+    }
+    function recalcularMateriales(items) {
+      materialesTodos = items;
+      materiales = filtrarPorModoPagina(items);
       render();
     }
 
@@ -895,6 +904,65 @@
     const bloqueItemsPedido = document.getElementById("bloque-items-pedido");
     const eUbicacion = document.getElementById("e-ubicacion");
 
+    // ── Origen del material entrante: compra (lo de siempre) o traslado
+    // desde otra obra de la misma empresa (ej: a ST5 le llegan cosas que
+    // estaban en CCLP II). En un traslado, cada fila elige un producto que
+    // YA exista en la obra de origen (no se crean productos de la nada) y
+    // al registrar se descuenta de allá y se suma acá -- ver
+    // registrarTraslado en js/materiales.js.
+    const eOrigen = document.getElementById("e-origen");
+    const eOrigenAviso = document.getElementById("e-origen-aviso");
+    let catalogoOrigen = []; // catálogo de la obra de origen, ya filtrado por el modo de esta página
+    let dejarDeEscucharOrigen = () => {};
+
+    function obraOrigen() { return eOrigen.value; } // "" = compra / proveedor
+
+    /** Catálogo en el que buscan las filas de producto: el de la obra activa, o el de la obra de origen si es un traslado. */
+    function catalogoFilas() { return obraOrigen() ? catalogoOrigen : materiales; }
+
+    function llenarOpcionesOrigen() {
+      const otras = OBRAS.filter((o) => o.valor !== obraActiva());
+      eOrigen.innerHTML = `<option value="">Compra / proveedor</option>` +
+        otras.map((o) => `<option value="${o.valor}">Traslado desde ${esc(o.etiqueta)}</option>`).join("");
+    }
+
+    function escucharCatalogoOrigen() {
+      dejarDeEscucharOrigen();
+      dejarDeEscucharOrigen = () => {};
+      catalogoOrigen = [];
+      const origen = obraOrigen();
+      if (!origen) return;
+      dejarDeEscucharOrigen = escucharMateriales(origen, (items) => {
+        catalogoOrigen = filtrarPorModoPagina(items);
+      }, (err) => {
+        errEntrante.textContent = `No se pudo cargar el catálogo de ${etiquetaObra(origen)}: ${err.message}`;
+        errEntrante.classList.remove("hidden");
+      });
+    }
+
+    eOrigen.addEventListener("change", () => {
+      escucharCatalogoOrigen();
+      // Los productos ya elegidos son del catálogo anterior (de otra obra):
+      // se parte de cero para no mezclar.
+      buscadorPedidoEntrante.reset();
+      itemsPMSeleccionados = [];
+      renderItemsPedidoElegidos();
+      itemsManualSeleccionados = [nuevaFilaManual()];
+      renderItemsManual();
+      actualizarVistaEntrante();
+    });
+
+    // Al cerrar el diálogo se deja de escuchar el catálogo de la otra obra.
+    dlgEntrante.addEventListener("close", () => {
+      dejarDeEscucharOrigen();
+      dejarDeEscucharOrigen = () => {};
+    });
+    // Si cambia la obra activa con el diálogo abierto, lo elegido quedaría
+    // apuntando a la obra anterior: se cierra.
+    escucharObraActiva(() => {
+      if (dlgEntrante.open) dlgEntrante.close();
+    });
+
     // Sin Pedido de Materiales (PM) elegido: uno o varios productos a la
     // vez, cada uno en su propia fila -- cada fila tiene su propio
     // buscador (si lo que se escribe calza exacto con uno que ya existe,
@@ -935,8 +1003,8 @@
 
     function renderItemsManual() {
       itemsManualCont.innerHTML = itemsManualSeleccionados.map((item) => {
-        const existente = item.materialId ? materiales.find((m) => m.id === item.materialId) : null;
-        const hayTexto = !!(item.textoBuscador || "").trim();
+        const existente = item.materialId ? catalogoFilas().find((m) => m.id === item.materialId) : null;
+        const hayTexto = !!(item.textoBuscador || "").trim() && !obraOrigen();
         // Un desplegable por producto (no un <div> siempre expandido):
         // así, a medida que se agregan varios, los que ya se llenaron se
         // ven como una lista compacta en vez de alargar la ficha entera.
@@ -954,7 +1022,7 @@
               <input type="hidden" class="im-nuevo-producto" value="${esc(item.nuevoProducto || "")}" />
               <div class="im-lista buscador-lista hidden"></div>
             </div>
-            <p class="text-sm muted im-stock" style="margin-top:-8px; margin-bottom:10px;">${existente ? `Stock actual: ${fmtNum(existente.stock)} ${esc(existente.unidad)}` : ""}</p>
+            <p class="text-sm muted im-stock" style="margin-top:-8px; margin-bottom:10px;">${existente ? esc(textoStockFila(existente)) : ""}</p>
             <div class="im-nuevo ${!existente && hayTexto ? "" : "hidden"}">
               <div class="row">
                 <div class="field">
@@ -985,7 +1053,7 @@
             </div>
             <div class="row" style="margin-top:10px;">
               <div class="field">
-                <label>Cantidad recibida</label>
+                <label>${obraOrigen() ? "Cantidad trasladada" : "Cantidad recibida"}</label>
                 <input type="number" class="im-cantidad" min="0" step="any" value="${esc(item.cantidad || "")}" />
               </div>
             </div>
@@ -1005,11 +1073,18 @@
       const materialId = fila.querySelector(".im-producto").value;
       const nuevoProducto = fila.querySelector(".im-nuevo-producto").value;
       const cantidad = fila.querySelector(".im-cantidad").value;
-      const existente = materialId ? materiales.find((m) => m.id === materialId) : null;
+      const existente = materialId ? catalogoFilas().find((m) => m.id === materialId) : null;
       const nombre = existente ? existente.producto : nuevoProducto;
       if (!nombre) { resumen.textContent = "Producto nuevo"; return; }
       const unidad = existente ? existente.unidad : (fila.querySelector(".im-unidad")?.value || "");
       resumen.textContent = `${nombre}${cantidad ? ` — ${fmtNum(cantidad)}${unidad ? " " + unidad : ""}` : ""}`;
+    }
+
+    /** "Stock actual: 12 und" -- o, en un traslado, cuánto hay en la obra de origen. */
+    function textoStockFila(m) {
+      return obraOrigen()
+        ? `Disponible en ${etiquetaObra(obraOrigen())}: ${fmtNum(m.stock)} ${m.unidad || ""}`
+        : `Stock actual: ${fmtNum(m.stock)} ${m.unidad || ""}`;
     }
 
     /** Cablea el buscador de producto y el botón "Quitar" de UNA fila recién insertada en el DOM. */
@@ -1023,7 +1098,7 @@
 
       function renderLista() {
         const q = normalizar(input.value);
-        const items = [...materiales]
+        const items = [...catalogoFilas()]
           .filter((m) => !q || normalizar(m.producto).includes(q))
           .sort((a, b) => (a.producto || "").localeCompare(b.producto || "", "es", { sensitivity: "base" }))
           .slice(0, 30);
@@ -1032,15 +1107,16 @@
               <button type="button" class="btn btn-ghost btn-xs" data-id="${m.id}">
                 ${esc(m.producto)} — stock ${fmtNum(m.stock)} ${esc(m.unidad)}
               </button>`).join("")
-          : `<div class="text-sm muted empty">Sin resultados.</div>`;
+          : `<div class="text-sm muted empty">${obraOrigen() ? `Sin resultados en ${esc(etiquetaObra(obraOrigen()))}.` : "Sin resultados."}</div>`;
         lista.classList.remove("hidden");
       }
 
       function elegir(m) {
         input.value = m ? m.producto : input.value;
         oculto.value = m?.id || "";
-        nuevoOculto.value = m ? "" : (input.value.trim().length >= 2 ? input.value.trim() : "");
-        stockTxt.textContent = m ? `Stock actual: ${fmtNum(m.stock)} ${m.unidad}` : "";
+        // En un traslado no se crean productos: tiene que existir en la obra de origen.
+        nuevoOculto.value = m || obraOrigen() ? "" : (input.value.trim().length >= 2 ? input.value.trim() : "");
+        stockTxt.textContent = m ? textoStockFila(m) : "";
         bloqueNuevo.classList.toggle("hidden", !!m || !nuevoOculto.value);
         lista.classList.add("hidden");
         actualizarResumenFila(fila);
@@ -1049,7 +1125,7 @@
       input.addEventListener("focus", renderLista);
       input.addEventListener("input", () => {
         const texto = input.value.trim();
-        const existente = materiales.find((m) => normalizar(m.producto) === normalizar(texto));
+        const existente = catalogoFilas().find((m) => normalizar(m.producto) === normalizar(texto));
         elegir(existente || null);
         renderLista();
       });
@@ -1057,7 +1133,7 @@
       lista.addEventListener("click", (e) => {
         const btn = e.target.closest("[data-id]");
         if (!btn) return;
-        elegir(materiales.find((x) => x.id === btn.getAttribute("data-id")));
+        elegir(catalogoFilas().find((x) => x.id === btn.getAttribute("data-id")));
       });
       fila.querySelector(".im-cantidad").addEventListener("input", () => actualizarResumenFila(fila));
       fila.querySelector(".im-unidad")?.addEventListener("input", () => actualizarResumenFila(fila));
@@ -1314,7 +1390,19 @@
     });
 
     function actualizarVistaEntrante() {
-      const hayPedido = !!document.getElementById("e-pedido").value;
+      const origen = obraOrigen();
+      // Un traslado no pasa por PM/OC/proveedor/arriendo: es material que ya
+      // era de la empresa, solo cambia de obra.
+      document.getElementById("bloque-e-documento").classList.toggle("hidden", !!origen);
+      document.getElementById("bloque-e-pedido").classList.toggle("hidden", !!origen);
+      document.getElementById("bloque-e-proveedor").classList.toggle("hidden", !!origen);
+      bloqueTipoAdquisicion.classList.toggle("hidden", !modoHerramienta || !!origen);
+      camposArriendo.classList.toggle("hidden", !modoHerramienta || !!origen || eTipoAdquisicion.value !== "arrendada");
+      eOrigenAviso.classList.toggle("hidden", !origen);
+      if (origen) {
+        eOrigenAviso.textContent = `Elige productos que existan en ${etiquetaObra(origen)}: se descuentan de allá y se suman a ${etiquetaObra(obraActiva())}.`;
+      }
+      const hayPedido = !origen && !!document.getElementById("e-pedido").value;
       // La lista de productos manuales solo aplica sin pedido elegido; con
       // pedido, se eligen varios productos del PM a la vez (otro bloque).
       bloqueProductoManual.classList.toggle("hidden", hayPedido);
@@ -1323,6 +1411,8 @@
 
     document.getElementById("btn-entrante").addEventListener("click", () => {
       formEntrante.reset();
+      llenarOpcionesOrigen();
+      escucharCatalogoOrigen();
       buscadorPedidoEntrante.reset();
       itemsPMSeleccionados = [];
       renderItemsPedidoElegidos();
@@ -1334,6 +1424,76 @@
       actualizarVistaEntrante();
       dlgEntrante.showModal();
     });
+
+    // ── Traslado desde otra obra: validación y registro de las filas ──────
+    // Mismo criterio que con productos manuales: se valida todo ANTES de
+    // subir fotos o registrar nada.
+    function validarTrasladosManuales() {
+      if (!itemsManualSeleccionados.length) throw new Error("Agrega al menos un producto.");
+      const origen = etiquetaObra(obraOrigen());
+      const llevarVistaA = (campo) => {
+        campo.closest(".item-manual-fila").open = true;
+        campo.scrollIntoView({ behavior: "smooth", block: "center" });
+        campo.focus();
+      };
+      // Un mismo producto en dos filas se suma, para validar contra el stock total disponible.
+      const pedidoPorProducto = new Map();
+      for (const item of itemsManualSeleccionados) {
+        const fila = itemsManualCont.querySelector(`.item-manual-fila[data-row-id="${item.id}"]`);
+        if (!fila) continue;
+        const campoBuscar = fila.querySelector(".im-buscar");
+        const m = catalogoOrigen.find((x) => x.id === fila.querySelector(".im-producto").value);
+        if (!m) {
+          llevarVistaA(campoBuscar);
+          throw new Error(`${campoBuscar.value.trim() || "Producto"}: elige un producto que exista en ${origen}.`);
+        }
+        const campoCantidad = fila.querySelector(".im-cantidad");
+        const cant = Number(campoCantidad.value);
+        if (campoCantidad.value === "" || Number.isNaN(cant) || cant <= 0) {
+          llevarVistaA(campoCantidad);
+          throw new Error(`${m.producto}: ingresa la cantidad trasladada.`);
+        }
+        const total = (pedidoPorProducto.get(m.id) || 0) + cant;
+        pedidoPorProducto.set(m.id, total);
+        if (total > (Number(m.stock) || 0)) {
+          llevarVistaA(campoCantidad);
+          throw new Error(`${m.producto}: en ${origen} solo hay ${fmtNum(m.stock)} ${m.unidad || ""}.`);
+        }
+      }
+    }
+
+    async function registrarTrasladosManuales({ motivo, ubicacion, facturas, fleteId, fleteEmpresa }) {
+      let registrados = 0;
+      for (const item of [...itemsManualSeleccionados]) {
+        const fila = itemsManualCont.querySelector(`.item-manual-fila[data-row-id="${item.id}"]`);
+        if (!fila) continue;
+        const origenMat = catalogoOrigen.find((x) => x.id === fila.querySelector(".im-producto").value);
+        const nombre = origenMat?.producto || "Producto";
+        try {
+          if (!origenMat) throw new Error("ya no está en el catálogo de la obra de origen.");
+          // Si en esta obra ya hay un producto con el mismo nombre, se le
+          // suma a ese; si no, registrarTraslado crea uno copiando la ficha.
+          const destino = materialesTodos.find((m) => normalizar(m.producto) === normalizar(origenMat.producto));
+          await registrarTraslado({
+            materialOrigenId: origenMat.id,
+            materialDestinoId: destino?.id || null,
+            obraDestino: obraActiva(),
+            cantidad: fila.querySelector(".im-cantidad").value,
+            ubicacion, motivo, facturas, fleteId, fleteEmpresa,
+          });
+          registrados++;
+          itemsManualSeleccionados = itemsManualSeleccionados.filter((x) => x.id !== item.id);
+        } catch (errItem) {
+          sincronizarItemsManualDesdeDom();
+          renderItemsManual();
+          throw new Error(
+            `${nombre}: ${errItem.message}` +
+            (registrados ? ` (ya se registraron ${registrados} producto${registrados === 1 ? "" : "s"} antes de este error, no hace falta repetirlos)` : ""),
+          );
+        }
+      }
+      renderItemsManual();
+    }
 
     formEntrante.addEventListener("submit", async (e) => {
       e.preventDefault();
@@ -1352,6 +1512,7 @@
         const ubicacion = eUbicacion.value;
         const fleteId = eFleteHidden.value || null;
         const fleteEmpresa = fleteId ? (fletes.find((f) => f.id === fleteId)?.empresa || "") : "";
+        if (obraOrigen()) validarTrasladosManuales();
         // Las mismas fotos de factura/guía van para todo este registro,
         // aunque sean varios productos a la vez (del mismo PM, o varios
         // manuales) -- no hace falta subirlas más de una vez.
@@ -1360,13 +1521,15 @@
         // Tipo de adquisición (solo aplica en la página Herramientas): si
         // es arrendada, es la misma empresa para todos los productos de
         // este registro (igual que la factura/flete).
-        const tipoAdquisicion = modoHerramienta ? eTipoAdquisicion.value : null;
+        const tipoAdquisicion = modoHerramienta && !obraOrigen() ? eTipoAdquisicion.value : null;
         const empresaArriendo = tipoAdquisicion === "arrendada" ? document.getElementById("e-arriendo-empresa").value : "";
         if (tipoAdquisicion === "arrendada" && !empresaArriendo.trim()) {
           throw new Error("Indica la empresa arrendadora.");
         }
 
-        if (pedidoSeleccionado) {
+        if (obraOrigen()) {
+          await registrarTrasladosManuales({ motivo, ubicacion, facturas, fleteId, fleteEmpresa });
+        } else if (pedidoSeleccionado) {
           if (!itemsPMSeleccionados.length) throw new Error("Elige al menos un producto del pedido.");
           // Se valida cantidad y categoría de todos los productos ANTES de
           // anotar la orden de compra o registrar nada, para no dejar a
@@ -1581,8 +1744,9 @@
           }
           renderItemsManual();
         }
+        const eraTraslado = obraOrigen();
         dlgEntrante.close();
-        flash("Material entrante registrado.");
+        flash(eraTraslado ? `Traslado desde ${etiquetaObra(eraTraslado)} registrado.` : "Material entrante registrado.");
       } catch (err) {
         errEntrante.textContent = err.message;
         errEntrante.classList.remove("hidden");
