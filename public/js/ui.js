@@ -45,7 +45,7 @@ export function montarTopbar(activo = "") {
   `;
 
   // Selector de obra: divide materiales, EPP y herramientas de la misma
-  // bodega entre CCLP II y Data Centers (ver public/js/obra.js). Es de
+  // bodega entre CCLP II, Data Centers y ST5 (ver public/js/obra.js). Es de
   // vista, no de permisos: se ve y se puede cambiar sin haber iniciado
   // sesión de bodega.
   const selectorObra = header.querySelector("#selector-obra");

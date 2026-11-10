@@ -19,7 +19,7 @@ import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/fireba
 import { db, storage } from "./firebase-config.js";
 import { usuarioActual } from "./auth.js";
 import { MODO_DEMO, MATERIALES_DEMO, MOVIMIENTOS_DEMO, bloquearEnDemo } from "./demo.js";
-import { OBRAS } from "./obra.js";
+import { OBRAS, etiquetaObra } from "./obra.js";
 
 const materialesRef = collection(db, "materiales");
 const movimientosRef = collection(db, "movimientos_materiales");
@@ -245,6 +245,130 @@ export async function registrarEntrada({ materialId, nuevoMaterial, cantidadReci
   // llamador para, si esto era una herramienta arrendada, dejar registrado
   // aparte que queda pendiente por devolver (ver herramientas.js).
   return { ...resultado, movimientoId: nuevoMovRef.id };
+}
+
+/**
+ * Traslado de material entre obras (ej: llega a ST5 algo que estaba en
+ * CCLP II): en UNA sola transacción descuenta el stock del producto en la
+ * obra de origen (no deja bajar de 0) y lo suma en la obra de destino --
+ * al producto que ya exista allá con el mismo nombre (`materialDestinoId`)
+ * o, si no hay, crea uno nuevo copiando la ficha del de origen. Deja dos
+ * movimientos: una "salida" en la obra de origen y una "entrada" en la de
+ * destino, que se apuntan entre sí (trasladoMovimientoId).
+ */
+export async function registrarTraslado({ materialOrigenId, materialDestinoId, obraDestino, cantidad, ubicacion, motivo, facturas, fleteId, fleteEmpresa }) {
+  if (MODO_DEMO) bloquearEnDemo();
+  const cant = Number(cantidad);
+  if (!(cant > 0)) throw new Error("La cantidad debe ser mayor que cero.");
+  if (!obraDestino) throw new Error("Falta la obra de destino.");
+
+  const email = usuarioActual()?.email ?? null;
+  const origenDoc = doc(db, "materiales", materialOrigenId);
+  const movSalidaRef = doc(movimientosRef);
+  const movEntradaRef = doc(movimientosRef);
+
+  return runTransaction(db, async (tx) => {
+    // Todas las lecturas primero (regla de las transacciones de Firestore).
+    const origenSnap = await tx.get(origenDoc);
+    if (!origenSnap.exists()) throw new Error("El producto ya no existe en la obra de origen.");
+    const origen = origenSnap.data();
+    const obraOrigen = origen.obra || OBRAS[0].valor;
+    if (obraOrigen === obraDestino) throw new Error("La obra de origen y la de destino son la misma.");
+
+    let destinoDoc = materialDestinoId ? doc(db, "materiales", materialDestinoId) : null;
+    let destinoSnap = destinoDoc ? await tx.get(destinoDoc) : null;
+    if (destinoSnap && !destinoSnap.exists()) { destinoDoc = null; destinoSnap = null; }
+    const contadorSnap = destinoDoc ? null : await tx.get(contadorMaterialesDoc);
+
+    const disponible = Number(origen.stock) || 0;
+    if (cant > disponible) {
+      throw new Error(`No hay stock suficiente en ${etiquetaObra(obraOrigen)} (disponible: ${disponible}).`);
+    }
+    const resultanteOrigen = Math.round((disponible - cant) * 1000) / 1000;
+    tx.update(origenDoc, { stock: resultanteOrigen, actualizadoEn: serverTimestamp() });
+
+    let resultanteDestino;
+    if (destinoDoc) {
+      resultanteDestino = Math.round(((Number(destinoSnap.data().stock) || 0) + cant) * 1000) / 1000;
+      tx.update(destinoDoc, {
+        stock: resultanteDestino,
+        actualizadoEn: serverTimestamp(),
+        ...(ubicacion?.trim() ? { ubicacion: ubicacion.trim() } : {}),
+      });
+    } else {
+      const item = (Number(contadorSnap.data()?.valor) || 0) + 1;
+      tx.set(contadorMaterialesDoc, { valor: item }, { merge: true });
+      destinoDoc = doc(materialesRef);
+      resultanteDestino = cant;
+      tx.set(destinoDoc, {
+        item,
+        producto: origen.producto,
+        categoria: origen.categoria,
+        obra: obraDestino,
+        unidad: origen.unidad || "",
+        medida: origen.medida || "",
+        centroGestion: origen.centroGestion || "",
+        centroCosto: origen.centroCosto || "",
+        stock: cant,
+        stockMinimo: Number(origen.stockMinimo) || 0,
+        ubicacion: ubicacion?.trim() || "",
+        descripcion: origen.descripcion || "",
+        tipoHerramienta: origen.tipoHerramienta || "",
+        creadoPor: email,
+        creadoEn: serverTimestamp(),
+        actualizadoEn: serverTimestamp(),
+      });
+    }
+
+    const etiquetaOrigen = etiquetaObra(obraOrigen);
+    const etiquetaDestino = etiquetaObra(obraDestino);
+    tx.set(movSalidaRef, {
+      materialId: materialOrigenId,
+      materialProducto: origen.producto,
+      categoria: origen.categoria,
+      obra: obraOrigen,
+      tipo: "salida",
+      cantidad: cant,
+      stockResultante: resultanteOrigen,
+      supervisor: "",
+      actividad: `Traslado a ${etiquetaDestino}`,
+      zona: "",
+      personaRetira: `Obra ${etiquetaDestino}`,
+      numeroVale: "",
+      observacion: motivo?.trim() || "",
+      trasladoObra: obraDestino,
+      trasladoMovimientoId: movEntradaRef.id,
+      responsable: email,
+      fecha: serverTimestamp(),
+    });
+    tx.set(movEntradaRef, {
+      materialId: destinoDoc.id,
+      materialProducto: origen.producto,
+      categoria: origen.categoria,
+      obra: obraDestino,
+      tipo: "entrada",
+      cantidad: cant,
+      stockResultante: resultanteDestino,
+      proveedor: `Traslado desde ${etiquetaOrigen}`,
+      documento: "",
+      motivo: motivo?.trim() || `Traslado desde ${etiquetaOrigen}`,
+      observacionRecepcion: "",
+      ordenCompraId: null,
+      ordenCompraNumero: "",
+      pmItemId: null,
+      fleteId: fleteId || null,
+      fleteEmpresa: fleteEmpresa?.trim() || "",
+      facturas: facturas || [],
+      tipoAdquisicion: null,
+      empresaArriendo: "",
+      trasladoObra: obraOrigen,
+      trasladoMovimientoId: movSalidaRef.id,
+      responsable: email,
+      fecha: serverTimestamp(),
+    });
+
+    return { materialId: destinoDoc.id, materialProducto: origen.producto, obra: obraDestino };
+  });
 }
 
 /**
