@@ -994,6 +994,7 @@
         item.stockMinimo = fila.querySelector(".im-minimo")?.value ?? 0;
         item.descripcion = fila.querySelector(".im-descripcion")?.value || "";
         item.tipoHerramienta = fila.querySelector(".im-tipo-herramienta")?.value || "";
+        item.pmSel = fila.querySelector(".im-pm-bloque input:checked")?.value ?? null;
         // El desplegable se puede abrir/cerrar a mano (clic en el
         // resumen), sin pasar por ningún botón nuestro -- se respeta lo
         // que haya quedado en vez de forzarlo a abierto/cerrado.
@@ -1023,6 +1024,7 @@
               <div class="im-lista buscador-lista hidden"></div>
             </div>
             <p class="text-sm muted im-stock" style="margin-top:-8px; margin-bottom:10px;">${existente ? esc(textoStockFila(existente)) : ""}</p>
+            <div class="field im-pm-bloque hidden"></div>
             <div class="im-nuevo ${!existente && hayTexto ? "" : "hidden"}">
               <div class="row">
                 <div class="field">
@@ -1063,6 +1065,7 @@
       itemsManualCont.querySelectorAll(".item-manual-fila").forEach((fila) => {
         const item = itemsManualSeleccionados.find((x) => x.id === fila.getAttribute("data-row-id"));
         wireFilaManual(fila, item);
+        actualizarPMFila(fila, item.pmSel);
         actualizarResumenFila(fila);
       });
     }
@@ -1078,6 +1081,66 @@
       if (!nombre) { resumen.textContent = "Producto nuevo"; return; }
       const unidad = existente ? existente.unidad : (fila.querySelector(".im-unidad")?.value || "");
       resumen.textContent = `${nombre}${cantidad ? ` — ${fmtNum(cantidad)}${unidad ? " " + unidad : ""}` : ""}`;
+    }
+
+    // ── PM automático: sin elegir un PM arriba, cada fila busca sola si su
+    // producto está pendiente en algún PM de la obra activa (mismo nombre
+    // que la glosa del PM). Si aparece en uno o más, se listan para elegir
+    // a cuál corresponde lo que llegó (o "ninguno"); lo elegido se
+    // descuenta de ese pedido igual que si se hubiera elegido el PM arriba.
+    /** Ítems pendientes (con algo por llegar) de todos los PM de la obra activa cuya glosa calza con `nombre`. */
+    function pendientesPMDe(nombre) {
+      const n = normalizar(nombre);
+      if (!n || obraOrigen()) return [];
+      return pedidos.flatMap((pedido) =>
+        itemsDePedido(pedido.id)
+          .filter((it) => normalizar(it.glosa) === n)
+          .map((item) => ({ pedido, item })));
+    }
+
+    /** Ítems pendientes de PM cuya glosa contiene el texto buscado (para el desplegable del buscador). */
+    function pendientesPMQueContienen(texto) {
+      const q = normalizar(texto);
+      if (obraOrigen()) return [];
+      return pedidos.flatMap((pedido) =>
+        itemsDePedido(pedido.id)
+          .filter((it) => !q || normalizar(it.glosa).includes(q))
+          .map((item) => ({ pedido, item })));
+    }
+
+    const clavePM = (pedidoId, itemId) => `${pedidoId}|${itemId}`;
+
+    /**
+     * Redibuja el bloque "Pendiente en PM" de una fila según su producto.
+     * `seleccion`: clave "pmId|itemId" a dejar marcada, "" para "ninguno",
+     * o null/undefined para elegir sola (si hay uno solo, ese; si hay
+     * varios, ninguno marcado hasta que se elija).
+     */
+    function actualizarPMFila(fila, seleccion) {
+      const bloque = fila.querySelector(".im-pm-bloque");
+      const materialId = fila.querySelector(".im-producto").value;
+      const existente = materialId ? catalogoFilas().find((m) => m.id === materialId) : null;
+      const nombre = existente ? existente.producto : fila.querySelector(".im-nuevo-producto").value;
+      const opciones = pendientesPMDe(nombre);
+      if (!opciones.length) { bloque.innerHTML = ""; bloque.classList.add("hidden"); return; }
+      const claves = opciones.map((o) => clavePM(o.pedido.id, o.item.id));
+      let marcada = seleccion;
+      if (marcada == null || (marcada !== "" && !claves.includes(marcada))) {
+        marcada = opciones.length === 1 ? claves[0] : null;
+      }
+      const nombreRadio = `pm-${fila.getAttribute("data-row-id")}`;
+      bloque.innerHTML = `
+        <label>Pendiente en PM${opciones.length > 1 ? " — elige a cuál corresponde" : ""}</label>
+        ${opciones.map((o, i) => `
+          <label class="text-sm" style="display:flex; gap:8px; align-items:center; font-weight:400; margin:4px 0;">
+            <input type="radio" name="${nombreRadio}" value="${esc(claves[i])}" ${marcada === claves[i] ? "checked" : ""} style="width:auto;" />
+            <span>${esc(o.pedido.numero || "PM sin folio")} — faltan ${fmtNum(o.item.pendiente)} ${esc(o.item.unidad || "")}${o.item.centroCosto ? ` · CC ${esc(o.item.centroCosto)}` : ""}</span>
+          </label>`).join("")}
+        <label class="text-sm" style="display:flex; gap:8px; align-items:center; font-weight:400; margin:4px 0;">
+          <input type="radio" name="${nombreRadio}" value="" ${marcada === "" ? "checked" : ""} style="width:auto;" />
+          <span class="muted">Ninguno (no viene de un PM)</span>
+        </label>`;
+      bloque.classList.remove("hidden");
     }
 
     /** "Stock actual: 12 und" -- o, en un traslado, cuánto hay en la obra de origen. */
@@ -1102,11 +1165,20 @@
           .filter((m) => !q || normalizar(m.producto).includes(q))
           .sort((a, b) => (a.producto || "").localeCompare(b.producto || "", "es", { sensitivity: "base" }))
           .slice(0, 30);
-        lista.innerHTML = items.length
+        // También lo pendiente en los PM de la obra (puede ser un producto
+        // que todavía no existe en el catálogo).
+        const enPM = pendientesPMQueContienen(input.value).slice(0, 15);
+        const htmlPM = enPM.length
+          ? `<div class="text-sm muted" style="padding:6px 8px 2px;">Pendiente en PM</div>` + enPM.map((o) => `
+              <button type="button" class="btn btn-ghost btn-xs" data-pm="${esc(clavePM(o.pedido.id, o.item.id))}">
+                ${esc(o.item.glosa)} — ${esc(o.pedido.numero || "PM sin folio")}, faltan ${fmtNum(o.item.pendiente)} ${esc(o.item.unidad || "")}
+              </button>`).join("")
+          : "";
+        lista.innerHTML = items.length || enPM.length
           ? items.map((m) => `
               <button type="button" class="btn btn-ghost btn-xs" data-id="${m.id}">
                 ${esc(m.producto)} — stock ${fmtNum(m.stock)} ${esc(m.unidad)}
-              </button>`).join("")
+              </button>`).join("") + htmlPM
           : `<div class="text-sm muted empty">${obraOrigen() ? `Sin resultados en ${esc(etiquetaObra(obraOrigen()))}.` : "Sin resultados."}</div>`;
         lista.classList.remove("hidden");
       }
@@ -1119,6 +1191,7 @@
         stockTxt.textContent = m ? textoStockFila(m) : "";
         bloqueNuevo.classList.toggle("hidden", !!m || !nuevoOculto.value);
         lista.classList.add("hidden");
+        actualizarPMFila(fila, null);
         actualizarResumenFila(fila);
       }
 
@@ -1131,6 +1204,23 @@
       });
       input.addEventListener("keydown", (e) => { if (e.key === "Escape") lista.classList.add("hidden"); });
       lista.addEventListener("click", (e) => {
+        const btnPM = e.target.closest("[data-pm]");
+        if (btnPM) {
+          // Ítem de un PM: el producto es el del catálogo con ese mismo
+          // nombre (si existe) o uno nuevo con la glosa del PM.
+          const clave = btnPM.getAttribute("data-pm");
+          const [pedidoId, itemId] = clave.split("|");
+          const it = (pedidos.find((p) => p.id === pedidoId)?.items || []).find((x) => x.id === itemId);
+          if (!it) return;
+          input.value = it.glosa;
+          const existente = catalogoFilas().find((m) => normalizar(m.producto) === normalizar(it.glosa));
+          elegir(existente || null);
+          const unidad = fila.querySelector(".im-unidad");
+          if (!existente && unidad && !unidad.value) unidad.value = it.unidad || "";
+          actualizarPMFila(fila, clave);
+          actualizarResumenFila(fila);
+          return;
+        }
         const btn = e.target.closest("[data-id]");
         if (!btn) return;
         elegir(catalogoFilas().find((x) => x.id === btn.getAttribute("data-id")));
@@ -1665,6 +1755,11 @@
               llevarVistaA(campoCantidad);
               throw new Error(`${nuevoProducto || fila.querySelector(".im-buscar").value}: ingresa la cantidad recibida.`);
             }
+            const bloquePM = fila.querySelector(".im-pm-bloque");
+            if (!bloquePM.classList.contains("hidden") && !bloquePM.querySelector("input:checked")) {
+              llevarVistaA(bloquePM.querySelector("input"));
+              throw new Error(`${nuevoProducto || campoBuscar.value}: elige a qué PM corresponde (o "Ninguno").`);
+            }
             if (materialId) continue;
             const campoCategoria = fila.querySelector(".im-categoria");
             if (!campoCategoria.value) {
@@ -1690,15 +1785,28 @@
             const nuevoProducto = fila.querySelector(".im-nuevo-producto").value;
             const nombreParaError = nuevoProducto || materiales.find((m) => m.id === materialId)?.producto || "Producto";
             try {
+              // ¿Corresponde a un ítem pendiente de algún PM de la obra?
+              const clavePMElegida = fila.querySelector(".im-pm-bloque input:checked")?.value || "";
+              let ordenAnotada = null;
+              let itemPM = null;
+              if (clavePMElegida) {
+                const [pedidoId, itemId] = clavePMElegida.split("|");
+                itemPM = (pedidos.find((p) => p.id === pedidoId)?.items || []).find((x) => x.id === itemId);
+                if (!itemPM) throw new Error("el ítem del PM ya no existe.");
+                ordenAnotada = await anotarOrdenDeCompra(ordenesCompra, { pmId: pedidoId, numero: numeroOc, proveedor, item: itemPM });
+                if (!ordenesCompra.some((o) => o.id === ordenAnotada.id)) {
+                  ordenesCompra = [...ordenesCompra, ordenAnotada]; // hasta que llegue la actualización en vivo
+                }
+              }
               const datos = {
                 cantidadRecibida: fila.querySelector(".im-cantidad").value,
                 proveedor,
-                documento: numeroOc,
+                documento: ordenAnotada ? "" : numeroOc, // con PM ya queda como ordenCompraNumero
                 motivo,
                 ubicacion,
-                ordenCompraId: null,
-                ordenCompraNumero: "",
-                pmItemId: null,
+                ordenCompraId: ordenAnotada?.id || null,
+                ordenCompraNumero: ordenAnotada?.numero || "",
+                pmItemId: itemPM?.id || null,
                 fleteId,
                 fleteEmpresa,
                 facturas,
@@ -1714,6 +1822,8 @@
                   obra: obraActiva(),
                   unidad: fila.querySelector(".im-unidad").value,
                   medida: fila.querySelector(".im-medida").value,
+                  centroGestion: itemPM?.centroGestion || "",
+                  centroCosto: itemPM?.centroCosto || "",
                   stockMinimo: fila.querySelector(".im-minimo").value,
                   ubicacion,
                   descripcion: fila.querySelector(".im-descripcion").value,
