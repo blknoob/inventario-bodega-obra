@@ -17,6 +17,10 @@
 //   node usuarios.mjs --reiniciar-clave correo@dpc.cl
 //     Le pone una clave temporal nueva y la vuelve a obligar a cambiarla.
 //
+//   --clave 12345678   (opcional, en cualquiera de los dos usos)
+//     Usa esa clave temporal en vez de una al azar, para las cuentas que se
+//     crean (o la que se reinicia) en esa corrida. No queda en el repo.
+//
 // Después de cambiar el rol de alguien, esa persona lo ve al volver a entrar
 // (o a más tardar en 1 hora, cuando su sesión renueva el token).
 // ─────────────────────────────────────────────────────────────────────────────
@@ -43,7 +47,15 @@ const db = getFirestore();
 
 // 10 caracteres sin letras/números que se confunden (l/1, O/0), con al
 // menos una letra y un número, para dictarla o mandarla por WhatsApp.
+const iClave = process.argv.indexOf("--clave");
+const CLAVE_FIJA = iClave !== -1 ? process.argv[iClave + 1] : null;
+if (iClave !== -1 && (!CLAVE_FIJA || CLAVE_FIJA.length < 6)) {
+  console.error("Error: --clave necesita una clave de al menos 6 caracteres.");
+  process.exit(1);
+}
+
 function claveTemporal() {
+  if (CLAVE_FIJA) return CLAVE_FIJA;
   const letras = "abcdefghjkmnpqrstuvwxyz";
   const numeros = "23456789";
   const todos = letras + numeros;
