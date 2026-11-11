@@ -17,7 +17,7 @@ const EVENTO = "obra:cambio";
 export const OBRAS = [
   { valor: "cclp2", etiqueta: "CCLP II" },
   { valor: "data_centers", etiqueta: "Data Centers" },
-  { valor: "st5", etiqueta: "ST5" },
+  { valor: "st5", etiqueta: "ST05" },
 ];
 
 export function etiquetaObra(valor) {
