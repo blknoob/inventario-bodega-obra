@@ -119,6 +119,7 @@
     // correctas igual.
     let pedidos = [];
     let ordenes = [];
+    const alertaAbiertos = new Set();
     const lista = document.getElementById("lista-pedidos");
     const buscar = document.getElementById("buscar");
 
@@ -136,8 +137,36 @@
       const alerta = document.getElementById("alerta-sin-comprar");
       if (sinLlegar.length) {
         alerta.classList.remove("hidden");
-        alerta.innerHTML = `⚠ <strong>${sinLlegar.length}</strong> ítem${sinLlegar.length > 1 ? "s llevan" : " lleva"} ${DIAS_ALERTA_SIN_LLEGAR}+ días sin llegar completo a bodega: ` +
-          sinLlegar.map((r) => `${esc(r.item.glosa)} (${esc(r.pedido.numero) || "sin folio"}, faltan ${fmtNum(r.pendiente)}, ${r.dias} días)`).join(" · ");
+        // Agrupa por PM: un desplegable por pedido con su material faltante.
+        const porPm = new Map();
+        for (const r of sinLlegar) {
+          if (!porPm.has(r.pedido.id)) porPm.set(r.pedido.id, { pedido: r.pedido, dias: r.dias, items: [] });
+          porPm.get(r.pedido.id).items.push(r);
+        }
+        alerta.innerHTML = `<div style="margin-bottom: 8px;">⚠ <strong>${sinLlegar.length}</strong> ítem${sinLlegar.length > 1 ? "s llevan" : " lleva"} ${DIAS_ALERTA_SIN_LLEGAR}+ días sin llegar completo a bodega:</div>` +
+          [...porPm.values()].map((g) => `
+          <details class="pm-pendientes" data-alerta-pm="${g.pedido.id}" ${alertaAbiertos.has(g.pedido.id) ? "open" : ""} style="margin-top: 6px;">
+            <summary><strong>${esc(g.pedido.numero) || "(sin folio)"}</strong>&nbsp;— ${g.items.length} ítem${g.items.length === 1 ? "" : "s"} faltante${g.items.length === 1 ? "" : "s"} · ${g.dias} días</summary>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Glosa</th><th class="text-right">Faltan</th><th>Unidad</th></tr></thead>
+                <tbody>
+                  ${g.items.map((r) => `
+                  <tr>
+                    <td>${esc(r.item.glosa)}</td>
+                    <td class="text-right nowrap">${fmtNum(r.pendiente)}</td>
+                    <td>${esc(r.item.unidad) || "<span class='muted'>—</span>"}</td>
+                  </tr>`).join("")}
+                </tbody>
+              </table>
+            </div>
+          </details>`).join("");
+        // Recuerda qué PM están abiertos para que el refresco en tiempo real no los cierre.
+        alerta.querySelectorAll("details[data-alerta-pm]").forEach((d) =>
+          d.addEventListener("toggle", () => {
+            if (d.open) alertaAbiertos.add(d.dataset.alertaPm);
+            else alertaAbiertos.delete(d.dataset.alertaPm);
+          }));
       } else {
         alerta.classList.add("hidden");
       }
