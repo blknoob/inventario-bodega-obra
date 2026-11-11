@@ -34,6 +34,7 @@ const CUENTAS = [
   { email: "carlosurbina@dpc.cl", nombre: "Carlos Urbina", rol: "capataz" },
   { email: "alejandropastrian@dpc.cl", nombre: "Alejandro Pastrian", rol: "supervisor" },
   { email: "intihenriquez@dpc.cl", nombre: "Inti Henriquez", rol: "prevencionista" },
+  { email: "alejandrogonzalez@dpc.cl", nombre: "Alejandro Gonzalez", rol: "supervisor" },
 ];
 
 initializeApp({ credential: applicationDefault(), projectId: PROYECTO });
