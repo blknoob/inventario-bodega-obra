@@ -35,7 +35,7 @@
     <div class="card">
       <div class="toolbar">
         <div class="filters">
-          <input type="search" id="buscar" placeholder="Buscar PM..." autocomplete="off" />
+          <input type="search" id="buscar" placeholder="Buscar PM o material..." autocomplete="off" />
         </div>
         <div class="row-actions only-bodega">
           <button class="btn btn-primary" id="btn-nuevo-pedido">Nuevo pedido</button>
@@ -123,11 +123,36 @@
     const lista = document.getElementById("lista-pedidos");
     const buscar = document.getElementById("buscar");
 
+    // Búsqueda sin importar mayúsculas ni tildes ("tuberia" encuentra "TUBERÍA").
+    const norm = (s) => [...String(s ?? "")]
+      .map((c) => c.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase()).join("");
+    const coincide = (texto, q) => norm(texto).includes(q);
+    // Escapa el texto y marca la parte que coincide con la búsqueda.
+    function resaltar(texto, q) {
+      const t = String(texto ?? "");
+      const chars = [...t];
+      const n = chars.map((c) => c.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase());
+      if (!q || n.some((c) => c.length !== 1)) return esc(t);
+      const i = n.join("").indexOf(q);
+      if (i < 0) return esc(t);
+      return esc(chars.slice(0, i).join("")) +
+        `<mark>${esc(chars.slice(i, i + q.length).join(""))}</mark>` +
+        esc(chars.slice(i + q.length).join(""));
+    }
+    function estadoItem(p, it) {
+      const recibido = cantidadRecibidaDe(ordenes, p.id, it.id);
+      const pedida = Number(it.cantidad) || 0;
+      if (recibido >= pedida) return `<span class="badge badge-ok">Llegó</span>`;
+      return recibido <= 0
+        ? `<span class="badge badge-warn">Sin llegar</span>`
+        : `<span class="badge badge-muted">Incompleto: ${fmtNum(recibido)}/${fmtNum(pedida)}</span>`;
+    }
+
     function render() {
-      const q = buscar.value.trim().toLowerCase();
+      const q = norm(buscar.value.trim());
       const vista = !q ? pedidos : pedidos.filter((p) =>
         [p.numero, p.solicitante, ...(p.items || []).map((it) => it.glosa)]
-          .some((v) => (v || "").toLowerCase().includes(q)));
+          .some((v) => coincide(v, q)));
 
       document.getElementById("stat-pedidos").textContent = pedidos.length;
 
@@ -186,13 +211,36 @@
           const recibido = cantidadRecibidaDe(ordenes, p.id, it.id);
           return recibido < (Number(it.cantidad) || 0);
         });
+        // Al buscar, los materiales que coinciden se muestran a la vista
+        // (también los que ya llegaron), con la parte buscada resaltada.
+        const coincidencias = q ? (p.items || []).filter((it) => coincide(it.glosa, q)) : [];
+        const bloqueCoincidencias = coincidencias.length ? `
+          <details class="pm-pendientes" open>
+            <summary>${coincidencias.length} material${coincidencias.length === 1 ? "" : "es"} coincide${coincidencias.length === 1 ? "" : "n"} con la búsqueda</summary>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Línea</th><th>Glosa</th><th>Centro de gestión</th><th>Centro de costo</th><th class="text-right">Cantidad</th><th>Estado</th></tr></thead>
+                <tbody>
+                  ${coincidencias.map((it) => `
+                  <tr>
+                    <td class="muted">${esc(it.linea) || "—"}</td>
+                    <td>${resaltar(it.glosa, q)}</td>
+                    <td>${esc(it.centroGestion) || "<span class='muted'>—</span>"}</td>
+                    <td>${esc(it.centroCosto) || "<span class='muted'>—</span>"}</td>
+                    <td class="text-right nowrap">${fmtNum(it.cantidad)} ${esc(it.unidad)}</td>
+                    <td>${estadoItem(p, it)}</td>
+                  </tr>`).join("")}
+                </tbody>
+              </table>
+            </div>
+          </details>` : "";
         return `
         <div class="card">
           <div class="row-actions" style="justify-content: space-between; align-items: flex-start; margin-bottom: 10px;">
             <div>
-              <div style="font-weight: 700;">${esc(p.numero) || "(sin folio)"} <span class="muted text-sm">— ${fmtFecha(p.creadoEn)}</span></div>
+              <div style="font-weight: 700;">${resaltar(p.numero, q) || "(sin folio)"} <span class="muted text-sm">— ${fmtFecha(p.creadoEn)}</span></div>
               <div class="text-sm muted">
-                ${p.solicitante ? `Solicita: ${esc(p.solicitante)}` : ""}
+                ${p.solicitante ? `Solicita: ${resaltar(p.solicitante, q)}` : ""}
                 ${p.observacion ? ` · ${esc(p.observacion)}` : ""}
               </div>
               ${p.archivo ? `<div class="text-sm"><a href="${esc(p.archivo.url)}" target="_blank" rel="noopener">📎 ${esc(p.archivo.nombre)}</a></div>` : ""}
@@ -202,7 +250,7 @@
             </div>
           </div>
 
-          ${itemsPendientes.length ? `
+          ${bloqueCoincidencias || (itemsPendientes.length ? `
           <details class="pm-pendientes">
             <summary>${itemsPendientes.length} ítem${itemsPendientes.length === 1 ? "" : "s"} pendiente${itemsPendientes.length === 1 ? "" : "s"} por llegar</summary>
             <div class="table-wrap">
@@ -229,7 +277,7 @@
               </table>
             </div>
           </details>
-          ` : `<p class="text-sm"><span class="badge badge-ok">Completo</span> Todo lo pedido en este PM ya llegó a bodega.</p>`}
+          ` : `<p class="text-sm"><span class="badge badge-ok">Completo</span> Todo lo pedido en este PM ya llegó a bodega.</p>`)}
         </div>`;
       }).join("");
     }

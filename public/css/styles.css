@@ -721,3 +721,6 @@ body.es-bodega .only-bodega.row-actions { display: flex; }
 
   dialog form { padding: 16px; }
 }
+
+/* Parte del texto que coincide con la búsqueda (Seguimiento de PMs). */
+mark { background: #fde68a; color: inherit; padding: 0 1px; border-radius: 2px; }
