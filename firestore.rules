@@ -42,9 +42,14 @@ service cloud.firestore {
 
     match /movimientos_materiales/{id} {
       allow read: if true;
-      // Los movimientos son un registro histórico: se crean, no se editan ni borran.
+      // Los movimientos son un registro histórico: se crean, no se editan ni
+      // borran. Única excepción: bodega puede agregarle después las fotos de
+      // la guía a un ingreso que quedó sin ellas (ver guias.html) -- solo el
+      // campo "facturas", nada más del movimiento.
       allow create: if bodega();
-      allow update, delete: if false;
+      allow update: if bodega()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["facturas"]);
+      allow delete: if false;
     }
 
     match /herramientas/{id} {

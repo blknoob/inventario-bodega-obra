@@ -14,6 +14,7 @@ import {
   serverTimestamp,
   updateDoc,
   where,
+  writeBatch,
 } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-storage.js";
 import { db, storage } from "./firebase-config.js";
@@ -123,6 +124,24 @@ export async function subirFacturasEntrada(archivos, carpetaBase = "entradas") {
 export function facturasDe(movimiento) {
   if (movimiento.facturas?.length) return movimiento.facturas;
   return movimiento.factura ? [movimiento.factura] : [];
+}
+
+/**
+ * Agrega fotos de la guía a ingresos que ya están registrados (p. ej. quien
+ * recibió el material no le sacó foto en el momento). Se suman a las que ya
+ * tuvieran, a todos los movimientos de esa misma guía a la vez. Es lo único
+ * que se puede cambiar de un movimiento (ver firestore.rules).
+ */
+export async function agregarFacturasAIngreso(movimientos, facturasNuevas) {
+  if (MODO_DEMO) bloquearEnDemo();
+  if (!facturasNuevas?.length) throw new Error("Elige al menos una foto o archivo de la guía.");
+  const batch = writeBatch(db);
+  for (const m of movimientos) {
+    batch.update(doc(db, "movimientos_materiales", m.id), {
+      facturas: [...facturasDe(m), ...facturasNuevas],
+    });
+  }
+  await batch.commit();
 }
 
 /**

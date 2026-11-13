@@ -26,6 +26,10 @@
         <div class="label">Ingresos</div>
         <div class="value stock-ok" id="stat-ingreso">—</div>
       </button>
+      <button type="button" class="stat" id="stat-sinfoto-card">
+        <div class="label">Sin foto de guía</div>
+        <div class="value stock-bajo" id="stat-sinfoto">—</div>
+      </button>
       <button type="button" class="stat" id="stat-devolucion-card">
         <div class="label">Devoluciones</div>
         <div class="value" id="stat-devolucion" style="color: var(--warn);">—</div>
@@ -95,10 +99,37 @@
     </form>
   </dialog>
 
+  <!-- ── Modal: agregar la foto de la guía a un ingreso ya registrado ─────── -->
+  <dialog id="dlg-foto-guia">
+    <div class="modal-head">
+      <h3>Agregar foto de la guía</h3>
+      <button type="button" class="modal-close" data-close>&times;</button>
+    </div>
+    <form id="form-foto-guia">
+      <div id="err-foto-guia" class="alert alert-error hidden"></div>
+      <div id="g-resumen" class="text-sm" style="margin-bottom: 12px;"></div>
+      <div class="field">
+        <label>Fotos de la guía o factura <span class="muted">(pueden ser varias)</span></label>
+        <div class="row-actions">
+          <button type="button" class="btn btn-ghost" id="btn-g-camara">📷 Tomar foto</button>
+          <button type="button" class="btn btn-ghost" id="btn-g-archivo">📁 Elegir archivo</button>
+        </div>
+        <input type="file" id="g-camara" accept="image/*" capture="environment" class="hidden" />
+        <input type="file" id="g-archivo" accept="image/*,.pdf" multiple class="hidden" />
+        <div id="g-elegidas" style="margin-top:6px;"></div>
+      </div>
+      <div class="modal-foot">
+        <button type="button" class="btn btn-ghost" data-close>Cancelar</button>
+        <button type="submit" class="btn btn-primary" id="btn-guardar-foto-guia">Guardar fotos</button>
+      </div>
+    </form>
+  </dialog>
+
   <script type="module">
     import { montarTopbar, flash } from "./js/ui.js";
     import { escucharFletes, crearFlete, eliminarFlete, TIPOS_FLETE, etiquetaTipoFlete } from "./js/fletes.js";
-    import { escucharMovimientos, facturasDe } from "./js/materiales.js";
+    import { escucharMovimientos, facturasDe, subirFacturasEntrada, agregarFacturasAIngreso } from "./js/materiales.js";
+    import { crearSelectorFotos } from "./js/fotos.js";
     import { ACTIVIDAD_DEVOLUCION_HERRAMIENTA } from "./js/constantes.js";
     import { obraActiva, escucharConObraActiva } from "./js/obra.js";
 
@@ -136,24 +167,30 @@
 
     let fletes = [];
     let movimientos = [];
-    let filtroTipo = ""; // "" | "ingreso" | "devolucion" | "traslado"
+    let filtroTipo = ""; // "" | "ingreso" | "sinfoto" | "devolucion" | "traslado"
     const lista = document.getElementById("lista-guias");
     const buscar = document.getElementById("buscar");
     const statTotalCard = document.getElementById("stat-total-card");
     const statIngresoCard = document.getElementById("stat-ingreso-card");
+    const statSinFotoCard = document.getElementById("stat-sinfoto-card");
     const statDevolucionCard = document.getElementById("stat-devolucion-card");
     const statTrasladoCard = document.getElementById("stat-traslado-card");
+    // Ingresos de la vista actual, por su clave -- para saber a qué
+    // movimientos agregarles la foto al apretar "Agregar foto de guía".
+    let ingresosPorClave = new Map();
 
     function setFiltroTipo(valor) {
       filtroTipo = filtroTipo === valor ? "" : valor;
       statTotalCard.classList.toggle("active", filtroTipo === "");
       statIngresoCard.classList.toggle("active", filtroTipo === "ingreso");
+      statSinFotoCard.classList.toggle("active", filtroTipo === "sinfoto");
       statDevolucionCard.classList.toggle("active", filtroTipo === "devolucion");
       statTrasladoCard.classList.toggle("active", filtroTipo === "traslado");
       render();
     }
     statTotalCard.addEventListener("click", () => setFiltroTipo(""));
     statIngresoCard.addEventListener("click", () => setFiltroTipo("ingreso"));
+    statSinFotoCard.addEventListener("click", () => setFiltroTipo("sinfoto"));
     statDevolucionCard.addEventListener("click", () => setFiltroTipo("devolucion"));
     statTrasladoCard.addEventListener("click", () => setFiltroTipo("traslado"));
 
@@ -185,6 +222,9 @@
     //    guía trajo varios productos a la vez (mismo PM, registrados
     //    juntos), quedan agrupados en UNA sola tarjeta -- se suben con la
     //    misma foto de factura, así que agrupar por esa factura basta.
+    //    Los ingresos con N.º de orden de compra que quedaron SIN foto
+    //    también aparecen (marcados "Sin foto de guía"), agrupados por esa
+    //    OC, proveedor y día, para poder agregarles la foto después.
     //  - "devolucion": la guía de devolución de una herramienta arrendada
     //    (ver js/herramientas.js/devolverHerramienta) -- cada devolución
     //    queda en su propio movimiento de salida, así que van una por una.
@@ -192,28 +232,35 @@
     //    vinculado -- un retiro de escombros, por ejemplo, no tiene ninguno.
     function documentos() {
       const gruposIngreso = new Map();
+      const ocDe = (m) => (m.ordenCompraNumero || m.documento || "").trim();
       movimientos
-        .filter((m) => m.tipo === "entrada" && facturasDe(m).length)
+        .filter((m) => m.tipo === "entrada" && (facturasDe(m).length || ocDe(m)))
         .forEach((m) => {
           const facturas = facturasDe(m);
           // Misma clave para todos los movimientos que comparten las MISMAS
           // fotos (un solo registro de "Material entrante" con varios
           // productos a la vez sube las mismas fotos para todos) -- así
           // quedan agrupados en una sola tarjeta en vez de repetir la foto.
-          const clave = facturas.map((f) => f.path || f.url).sort().join("|");
+          // Sin foto, se agrupan por OC + proveedor + día.
+          const clave = facturas.length
+            ? facturas.map((f) => f.path || f.url).sort().join("|")
+            : `sin-foto|${ocDe(m)}|${m.proveedor || ""}|${claveDia(m.fecha)}`;
           if (!gruposIngreso.has(clave)) {
             gruposIngreso.set(clave, {
-              tipo: "ingreso", fecha: m.fecha, facturas,
+              tipo: "ingreso", clave, fecha: m.fecha, facturas,
               proveedor: m.proveedor || "",
-              ordenCompra: m.ordenCompraNumero || m.documento || "",
+              ordenCompra: ocDe(m),
               fleteEmpresa: m.fleteEmpresa || "",
               productos: [],
+              movs: [],
             });
           }
           gruposIngreso.get(clave).productos.push({ producto: m.materialProducto, cantidad: m.cantidad });
+          gruposIngreso.get(clave).movs.push(m);
         });
       const ingresos = [...gruposIngreso.values()].map((g) => ({
         ...g,
+        sinFoto: !g.facturas.length,
         titulo: `${g.productos.length} producto${g.productos.length === 1 ? "" : "s"}`,
         sub: [g.proveedor, g.ordenCompra ? `OC ${g.ordenCompra}` : ""].filter(Boolean).join(" · "),
       }));
@@ -238,13 +285,15 @@
     function render() {
       const q = buscar.value.trim().toLowerCase();
       const todos = documentos();
+      ingresosPorClave = new Map(todos.filter((d) => d.tipo === "ingreso").map((d) => [d.clave, d]));
       document.getElementById("stat-total").textContent = todos.length;
       document.getElementById("stat-ingreso").textContent = todos.filter((d) => d.tipo === "ingreso").length;
+      document.getElementById("stat-sinfoto").textContent = todos.filter((d) => d.sinFoto).length;
       document.getElementById("stat-devolucion").textContent = todos.filter((d) => d.tipo === "devolucion").length;
       document.getElementById("stat-traslado").textContent = todos.filter((d) => d.tipo === "traslado").length;
 
       const vista = todos.filter((d) =>
-        (!filtroTipo || d.tipo === filtroTipo) &&
+        (!filtroTipo || (filtroTipo === "sinfoto" ? d.sinFoto : d.tipo === filtroTipo)) &&
         (!q || [d.titulo, d.sub, d.observacion, ...(d.productos || []).map((p) => p.producto)]
           .some((v) => (v || "").toLowerCase().includes(q))));
 
@@ -300,12 +349,20 @@
           </details>` : ""}
           ${(() => {
             const facturas = d.facturas || (d.factura ? [d.factura] : []);
-            if (!facturas.length) return `<p class="text-sm" style="margin:2px 0 0;"><span class="badge badge-warn">Sin factura</span></p>`;
+            // En un ingreso, bodega puede agregar la foto si quedó sin ella
+            // (o sumar otra hoja que faltó).
+            const botonAgregar = d.tipo !== "ingreso" ? "" : `
+          <div class="row-actions only-bodega" style="margin-top:6px;">
+            <button class="btn ${facturas.length ? "btn-ghost" : "btn-primary"} btn-xs" data-agregar-foto="${esc(d.clave)}">${facturas.length ? "➕ Agregar otra foto" : "📷 Agregar foto de guía"}</button>
+          </div>`;
+            if (!facturas.length) {
+              return `<p class="text-sm" style="margin:2px 0 0;"><span class="badge badge-warn">${d.tipo === "ingreso" ? "Sin foto de guía" : "Sin factura"}</span></p>${botonAgregar}`;
+            }
             return `
           <details class="lista-desplegable">
             <summary>${facturas.length > 1 ? `${facturas.length} fotos de la guía` : "Foto de la guía"}</summary>
             <div style="margin-top:6px; display:flex; flex-wrap:wrap;">${facturas.map(bloqueFactura).join("")}</div>
-          </details>`;
+          </details>${botonAgregar}`;
           })()}
           ${d.tipo === "ingreso" && d.fleteEmpresa ? `<p class="text-sm muted" style="margin-top:4px;">Traslado: ${esc(d.fleteEmpresa)}</p>` : ""}
           ${d.tipo === "traslado" && d.vinculados?.length ? `
@@ -382,6 +439,55 @@
         errFlete.classList.remove("hidden");
       } finally {
         btn.disabled = false; btn.textContent = "Guardar traslado";
+      }
+    });
+
+    // ── Agregar foto de la guía a un ingreso ya registrado ───────────────
+    const dlgFotoGuia = document.getElementById("dlg-foto-guia");
+    const formFotoGuia = document.getElementById("form-foto-guia");
+    const errFotoGuia = document.getElementById("err-foto-guia");
+    const selectorFotosGuia = crearSelectorFotos({
+      idCamara: "g-camara", idArchivo: "g-archivo", idElegida: "g-elegidas",
+      idBotonCamara: "btn-g-camara", idBotonArchivo: "btn-g-archivo",
+    });
+    let ingresoFotoActual = null;
+
+    lista.addEventListener("click", (e) => {
+      const clave = e.target.closest?.("[data-agregar-foto]")?.getAttribute("data-agregar-foto");
+      if (!clave) return;
+      const d = ingresosPorClave.get(clave);
+      if (!d) return;
+      // Se guardan los movimientos de ESTE momento: si la lista se refresca
+      // en vivo mientras el diálogo está abierto, la foto igual va a los
+      // mismos productos que se vieron al abrirlo.
+      ingresoFotoActual = { movs: [...d.movs] };
+      document.getElementById("g-resumen").innerHTML = `
+        <div><strong>${esc(d.sub) || "Ingreso"}</strong> — ${fmtFecha(d.fecha)}</div>
+        <ul style="margin:6px 0 0; padding-left:18px;">
+          ${d.productos.map((p) => `<li>${esc(p.producto)} — ${fmtNum(p.cantidad)}</li>`).join("")}
+        </ul>`;
+      selectorFotosGuia.limpiar();
+      errFotoGuia.classList.add("hidden");
+      dlgFotoGuia.showModal();
+    });
+
+    formFotoGuia.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      errFotoGuia.classList.add("hidden");
+      const btn = document.getElementById("btn-guardar-foto-guia");
+      btn.disabled = true; btn.textContent = "Subiendo…";
+      try {
+        const elegidas = selectorFotosGuia.obtenerElegidas();
+        if (!elegidas.length) throw new Error("Toma o elige al menos una foto de la guía.");
+        const facturas = await subirFacturasEntrada(elegidas);
+        await agregarFacturasAIngreso(ingresoFotoActual.movs, facturas);
+        dlgFotoGuia.close();
+        flash("Foto de la guía agregada.");
+      } catch (err) {
+        errFotoGuia.textContent = err.message;
+        errFotoGuia.classList.remove("hidden");
+      } finally {
+        btn.disabled = false; btn.textContent = "Guardar fotos";
       }
     });
 
