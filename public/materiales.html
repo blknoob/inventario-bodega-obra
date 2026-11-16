@@ -79,11 +79,12 @@
               <th>Centro de costo</th>
               <th>Ubicación</th>
               <th>Actualizado</th>
+              <th>Detalle</th>
               <th class="only-bodega"></th>
             </tr>
           </thead>
           <tbody id="tbody">
-            <tr><td colspan="9" class="empty">Cargando…</td></tr>
+            <tr><td colspan="12" class="empty">Cargando…</td></tr>
           </tbody>
         </table>
       </div>
@@ -432,6 +433,10 @@
     let detalleMovs = null; // null = cargando
     let detalleError = "";
     let dejarDeEscucharDetalle = () => {};
+    // Desplegable "Detalle" abierto en la tabla (uno a la vez).
+    let panelId = null;
+    let panelMovs = null; // null = cargando
+    let dejarPanel = () => {};
     const tbody = document.getElementById("tbody");
     const buscar = document.getElementById("buscar");
     const filtroCat = document.getElementById("filtro-categoria");
@@ -581,7 +586,7 @@
       }
 
       if (!vista.length) {
-        tbody.innerHTML = `<tr><td colspan="9" class="empty">${
+        tbody.innerHTML = `<tr><td colspan="12" class="empty">${
           materiales.length ? "Sin resultados para el filtro." : "Aún no hay materiales cargados."
         }</td></tr>`;
         return;
@@ -593,7 +598,7 @@
         return `
           <tr>
             <td>
-              <button type="button" class="link-producto" data-detalle="${m.id}" title="Ver detalle">${esc(m.producto)}</button>
+              <div>${esc(m.producto)}</div>
               ${m.descripcion ? `<div class="text-sm muted">${esc(m.descripcion)}</div>` : ""}
               ${m.sinReposicion ? `<div class="text-sm muted">No se repone</div>` : ""}
             </td>
@@ -614,6 +619,10 @@
             <td>${esc(m.centroCosto) || "<span class='muted'>—</span>"}</td>
             <td>${esc(m.ubicacion) || "<span class='muted'>—</span>"}</td>
             <td class="nowrap text-sm muted">${fmtFecha(m.actualizadoEn)}</td>
+            <td class="text-sm nowrap detalle-celda">
+              <button type="button" class="btn btn-ghost btn-xs" data-toggle-detalle="${m.id}">Detalle</button>
+              <div class="detalle-panel hidden" data-panel-detalle="${m.id}"></div>
+            </td>
             <td class="only-bodega nowrap">
               <div class="row-actions" style="justify-content:flex-end; flex-wrap:nowrap;">
                 ${!m.sinReposicion && (Number(m.stock) || 0) <= 0
@@ -624,6 +633,7 @@
             </td>
           </tr>`;
       }).join("");
+      renderPanel(); // la tabla se redibuja con cada cambio en vivo: mantiene abierto el desplegable
     }
 
     buscar.addEventListener("input", render);
@@ -648,7 +658,7 @@
       escucharMateriales,
       recalcularMateriales,
       (err) => {
-        tbody.innerHTML = `<tr><td colspan="9" class="empty">Error al cargar: ${esc(err.message)}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="12" class="empty">Error al cargar: ${esc(err.message)}</td></tr>`;
       },
     );
 
@@ -828,6 +838,10 @@
       return `<div class="detalle-dato"><span class="muted">${etiqueta}</span><span>${valor}</span></div>`;
     }
     function datosMovimiento(mv) {
+      return paresMovimiento(mv).map(([a, b]) => filaDato(a, b)).join("");
+    }
+    /** Detalle de un movimiento como pares [etiqueta, html]. */
+    function paresMovimiento(mv) {
       const p = [];
       if (mv.tipo === "entrada") {
         if (mv.unidadesPorCaja) p.push(["Llegó en", `${fmtNum(mv.cajas)} caja${mv.cajas === 1 ? "" : "s"} × ${fmtNum(mv.unidadesPorCaja)}`]);
@@ -848,9 +862,95 @@
       }
       const fotos = facturasDe(mv);
       if (fotos.length) p.push(["Guía", fotos.map(vistaFactura).join("")]);
-      if (mv.responsable) p.push(["Registró", esc(mv.responsable)]);
-      return p.map(([a, b]) => filaDato(a, b)).join("");
+      if (mv.responsable) p.push(["Responsable", esc(mv.responsable)]);
+      return p;
     }
+
+    // ── Desplegable "Detalle" de cada fila (igual que en Historial): el
+    // último ingreso del producto -- OC, proveedor, guía, quién lo
+    // registró -- y un enlace a todos sus movimientos (abre el modal de
+    // arriba). Los movimientos se piden recién al abrirlo, de a uno.
+    function renderPanel() {
+      if (!panelId) return;
+      const panel = tbody.querySelector(`.detalle-panel[data-panel-detalle="${panelId}"]`);
+      const m = materiales.find((x) => x.id === panelId);
+      if (!panel || !m) return;
+      panel.classList.remove("hidden");
+      const filas = (pares) => `<div class="detalle-lista">${pares.map(([a, b]) => `
+        <div class="detalle-fila"><span class="muted text-sm">${esc(a)}</span><span class="text-sm">${b}</span></div>`).join("")}</div>`;
+      const ingreso = panelMovs?.find((x) => x.tipo === "entrada");
+      let html;
+      if (panelMovs === null) {
+        html = `<p class="text-sm muted">Cargando…</p>`;
+      } else if (!ingreso) {
+        html = `<p class="text-sm muted">Sin ingresos registrados.</p>`;
+      } else {
+        html = `
+          <p class="text-sm muted" style="margin-bottom:8px;">
+            Último ingreso: ${fmtFecha(ingreso.fecha)} ·
+            <span class="badge badge-ok">+${fmtNum(ingreso.cantidad)}</span>
+          </p>
+          ${filas(paresMovimiento(ingreso).map(([a, b]) => [a === "Guía" ? "Factura/guía" : a, b]))}`;
+      }
+      const otros = [];
+      if (m.descripcion) otros.push(["Descripción", esc(m.descripcion)]);
+      if (m.unidadesPorCaja) otros.push(["Por caja", `${fmtNum(m.unidadesPorCaja)} ${esc(m.unidad)}`]);
+      if (otros.length) html += `<div style="margin-top:10px; padding-top:8px; border-top:1px solid var(--line);">${filas(otros)}</div>`;
+      html += `<button type="button" class="btn btn-ghost btn-xs btn-block" data-detalle="${m.id}" style="margin-top:10px;">Ver todos los movimientos${panelMovs?.length ? ` (${panelMovs.length})` : ""}</button>`;
+      panel.innerHTML = html;
+      ubicarPanel(panel);
+    }
+    // La tabla scrollea (overflow) y con pocas filas cortaba el
+    // desplegable: se ubica flotando sobre la página, pegado al botón
+    // (abajo, o arriba si no cabe).
+    function ubicarPanel(panel) {
+      const btn = panel.parentElement.querySelector("[data-toggle-detalle]");
+      const r = btn.getBoundingClientRect();
+      panel.style.position = "fixed";
+      panel.style.marginTop = "0";
+      panel.style.right = "auto";
+      const ancho = panel.offsetWidth;
+      panel.style.left = `${Math.min(Math.max(8, r.right - ancho), window.innerWidth - ancho - 8)}px`;
+      panel.style.maxHeight = "none";
+      const alto = panel.offsetHeight;
+      const abajo = window.innerHeight - r.bottom - 12;
+      const arriba = r.top - 12;
+      // Abajo si cabe; si no, arriba si cabe; si no, donde haya más espacio (con scroll interno).
+      const haciaArriba = alto > abajo && (alto <= arriba || arriba > abajo);
+      const disponible = haciaArriba ? arriba : abajo;
+      panel.style.maxHeight = `${disponible}px`;
+      panel.style.top = `${haciaArriba ? r.top - 4 - Math.min(alto, disponible) : r.bottom + 4}px`;
+      panel.style.overflowY = "auto";
+    }
+    // Al hacer scroll (página o tabla) o cambiar el tamaño, se reacomoda
+    // junto a su botón en vez de quedar flotando en otro lado.
+    function reubicarPanelAbierto() {
+      const panel = panelId && tbody.querySelector(`.detalle-panel[data-panel-detalle="${panelId}"]`);
+      if (panel && !panel.classList.contains("hidden")) ubicarPanel(panel);
+    }
+    window.addEventListener("scroll", reubicarPanelAbierto, { passive: true });
+    window.addEventListener("resize", reubicarPanelAbierto);
+    document.querySelector(".table-wrap").addEventListener("scroll", reubicarPanelAbierto, { passive: true });
+    function cerrarPanel() {
+      dejarPanel();
+      dejarPanel = () => {};
+      panelId = null;
+      panelMovs = null;
+      tbody.querySelectorAll(".detalle-panel").forEach((p) => p.classList.add("hidden"));
+    }
+    function abrirPanel(id) {
+      cerrarPanel();
+      panelId = id;
+      renderPanel();
+      dejarPanel = escucharMovimientosDeMaterial(
+        id,
+        (items) => { if (panelId === id) { panelMovs = items; renderPanel(); } },
+        () => { if (panelId === id) { panelMovs = []; renderPanel(); } },
+      );
+    }
+    document.addEventListener("click", (e) => {
+      if (panelId && !e.target.closest?.(".detalle-celda")) cerrarPanel();
+    });
 
     function renderDetalle() {
       if (!detalleId) return;
@@ -942,8 +1042,13 @@
 
     // ── Eliminar material ───────────────────────────────────────────────
     tbody.addEventListener("click", async (e) => {
+      const idToggle = e.target.getAttribute?.("data-toggle-detalle");
+      if (idToggle) {
+        if (panelId === idToggle) cerrarPanel(); else abrirPanel(idToggle);
+        return;
+      }
       const idDetalle = e.target.closest?.("[data-detalle]")?.getAttribute("data-detalle");
-      if (idDetalle) { abrirDetalle(idDetalle); return; }
+      if (idDetalle) { cerrarPanel(); abrirDetalle(idDetalle); return; }
 
       const idEliminar = e.target.getAttribute?.("data-eliminar");
       const idSinReposicion = e.target.getAttribute?.("data-sin-reposicion");
