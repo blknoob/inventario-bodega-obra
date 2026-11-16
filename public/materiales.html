@@ -306,7 +306,7 @@
   </dialog>
 
   <script type="module">
-    import { montarTopbar, flash } from "./js/ui.js";
+    import { montarTopbar, flash, ubicarDesplegable } from "./js/ui.js";
     import {
       CATEGORIAS, etiquetaCategoria, nivelStock,
       TIPOS_HERRAMIENTA, etiquetaTipoHerramienta,
@@ -900,27 +900,8 @@
       panel.innerHTML = html;
       ubicarPanel(panel);
     }
-    // La tabla scrollea (overflow) y con pocas filas cortaba el
-    // desplegable: se ubica flotando sobre la página, pegado al botón
-    // (abajo, o arriba si no cabe).
     function ubicarPanel(panel) {
-      const btn = panel.parentElement.querySelector("[data-toggle-detalle]");
-      const r = btn.getBoundingClientRect();
-      panel.style.position = "fixed";
-      panel.style.marginTop = "0";
-      panel.style.right = "auto";
-      const ancho = panel.offsetWidth;
-      panel.style.left = `${Math.min(Math.max(8, r.right - ancho), window.innerWidth - ancho - 8)}px`;
-      panel.style.maxHeight = "none";
-      const alto = panel.offsetHeight;
-      const abajo = window.innerHeight - r.bottom - 12;
-      const arriba = r.top - 12;
-      // Abajo si cabe; si no, arriba si cabe; si no, donde haya más espacio (con scroll interno).
-      const haciaArriba = alto > abajo && (alto <= arriba || arriba > abajo);
-      const disponible = haciaArriba ? arriba : abajo;
-      panel.style.maxHeight = `${disponible}px`;
-      panel.style.top = `${haciaArriba ? r.top - 4 - Math.min(alto, disponible) : r.bottom + 4}px`;
-      panel.style.overflowY = "auto";
+      ubicarDesplegable(panel, panel.parentElement.querySelector("[data-toggle-detalle]"));
     }
     // Al hacer scroll (página o tabla) o cambiar el tamaño, se reacomoda
     // junto a su botón en vez de quedar flotando en otro lado.

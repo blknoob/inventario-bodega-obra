@@ -138,3 +138,31 @@ export function flash(mensaje, tipo = "ok") {
   clearTimeout(flash._t);
   flash._t = setTimeout(() => box.classList.add("hidden"), 4000);
 }
+
+/**
+ * Ubica un desplegable de "Detalle" (ver .detalle-panel en styles.css)
+ * flotando sobre la página, pegado a su botón: dentro de una tabla con
+ * scroll (.table-wrap) y pocas filas, si no, queda cortado. Se abre hacia
+ * abajo si cabe, si no hacia arriba, y si no hacia donde haya más espacio
+ * (con scroll interno); nunca se sale de la pantalla por los lados.
+ */
+export function ubicarDesplegable(panel, boton) {
+  const r = boton.getBoundingClientRect();
+  panel.style.position = "fixed";
+  panel.style.marginTop = "0";
+  panel.style.right = "auto";
+  const ancho = panel.offsetWidth;
+  panel.style.left = `${Math.min(Math.max(8, r.right - ancho), window.innerWidth - ancho - 8)}px`;
+  panel.style.maxHeight = "none";
+  const alto = panel.offsetHeight;
+  const abajo = window.innerHeight - r.bottom - 12;
+  // La barra superior queda fija arriba al hacer scroll: no meterse debajo.
+  const barra = document.getElementById("topbar")?.getBoundingClientRect();
+  const techo = barra && barra.bottom > 0 ? barra.bottom : 0;
+  const arriba = r.top - techo - 12;
+  const haciaArriba = alto > abajo && (alto <= arriba || arriba > abajo);
+  const disponible = haciaArriba ? arriba : abajo;
+  panel.style.maxHeight = `${disponible}px`;
+  panel.style.top = `${haciaArriba ? r.top - 4 - Math.min(alto, disponible) : r.bottom + 4}px`;
+  panel.style.overflowY = "auto";
+}

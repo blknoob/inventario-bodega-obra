@@ -76,7 +76,7 @@
   </div>
 
   <script type="module">
-    import { montarTopbar } from "./js/ui.js";
+    import { montarTopbar, ubicarDesplegable } from "./js/ui.js";
     import { CATEGORIAS, etiquetaCategoria, escucharMovimientos, facturasDe } from "./js/materiales.js";
     import { escucharConObraActiva } from "./js/obra.js";
 
@@ -308,7 +308,20 @@
       const yaAbierto = !panel.classList.contains("hidden");
       cerrarPaneles(null);
       panel.classList.toggle("hidden", yaAbierto);
+      if (!yaAbierto) ubicarDesplegable(panel, e.target);
     });
+    // Flota sobre la página (si no, con pocas filas la tabla lo corta): al
+    // hacer scroll o cambiar el tamaño se reacomoda junto a su botón.
+    function reubicarAbierto() {
+      const panel = tbody.querySelector(".detalle-panel:not(.hidden)");
+      if (!panel) return;
+      const id = panel.getAttribute("data-panel-detalle");
+      const boton = tbody.querySelector(`[data-toggle-detalle="${id}"]`);
+      if (boton) ubicarDesplegable(panel, boton);
+    }
+    window.addEventListener("scroll", reubicarAbierto, { passive: true });
+    window.addEventListener("resize", reubicarAbierto);
+    document.querySelector(".table-wrap").addEventListener("scroll", reubicarAbierto, { passive: true });
     document.addEventListener("click", (e) => {
       if (!e.target.closest(".detalle-celda")) cerrarPaneles(null);
     });
