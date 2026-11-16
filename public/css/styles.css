@@ -745,3 +745,27 @@ details.detalle-mov > summary::-webkit-details-marker { display: none; }
   .detalle-dato { grid-template-columns: 1fr; gap: 0; }
   .detalle-mov-datos .detalle-dato { grid-template-columns: 1fr; }
 }
+
+/* ── Alerta de stock (Materiales/EPPs/Herramientas) como desplegable ──── */
+details.alerta-desplegable summary {
+  cursor: pointer; list-style: none;
+  display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap;
+}
+details.alerta-desplegable summary::-webkit-details-marker { display: none; }
+details.alerta-desplegable summary::before {
+  content: "▸"; display: inline-block; width: 10px; transition: transform .15s;
+}
+details.alerta-desplegable[open] summary::before { transform: rotate(90deg); }
+.alerta-detalle { opacity: .8; }
+.alerta-lista { list-style: none; margin-top: 8px; display: flex; flex-direction: column; }
+.alerta-lista li + li { border-top: 1px solid #c3d5f5; }
+.alerta-item {
+  width: 100%; background: none; border: none; cursor: pointer; font: inherit; color: var(--ink);
+  display: flex; justify-content: space-between; align-items: center; gap: 10px;
+  padding: 7px 4px; text-align: left; border-radius: 4px;
+}
+.alerta-item:hover { background: rgba(255, 255, 255, .5); }
+.alerta-nombre { overflow-wrap: anywhere; }
+@media (max-width: 520px) {
+  .alerta-item { flex-direction: column; align-items: flex-start; gap: 2px; }
+}

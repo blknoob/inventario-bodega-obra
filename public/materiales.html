@@ -36,7 +36,10 @@
       </button>
     </div>
 
-    <div id="alerta-stock" class="alert alert-info hidden"></div>
+    <details id="alerta-stock" class="alert alert-info alerta-desplegable hidden">
+      <summary id="alerta-stock-resumen"></summary>
+      <ul id="alerta-stock-lista" class="alerta-lista"></ul>
+    </details>
 
     <details id="bloque-arriendos" class="card hidden arriendos-desplegable" style="margin-bottom:18px;">
       <summary id="resumen-arriendos">Herramientas arrendadas por devolver</summary>
@@ -577,10 +580,28 @@
       const alerta = document.getElementById("alerta-stock");
       const enAlerta = [...ceros, ...bajos];
       if (enAlerta.length) {
+        // Desplegable: solo el resumen a la vista; la lista al tocarlo (se
+        // redibuja solo la lista, así queda abierto/cerrado como estaba).
         alerta.classList.remove("hidden");
-        alerta.textContent = "Atención: " + enAlerta
-          .map((m) => `${m.producto} (${fmtNum(m.stock)} ${m.unidad})`)
-          .join(" · ");
+        const partes = [];
+        if (ceros.length) partes.push(`${ceros.length} sin stock`);
+        if (bajos.length) partes.push(`${bajos.length} con stock bajo`);
+        document.getElementById("alerta-stock-resumen").innerHTML =
+          `<strong>Atención:</strong> ${enAlerta.length} producto${enAlerta.length === 1 ? "" : "s"} por reponer <span class="alerta-detalle">(${partes.join(" · ")})</span>`;
+        document.getElementById("alerta-stock-lista").innerHTML = enAlerta.map((m) => {
+          const cero = nivelStock(m) === "cero";
+          return `
+            <li>
+              <button type="button" class="alerta-item" data-alerta-detalle="${m.id}" title="Ver detalle">
+                <span class="alerta-nombre">${esc(m.producto)}</span>
+                <span class="nowrap">
+                  <strong class="${cero ? "stock-cero" : "stock-bajo"}">${fmtNum(m.stock)} ${esc(m.unidad)}</strong>
+                  ${m.stockMinimo ? `<span class="muted text-sm"> · mín. ${fmtNum(m.stockMinimo)}</span>` : ""}
+                  <span class="badge ${cero ? "badge-danger" : "badge-warn"}">${cero ? "Sin stock" : "Bajo"}</span>
+                </span>
+              </button>
+            </li>`;
+        }).join("");
       } else {
         alerta.classList.add("hidden");
       }
@@ -635,6 +656,11 @@
       }).join("");
       renderPanel(); // la tabla se redibuja con cada cambio en vivo: mantiene abierto el desplegable
     }
+
+    document.getElementById("alerta-stock-lista").addEventListener("click", (e) => {
+      const id = e.target.closest("[data-alerta-detalle]")?.getAttribute("data-alerta-detalle");
+      if (id) abrirDetalle(id);
+    });
 
     buscar.addEventListener("input", render);
     filtroCat.addEventListener("change", render);
