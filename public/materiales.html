@@ -295,13 +295,22 @@
     </form>
   </dialog>
 
+  <!-- ── Modal: detalle de un producto (ficha + movimientos) ──────────────── -->
+  <dialog id="dlg-detalle" class="dlg-detalle">
+    <div class="modal-head">
+      <h3 id="detalle-titulo">Detalle</h3>
+      <button type="button" class="modal-close" data-close>&times;</button>
+    </div>
+    <div class="detalle-producto" id="detalle-cuerpo"></div>
+  </dialog>
+
   <script type="module">
     import { montarTopbar, flash } from "./js/ui.js";
     import {
       CATEGORIAS, etiquetaCategoria, nivelStock,
       TIPOS_HERRAMIENTA, etiquetaTipoHerramienta,
       escucharMateriales, registrarEntrada, registrarSalida, eliminarMaterial, marcarSinReposicion,
-      subirFacturasEntrada, registrarTraslado,
+      subirFacturasEntrada, registrarTraslado, escucharMovimientosDeMaterial, facturasDe,
     } from "./js/materiales.js";
     import { escucharPedidos, escucharOrdenes, anotarOrdenDeCompra, cantidadRecibidaDe } from "./js/compras.js";
     import { escucharFletes, etiquetaTipoFlete } from "./js/fletes.js";
@@ -416,6 +425,13 @@
     // "Arrendadas" y el conteo puedan usarlo desde el principio; se llena
     // más abajo, junto con el resto del bloque de arriendos.
     let arriendos = [];
+    // Producto abierto en el modal "Detalle" (ver más abajo). Se declara
+    // acá arriba porque render de materiales/arriendos lo consulta, y en
+    // modo demo esos datos llegan antes de llegar a esa parte del código.
+    let detalleId = null;
+    let detalleMovs = null; // null = cargando
+    let detalleError = "";
+    let dejarDeEscucharDetalle = () => {};
     const tbody = document.getElementById("tbody");
     const buscar = document.getElementById("buscar");
     const filtroCat = document.getElementById("filtro-categoria");
@@ -577,7 +593,7 @@
         return `
           <tr>
             <td>
-              <div>${esc(m.producto)}</div>
+              <button type="button" class="link-producto" data-detalle="${m.id}" title="Ver detalle">${esc(m.producto)}</button>
               ${m.descripcion ? `<div class="text-sm muted">${esc(m.descripcion)}</div>` : ""}
               ${m.sinReposicion ? `<div class="text-sm muted">No se repone</div>` : ""}
             </td>
@@ -625,6 +641,7 @@
       materialesTodos = items;
       materiales = filtrarPorModoPagina(items);
       render();
+      renderDetalle();
     }
 
     escucharConObraActiva(
@@ -674,7 +691,7 @@
           </div>
         </div>`).join("");
     }
-    escucharConObraActiva(escucharArriendos, (items) => { arriendos = items; renderArriendos(); render(); }, () => {});
+    escucharConObraActiva(escucharArriendos, (items) => { arriendos = items; renderArriendos(); render(); renderDetalle(); }, () => {});
 
     // ── Marcar herramienta devuelta: la empresa arrendadora suele traer su
     // propia guía de devolución (constancia de que recibió la herramienta
@@ -792,8 +809,142 @@
         .filter((it) => it.pendiente > 0);
     }
 
+    // ── Detalle de un producto: ficha completa + todos sus movimientos ──
+    // (entradas y salidas, con su detalle) y, en Herramientas, sus
+    // arriendos. Lo puede ver cualquiera (también la lectura pública).
+    const dlgDetalle = document.getElementById("dlg-detalle");
+    const detalleTitulo = document.getElementById("detalle-titulo");
+    const detalleCuerpo = document.getElementById("detalle-cuerpo");
+    cerrarAlClickAfuera(dlgDetalle);
+
+    const esImagen = (nombre) => /\.(jpe?g|png|gif|webp|heic|heif|bmp)$/i.test(nombre || "");
+    function vistaFactura(f) {
+      const nombre = esc(f.nombre), url = esc(f.url);
+      return esImagen(f.nombre)
+        ? `<a href="${url}" download="${nombre}" target="_blank" rel="noopener" class="detalle-foto"><img src="${url}" alt="Guía" /></a>`
+        : `<a href="${url}" download="${nombre}" target="_blank" rel="noopener">📎 ${nombre}</a>`;
+    }
+    function filaDato(etiqueta, valor) {
+      return `<div class="detalle-dato"><span class="muted">${etiqueta}</span><span>${valor}</span></div>`;
+    }
+    function datosMovimiento(mv) {
+      const p = [];
+      if (mv.tipo === "entrada") {
+        if (mv.unidadesPorCaja) p.push(["Llegó en", `${fmtNum(mv.cajas)} caja${mv.cajas === 1 ? "" : "s"} × ${fmtNum(mv.unidadesPorCaja)}`]);
+        if (mv.proveedor) p.push(["Proveedor", esc(mv.proveedor)]);
+        p.push(["Orden de compra", mv.ordenCompraNumero ? esc(mv.ordenCompraNumero) : `<span class="badge badge-warn">Sin OC</span>`]);
+        if (mv.documento && mv.documento !== mv.ordenCompraNumero) p.push(["Documento", esc(mv.documento)]);
+        if (mv.motivo) p.push(["Motivo", esc(mv.motivo)]);
+        if (mv.observacionRecepcion) p.push(["Obs. recepción", esc(mv.observacionRecepcion)]);
+        if (mv.fleteEmpresa) p.push(["Flete", esc(mv.fleteEmpresa)]);
+        if (mv.tipoAdquisicion === "arrendada") p.push(["Adquisición", `Arrendada — ${esc(mv.empresaArriendo)}`]);
+      } else {
+        p.push(["Retira", esc(mv.personaRetira || "—")]);
+        if (mv.supervisor) p.push(["Supervisor", esc(mv.supervisor)]);
+        if (mv.actividad) p.push(["Actividad", esc(mv.actividad)]);
+        if (mv.zona) p.push(["Zona", esc(mv.zona)]);
+        if (mv.numeroVale) p.push(["Vale", esc(mv.numeroVale)]);
+        if (mv.observacion) p.push(["Observación", esc(mv.observacion)]);
+      }
+      const fotos = facturasDe(mv);
+      if (fotos.length) p.push(["Guía", fotos.map(vistaFactura).join("")]);
+      if (mv.responsable) p.push(["Registró", esc(mv.responsable)]);
+      return p.map(([a, b]) => filaDato(a, b)).join("");
+    }
+
+    function renderDetalle() {
+      if (!detalleId) return;
+      const m = materialesTodos.find((x) => x.id === detalleId);
+      if (!m) {
+        detalleCuerpo.innerHTML = `<p class="muted">Este producto ya no existe en el catálogo.</p>`;
+        return;
+      }
+      detalleTitulo.textContent = m.producto;
+      const nivel = nivelStock(m);
+      const clase = { ok: "stock-ok", bajo: "stock-bajo", cero: "stock-cero" }[nivel];
+      const ficha = [
+        ["Ítem", m.item ? `#${esc(m.item)}` : "—"],
+        ["Stock", `<strong class="${clase}">${fmtNum(m.stock)}</strong> ${esc(m.unidad)}${m.stockMinimo ? ` <span class="muted">(mín. ${fmtNum(m.stockMinimo)})</span>` : ""}${m.sinReposicion ? ` <span class="muted">· no se repone</span>` : ""}`],
+        ["Categoría", esc(etiquetaCategoria(m.categoria))],
+        ...(m.categoria === "herramienta" ? [["Tipo", m.tipoHerramienta ? esc(etiquetaTipoHerramienta(m.tipoHerramienta)) : "—"]] : []),
+        ["Descripción", esc(m.descripcion) || "—"],
+        ["Medida", esc(m.medida) || "—"],
+        ...(m.unidadesPorCaja ? [["Por caja", `${fmtNum(m.unidadesPorCaja)} ${esc(m.unidad)}`]] : []),
+        ["Centro de gestión", esc(m.centroGestion) || "—"],
+        ["Centro de costo", esc(m.centroCosto) || "—"],
+        ["Ubicación", esc(m.ubicacion) || "—"],
+        ["Obra", esc(etiquetaObra(m.obra))],
+        ["Creado", `${fmtFecha(m.creadoEn)}${m.creadoPor ? ` <span class="muted">· ${esc(m.creadoPor)}</span>` : ""}`],
+        ["Actualizado", fmtFecha(m.actualizadoEn)],
+      ];
+
+      let html = `<div class="detalle-ficha">${ficha.map(([a, b]) => filaDato(a, b)).join("")}</div>`;
+
+      if (m.categoria === "herramienta") {
+        const arr = arriendos.filter((a) => a.materialId === m.id);
+        if (arr.length) {
+          html += `<h4 class="detalle-subtitulo">Arriendos</h4>` + arr.map((a) => `
+            <div class="detalle-mov">
+              <div class="detalle-mov-cab">
+                <span><strong>${fmtNum(a.cantidad)}</strong> · ${esc(a.empresa)}</span>
+                <span class="badge ${a.devuelto ? "badge-muted" : "badge-warn"}">${a.devuelto ? "Devuelta" : "Por devolver"}</span>
+              </div>
+              <div class="text-sm muted">Desde ${fmtFecha(a.creadoEn)}${a.devuelto ? ` · devuelta ${fmtFecha(a.fechaDevolucion)}` : ""}</div>
+            </div>`).join("");
+        }
+      }
+
+      html += `<h4 class="detalle-subtitulo">Movimientos</h4>`;
+      if (detalleError) {
+        html += `<p class="alert alert-error">${esc(detalleError)}</p>`;
+      } else if (detalleMovs === null) {
+        html += `<p class="muted text-sm">Cargando…</p>`;
+      } else if (!detalleMovs.length) {
+        html += `<p class="muted text-sm">Sin movimientos registrados.</p>`;
+      } else {
+        const ent = detalleMovs.filter((x) => x.tipo === "entrada").reduce((t, x) => t + (Number(x.cantidad) || 0), 0);
+        const sal = detalleMovs.filter((x) => x.tipo !== "entrada").reduce((t, x) => t + (Number(x.cantidad) || 0), 0);
+        html += `<p class="text-sm muted" style="margin-bottom:8px;">Total entrado: <strong>${fmtNum(ent)}</strong> · Total salido: <strong>${fmtNum(sal)}</strong> ${esc(m.unidad)}</p>`;
+        html += detalleMovs.map((mv) => `
+          <details class="detalle-mov">
+            <summary class="detalle-mov-cab">
+              <span>
+                <span class="badge ${mv.tipo === "entrada" ? "badge-ok" : "badge-info"}">${mv.tipo === "entrada" ? "Entrante" : "Saliente"}</span>
+                <strong>${mv.tipo === "entrada" ? "+" : "−"}${fmtNum(mv.cantidad)}</strong>
+                <span class="muted text-sm">→ queda ${fmtNum(mv.stockResultante)}</span>
+              </span>
+              <span class="text-sm muted nowrap">${fmtFecha(mv.fecha)}</span>
+            </summary>
+            <div class="detalle-mov-datos">${datosMovimiento(mv)}</div>
+          </details>`).join("");
+      }
+      detalleCuerpo.innerHTML = html;
+    }
+
+    function abrirDetalle(id) {
+      dejarDeEscucharDetalle();
+      detalleId = id;
+      detalleMovs = null;
+      detalleError = "";
+      renderDetalle();
+      dlgDetalle.showModal();
+      dejarDeEscucharDetalle = escucharMovimientosDeMaterial(
+        id,
+        (items) => { if (detalleId === id) { detalleMovs = items; renderDetalle(); } },
+        (err) => { if (detalleId === id) { detalleError = "No se pudieron cargar los movimientos: " + err.message; renderDetalle(); } },
+      );
+    }
+    dlgDetalle.addEventListener("close", () => {
+      dejarDeEscucharDetalle();
+      dejarDeEscucharDetalle = () => {};
+      detalleId = null;
+    });
+
     // ── Eliminar material ───────────────────────────────────────────────
     tbody.addEventListener("click", async (e) => {
+      const idDetalle = e.target.closest?.("[data-detalle]")?.getAttribute("data-detalle");
+      if (idDetalle) { abrirDetalle(idDetalle); return; }
+
       const idEliminar = e.target.getAttribute?.("data-eliminar");
       const idSinReposicion = e.target.getAttribute?.("data-sin-reposicion");
 
@@ -947,6 +1098,8 @@
         item.descripcion = fila.querySelector(".im-descripcion")?.value || "";
         item.tipoHerramienta = fila.querySelector(".im-tipo-herramienta")?.value || "";
         item.pmSel = fila.querySelector(".im-pm-bloque input:checked")?.value ?? null;
+        item.enCajas = !!fila.querySelector(".im-en-cajas")?.checked;
+        item.porCaja = fila.querySelector(".im-por-caja")?.value || "";
         // El desplegable se puede abrir/cerrar a mano (clic en el
         // resumen), sin pasar por ningún botón nuestro -- se respeta lo
         // que haya quedado en vez de forzarlo a abierto/cerrado.
@@ -1005,12 +1158,22 @@
                 <textarea class="im-descripcion" rows="2" maxlength="300">${esc(item.descripcion || "")}</textarea>
               </div>
             </div>
+            ${obraOrigen() ? "" : `
+            <label class="text-sm" style="display:flex; align-items:center; gap:6px; margin-top:10px;">
+              <input type="checkbox" class="im-en-cajas" style="width:auto;" ${item.enCajas ? "checked" : ""} />
+              Viene en cajas
+            </label>`}
             <div class="row" style="margin-top:10px;">
               <div class="field">
-                <label>${obraOrigen() ? "Cantidad trasladada" : "Cantidad recibida"}</label>
+                <label class="im-cantidad-label">${obraOrigen() ? "Cantidad trasladada" : item.enCajas ? "Cajas recibidas" : "Cantidad recibida"}</label>
                 <input type="number" class="im-cantidad" min="0" step="any" value="${esc(item.cantidad || "")}" />
               </div>
+              <div class="field im-cajas-campo ${item.enCajas && !obraOrigen() ? "" : "hidden"}">
+                <label>Unidades por caja</label>
+                <input type="number" class="im-por-caja" min="1" step="any" placeholder="Ej: 50" value="${esc(item.porCaja || "")}" />
+              </div>
             </div>
+            <p class="text-sm muted im-total-cajas ${item.enCajas && !obraOrigen() ? "" : "hidden"}" style="margin-top:6px;"></p>
           </details>`;
       }).join("");
 
@@ -1019,8 +1182,48 @@
         wireFilaManual(fila, item);
         actualizarPMFila(fila, item.pmSel);
         actualizarResumenFila(fila);
+        actualizarCajasManual(fila);
       });
     }
+
+    // "Viene en cajas" en una fila manual: muestra/oculta "Unidades por
+    // caja" y el total que entra al stock (ver "Productos que llegan en
+    // cajas" más abajo, mismo criterio que con un PM elegido).
+    function enCajasManual(fila) {
+      return !obraOrigen() && !!fila.querySelector(".im-en-cajas")?.checked;
+    }
+    function actualizarCajasManual(fila) {
+      const enCajas = enCajasManual(fila);
+      fila.querySelector(".im-cajas-campo")?.classList.toggle("hidden", !enCajas);
+      const total = fila.querySelector(".im-total-cajas");
+      total?.classList.toggle("hidden", !enCajas);
+      if (!obraOrigen()) fila.querySelector(".im-cantidad-label").textContent = enCajas ? "Cajas recibidas" : "Cantidad recibida";
+      if (!enCajas || !total) return;
+      const materialId = fila.querySelector(".im-producto").value;
+      const existente = materialId ? catalogoFilas().find((m) => m.id === materialId) : null;
+      const unidad = existente ? existente.unidad : (fila.querySelector(".im-unidad")?.value || "unidades");
+      const cajas = Number(fila.querySelector(".im-cantidad").value) || 0;
+      const porCaja = Number(fila.querySelector(".im-por-caja").value) || 0;
+      total.innerHTML = cajas > 0 && porCaja > 0
+        ? `Entran al stock: <strong>${fmtNum(cajas * porCaja)} ${esc(unidad)}</strong> (${fmtNum(cajas)} × ${fmtNum(porCaja)})`
+        : "Indica cuántas unidades trae cada caja.";
+    }
+    itemsManualCont.addEventListener("change", (e) => {
+      if (!e.target.classList?.contains("im-en-cajas")) return;
+      const fila = e.target.closest(".item-manual-fila");
+      // Propone lo que traía cada caja la última vez que llegó este producto.
+      const porCaja = fila.querySelector(".im-por-caja");
+      const materialId = fila.querySelector(".im-producto").value;
+      const existente = materialId ? catalogoFilas().find((m) => m.id === materialId) : null;
+      if (e.target.checked && !porCaja.value && existente?.unidadesPorCaja) porCaja.value = existente.unidadesPorCaja;
+      actualizarCajasManual(fila);
+      actualizarResumenFila(fila);
+      if (e.target.checked) porCaja.focus();
+    });
+    itemsManualCont.addEventListener("input", (e) => {
+      const fila = e.target.closest?.(".item-manual-fila");
+      if (fila) actualizarCajasManual(fila);
+    });
 
     /** Texto corto del <summary> de una fila (producto + cantidad), leído directo del DOM -- se llama tras cada cambio relevante, sin esperar a un redibujo completo. */
     function actualizarResumenFila(fila) {
@@ -1031,7 +1234,9 @@
       const existente = materialId ? catalogoFilas().find((m) => m.id === materialId) : null;
       const nombre = existente ? existente.producto : nuevoProducto;
       if (!nombre) { resumen.textContent = "Producto nuevo"; return; }
-      const unidad = existente ? existente.unidad : (fila.querySelector(".im-unidad")?.value || "");
+      const unidad = enCajasManual(fila)
+        ? (Number(cantidad) === 1 ? "caja" : "cajas")
+        : existente ? existente.unidad : (fila.querySelector(".im-unidad")?.value || "");
       resumen.textContent = `${nombre}${cantidad ? ` — ${fmtNum(cantidad)}${unidad ? " " + unidad : ""}` : ""}`;
     }
 
@@ -1242,7 +1447,45 @@
         if (minimoInput) item.stockMinimo = minimoInput.value;
         const observacionInput = fila.querySelector(".ie-observacion");
         if (observacionInput) item.observacionRecepcion = observacionInput.value;
+        const enCajasInput = fila.querySelector(".ie-en-cajas");
+        if (enCajasInput) item.enCajas = enCajasInput.checked;
+        const porCajaInput = fila.querySelector(".ie-por-caja");
+        if (porCajaInput) item.porCaja = porCajaInput.value;
       });
+    }
+
+    // ── Productos que llegan en cajas ─────────────────────────────────
+    // Muchos ítems se piden en el PM por caja ("2 cajas de trajes de papel")
+    // pero se entregan por unidad, y cada producto trae una cantidad
+    // distinta por caja (trajes 50, marcadores 12…). Para que el stock y
+    // su alerta de mínimo sean reales, al recibir se indica cuántas
+    // unidades trae cada caja: al stock entra el total (cajas × unidades
+    // por caja) y en la orden de compra se sigue descontando en cajas.
+    const esUnidadCaja = (u) => /^\s*(caj|cj|box)/i.test(u || "");
+    function valoresCajaIniciales(itemPM, existente) {
+      // Se marca solo si el PM lo pidió en cajas -- salvo que el producto
+      // ya exista en el inventario contado en cajas (para no mezclar
+      // cajas con unidades en el mismo stock).
+      const enCajas = esUnidadCaja(itemPM.unidad) && !(existente && esUnidadCaja(existente.unidad));
+      return {
+        enCajas,
+        porCaja: existente?.unidadesPorCaja || "",
+        // Producto nuevo: su unidad de stock pasa a ser la del contenido.
+        ...(enCajas && !existente ? { unidad: "unidades" } : {}),
+      };
+    }
+    function unidadStockFila(fila, item) {
+      const existente = item.existenteId ? materialesTodos.find((m) => m.id === item.existenteId) : null;
+      return existente ? existente.unidad : (fila.querySelector(".ie-unidad")?.value || "unidades");
+    }
+    function actualizarTotalCajas(fila, item) {
+      const total = fila.querySelector(".ie-total-cajas");
+      if (!total) return;
+      const cajas = Number(fila.querySelector(".ie-cantidad")?.value) || 0;
+      const porCaja = Number(fila.querySelector(".ie-por-caja")?.value) || 0;
+      total.innerHTML = cajas > 0 && porCaja > 0
+        ? `Entran al stock: <strong>${fmtNum(cajas * porCaja)} ${esc(unidadStockFila(fila, item))}</strong> (${fmtNum(cajas)} × ${fmtNum(porCaja)})`
+        : "Indica cuántas unidades trae cada caja.";
     }
 
     function renderItemsPedidoElegidos() {
@@ -1263,17 +1506,27 @@
                 ? `<span class="text-sm muted">Stock actual: ${fmtNum(existente.stock)} ${esc(existente.unidad)}</span>`
                 : `<span class="badge badge-warn text-sm">Producto nuevo</span>`}
             </div>
+            <label class="text-sm" style="display:flex; align-items:center; gap:6px; margin-top:8px;">
+              <input type="checkbox" class="ie-en-cajas" style="width:auto;" ${item.enCajas ? "checked" : ""} />
+              Viene en cajas
+            </label>
             <div class="row" style="margin-top:8px;">
               <div class="field">
-                <label>Cantidad recibida</label>
+                <label>${item.enCajas ? "Cajas recibidas" : "Cantidad recibida"}</label>
                 <input type="number" class="ie-cantidad" min="0" step="any" value="${item.cantidad}" />
               </div>
+              ${item.enCajas ? `
+              <div class="field">
+                <label>Unidades por caja</label>
+                <input type="number" class="ie-por-caja" min="1" step="any" value="${esc(item.porCaja ?? "")}" placeholder="Ej: 50" />
+              </div>` : ""}
               ${!existente ? `
               <div class="field">
-                <label>Unidad</label>
-                <input type="text" class="ie-unidad" maxlength="20" value="${esc(item.unidad)}" />
+                <label>${item.enCajas ? "Unidad de cada pieza" : "Unidad"}</label>
+                <input type="text" class="ie-unidad" maxlength="20" value="${esc(item.unidad)}" ${item.enCajas ? `placeholder="unidades, pares…"` : ""} />
               </div>` : ""}
             </div>
+            ${item.enCajas ? `<p class="text-sm muted ie-total-cajas" style="margin-top:6px;"></p>` : ""}
             ${!existente ? `
             <div class="row" style="margin-top:10px;">
               <div class="field">
@@ -1281,7 +1534,7 @@
                 <select class="ie-categoria">${optsCategoriaNuevo(item.categoriaElegida)}</select>
               </div>
               <div class="field">
-                <label>Stock mínimo (alerta) <span class="muted">— obligatorio en EPP</span></label>
+                <label>Stock mínimo (alerta)${item.enCajas ? " en unidades" : ""} <span class="muted">— obligatorio en EPP</span></label>
                 <input type="number" class="ie-minimo" min="0" step="any" value="${item.stockMinimo ?? 0}" />
               </div>
             </div>` : ""}
@@ -1291,7 +1544,36 @@
             </div>
           </div>`;
       }).join("");
+      itemsPMSeleccionados.forEach((item) => {
+        const fila = itemsPedidoElegidosCont.querySelector(`.item-pedido-fila[data-item-id="${item.id}"]`);
+        if (fila) actualizarTotalCajas(fila, item);
+      });
     }
+
+    // "Viene en cajas": se redibuja la fila (cambian los campos); al
+    // escribir cajas / unidades por caja / unidad, se recalcula el total.
+    itemsPedidoElegidosCont.addEventListener("change", (e) => {
+      if (!e.target.classList?.contains("ie-en-cajas")) return;
+      const fila = e.target.closest(".item-pedido-fila");
+      const item = itemsPMSeleccionados.find((x) => x.id === fila?.getAttribute("data-item-id"));
+      if (!item) return;
+      sincronizarItemsDesdeDom();
+      // Producto nuevo: la unidad propuesta sigue a la casilla (si el PM
+      // decía "caja", al marcarla se cambia a "unidades" y al desmarcarla
+      // vuelve a la del PM), salvo que ya se haya escrito otra a mano.
+      if (!item.existenteId) {
+        const pm = itemsDePedido(pedidoElegidoId()).find((it) => it.id === item.id);
+        if (item.enCajas && esUnidadCaja(item.unidad)) item.unidad = "unidades";
+        else if (!item.enCajas && item.unidad === "unidades" && pm?.unidad) item.unidad = pm.unidad;
+      }
+      renderItemsPedidoElegidos();
+      itemsPedidoElegidosCont.querySelector(`.item-pedido-fila[data-item-id="${item.id}"] ${item.enCajas ? ".ie-por-caja" : ".ie-cantidad"}`)?.focus();
+    });
+    itemsPedidoElegidosCont.addEventListener("input", (e) => {
+      const fila = e.target.closest?.(".item-pedido-fila");
+      const item = itemsPMSeleccionados.find((x) => x.id === fila?.getAttribute("data-item-id"));
+      if (item) actualizarTotalCajas(fila, item);
+    });
 
     const dlgElegirItems = document.getElementById("dlg-elegir-items");
     const elegirItemsBuscar = document.getElementById("elegir-items-buscar");
@@ -1364,6 +1646,7 @@
             id: it.id, glosa: it.glosa, cantidad: it.pendiente, unidad: it.unidad,
             centroGestion: it.centroGestion, centroCosto: it.centroCosto,
             existenteId: existente ? existente.id : null,
+            ...valoresCajaIniciales(it, existente),
           };
         });
       dlgElegirItems.close();
@@ -1593,6 +1876,11 @@
               llevarVistaA(campoCantidad);
               throw new Error(`${item.glosa}: ingresa la cantidad recibida.`);
             }
+            const campoPorCaja = fila.querySelector(".ie-por-caja");
+            if (campoPorCaja && !(Number(campoPorCaja.value) > 0)) {
+              llevarVistaA(campoPorCaja);
+              throw new Error(`${item.glosa}: indica cuántas unidades trae cada caja.`);
+            }
             if (item.existenteId) continue;
             const campoCategoria = fila.querySelector(".ie-categoria");
             if (!campoCategoria?.value) {
@@ -1617,8 +1905,15 @@
               if (!ordenesCompra.some((o) => o.id === ordenAnotada.id)) {
                 ordenesCompra = [...ordenesCompra, ordenAnotada]; // hasta que llegue la actualización en vivo
               }
+              // En cajas: al stock entra el total de unidades, pero la
+              // orden de compra se descuenta en cajas (la unidad del PM).
+              const cantidadFila = Number(fila.querySelector(".ie-cantidad").value);
+              const porCaja = Number(fila.querySelector(".ie-por-caja")?.value) || 0;
               const datos = {
-                cantidadRecibida: fila.querySelector(".ie-cantidad").value,
+                cantidadRecibida: porCaja ? Math.round(cantidadFila * porCaja * 1000) / 1000 : cantidadFila,
+                cantidadPedido: cantidadFila,
+                cajas: porCaja ? cantidadFila : null,
+                unidadesPorCaja: porCaja || null,
                 proveedor,
                 documento: "", // ya queda anotado como ordenCompraNumero, no hace falta repetirlo
                 motivo,
@@ -1707,6 +2002,10 @@
               llevarVistaA(campoCantidad);
               throw new Error(`${nuevoProducto || fila.querySelector(".im-buscar").value}: ingresa la cantidad recibida.`);
             }
+            if (enCajasManual(fila) && !(Number(fila.querySelector(".im-por-caja").value) > 0)) {
+              llevarVistaA(fila.querySelector(".im-por-caja"));
+              throw new Error(`${nuevoProducto || campoBuscar.value}: indica cuántas unidades trae cada caja.`);
+            }
             const bloquePM = fila.querySelector(".im-pm-bloque");
             if (!bloquePM.classList.contains("hidden") && !bloquePM.querySelector("input:checked")) {
               llevarVistaA(bloquePM.querySelector("input"));
@@ -1750,8 +2049,13 @@
                   ordenesCompra = [...ordenesCompra, ordenAnotada]; // hasta que llegue la actualización en vivo
                 }
               }
+              const cantidadFila = Number(fila.querySelector(".im-cantidad").value);
+              const porCaja = enCajasManual(fila) ? Number(fila.querySelector(".im-por-caja").value) || 0 : 0;
               const datos = {
-                cantidadRecibida: fila.querySelector(".im-cantidad").value,
+                cantidadRecibida: porCaja ? Math.round(cantidadFila * porCaja * 1000) / 1000 : cantidadFila,
+                cantidadPedido: cantidadFila,
+                cajas: porCaja ? cantidadFila : null,
+                unidadesPorCaja: porCaja || null,
                 proveedor,
                 documento: ordenAnotada ? "" : numeroOc, // con PM ya queda como ordenCompraNumero
                 motivo,

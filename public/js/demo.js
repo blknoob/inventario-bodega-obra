@@ -47,6 +47,7 @@ export const PEDIDOS_DEMO = [
       { id: "i2", linea: "2", centroGestion: "Prevención", centroCosto: "CC-200", cantidad: 20, unidad: "pares", glosa: "Guantes de cabritilla" },
       { id: "i3", linea: "3", centroGestion: "Obra Gruesa", centroCosto: "CC-100", cantidad: 5, unidad: "cuerpos", glosa: "Andamio marco 1.5 m" },
       { id: "i6", linea: "4", centroGestion: "Obra Gruesa", centroCosto: "CC-100", cantidad: 4, unidad: "unidades", glosa: "Chuzos" },
+      { id: "i7", linea: "5", centroGestion: "Prevención", centroCosto: "CC-200", cantidad: 2, unidad: "cajas", glosa: "Traje de papel blanco" },
     ],
     creadoPor: "bodega@demo.cl", creadoEn: hace(10 * 86400),
   },

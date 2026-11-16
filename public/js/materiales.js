@@ -150,10 +150,15 @@ export async function agregarFacturasAIngreso(movimientos, facturasNuevas) {
  * un id existente, solo suma esa cantidad a su stock. En ambos casos deja un
  * movimiento de tipo "entrada" en el historial. Todo en una sola transacción.
  */
-export async function registrarEntrada({ materialId, nuevoMaterial, cantidadRecibida, proveedor, documento, motivo, observacionRecepcion, ubicacion, ordenCompraId, ordenCompraNumero, pmItemId, fleteId, fleteEmpresa, facturas, tipoAdquisicion, empresaArriendo }) {
+export async function registrarEntrada({ materialId, nuevoMaterial, cantidadRecibida, cantidadPedido, cajas, unidadesPorCaja, proveedor, documento, motivo, observacionRecepcion, ubicacion, ordenCompraId, ordenCompraNumero, pmItemId, fleteId, fleteEmpresa, facturas, tipoAdquisicion, empresaArriendo }) {
   if (MODO_DEMO) bloquearEnDemo();
   const cant = Number(cantidadRecibida);
   if (!(cant > 0)) throw new Error("La cantidad recibida debe ser mayor que cero.");
+  // Si llegó en cajas (ver "Viene en cajas" en materiales.html): al stock
+  // entra el total de unidades (cantidadRecibida), pero en la orden de
+  // compra se descuenta en la unidad del PM (cajas = cantidadPedido).
+  const porCaja = Number(unidadesPorCaja) > 0 ? Number(unidadesPorCaja) : null;
+  const cantPedido = Number(cantidadPedido) > 0 ? Number(cantidadPedido) : cant;
 
   const email = usuarioActual()?.email ?? null;
   const nuevoMovRef = doc(movimientosRef);
@@ -187,6 +192,8 @@ export async function registrarEntrada({ materialId, nuevoMaterial, cantidadReci
         stock: resultante,
         actualizadoEn: serverTimestamp(),
         ...(ubicacion?.trim() ? { ubicacion: ubicacion.trim() } : {}),
+        // Se recuerda para proponerlo la próxima vez que llegue en cajas.
+        ...(porCaja ? { unidadesPorCaja: porCaja } : {}),
       });
     } else {
       if (!nuevoMaterial?.producto?.trim()) throw new Error("Indica el nombre del producto.");
@@ -213,6 +220,7 @@ export async function registrarEntrada({ materialId, nuevoMaterial, cantidadReci
         ubicacion: nuevoMaterial.ubicacion?.trim() || "",
         descripcion: nuevoMaterial.descripcion?.trim() || "",
         tipoHerramienta: nuevoMaterial.categoria === "herramienta" ? (nuevoMaterial.tipoHerramienta?.trim() || "") : "",
+        ...(porCaja ? { unidadesPorCaja: porCaja } : {}),
         creadoPor: email,
         creadoEn: serverTimestamp(),
         actualizadoEn: serverTimestamp(),
@@ -240,6 +248,10 @@ export async function registrarEntrada({ materialId, nuevoMaterial, cantidadReci
       fleteId: fleteId || null,
       fleteEmpresa: fleteEmpresa?.trim() || "",
       facturas: facturas || [],
+      // Solo si llegó en cajas: cuántas y cuántas unidades traía cada una
+      // ("cantidad" ya es el total en unidades).
+      cajas: porCaja ? (Number(cajas) || null) : null,
+      unidadesPorCaja: porCaja,
       // Solo aplica a herramientas: si esta llegada es de una herramienta
       // arrendada (no comprada), hay que poder verla después como
       // "pendiente por devolver" -- ver herramientas.js/crearArriendo, que
@@ -255,7 +267,7 @@ export async function registrarEntrada({ materialId, nuevoMaterial, cantidadReci
     if (ordenDoc && ordenSnap?.exists()) {
       const itemsCubiertos = (ordenSnap.data().itemsCubiertos || []).map((it) =>
         it.pmItemId === pmItemId
-          ? { ...it, recibido: Math.round(((Number(it.recibido) || 0) + cant) * 1000) / 1000 }
+          ? { ...it, recibido: Math.round(((Number(it.recibido) || 0) + cantPedido) * 1000) / 1000 }
           : it,
       );
       tx.update(ordenDoc, { itemsCubiertos });
@@ -474,6 +486,24 @@ export function escucharMovimientos(obra, onCambio, onError, { max = 300 } = {})
   return onSnapshot(
     q,
     (snap) => onCambio(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
+    onError,
+  );
+}
+
+/**
+ * Escucha en tiempo real TODOS los movimientos de un producto (para su
+ * ficha de detalle), más recientes primero. Se ordena acá y no en la
+ * consulta para no necesitar un índice compuesto materialId+fecha.
+ */
+export function escucharMovimientosDeMaterial(materialId, onCambio, onError) {
+  const ordenar = (items) => items.sort((a, b) => (b.fecha?.toDate?.() || 0) - (a.fecha?.toDate?.() || 0));
+  if (MODO_DEMO) {
+    onCambio(ordenar(MOVIMIENTOS_DEMO.filter((m) => m.materialId === materialId)));
+    return () => {};
+  }
+  return onSnapshot(
+    query(movimientosRef, where("materialId", "==", materialId)),
+    (snap) => onCambio(ordenar(snap.docs.map((d) => ({ id: d.id, ...d.data() })))),
     onError,
   );
 }

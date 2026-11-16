@@ -724,3 +724,29 @@ body.es-bodega .only-bodega.row-actions { display: flex; }
 
 /* Parte del texto que coincide con la búsqueda (Seguimiento de PMs). */
 mark { background: #fde68a; color: inherit; padding: 0 1px; border-radius: 2px; }
+
+/* ── Detalle de un producto (Materiales / EPPs / Herramientas) ─────────── */
+.link-producto {
+  background: none; border: none; padding: 0; margin: 0;
+  font: inherit; color: var(--info); text-align: left; cursor: pointer;
+}
+.link-producto:hover { text-decoration: underline; }
+dialog.dlg-detalle { width: min(560px, calc(100vw - 32px)); margin: auto; }
+.detalle-producto { padding: 16px 20px 20px; max-height: 75vh; overflow-y: auto; }
+.detalle-ficha { display: flex; flex-direction: column; gap: 6px; }
+.detalle-dato { display: grid; grid-template-columns: 130px 1fr; gap: 10px; font-size: 14px; }
+.detalle-dato > span:last-child { overflow-wrap: anywhere; }
+.detalle-subtitulo { font-size: 14px; margin: 18px 0 8px; padding-top: 12px; border-top: 1px solid var(--line); }
+.detalle-mov { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; margin-bottom: 6px; }
+.detalle-mov-cab { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+details.detalle-mov > summary { cursor: pointer; list-style: none; }
+details.detalle-mov > summary::-webkit-details-marker { display: none; }
+.detalle-mov-datos { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--line); }
+.detalle-mov-datos .detalle-dato { grid-template-columns: 110px 1fr; font-size: 13px; }
+.detalle-foto { display: inline-block; margin: 0 6px 6px 0; }
+.detalle-foto img { display: block; max-width: 80px; max-height: 80px; border-radius: 6px; border: 1px solid var(--line); object-fit: cover; }
+@media (max-width: 520px) {
+  .detalle-producto { padding: 14px 16px 16px; }
+  .detalle-dato { grid-template-columns: 1fr; gap: 0; }
+  .detalle-mov-datos .detalle-dato { grid-template-columns: 1fr; }
+}

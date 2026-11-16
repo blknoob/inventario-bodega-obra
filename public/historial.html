@@ -42,6 +42,9 @@
           <select id="filtro-categoria">
             <option value="">Todas las categorías</option>
           </select>
+          <select id="filtro-oc">
+            <option value="">Todas las órdenes de compra</option>
+          </select>
           <input type="date" id="filtro-fecha" />
           <button type="button" class="btn btn-ghost btn-xs" id="btn-fecha-hoy">Hoy</button>
           <label class="text-sm" style="display:flex; align-items:center; gap:6px;">
@@ -90,6 +93,7 @@
     const filtroFecha = document.getElementById("filtro-fecha");
     const btnFechaHoy = document.getElementById("btn-fecha-hoy");
     const filtroSinOC = document.getElementById("filtro-sin-oc");
+    const filtroOC = document.getElementById("filtro-oc");
     const statEntradasCard = document.getElementById("stat-entradas-card");
     const statSalidasCard = document.getElementById("stat-salidas-card");
     const statSinOcCard = document.getElementById("stat-sin-oc-card");
@@ -154,6 +158,7 @@
       const partes = [];
       if (m.tipo === "entrada") {
         partes.push(["N.º de orden de compra", m.ordenCompraNumero ? esc(m.ordenCompraNumero) : `<span class="badge badge-warn">Sin OC</span>`]);
+        if (m.unidadesPorCaja) partes.push(["Llegó en", `${fmtNum(m.cajas)} caja${m.cajas === 1 ? "" : "s"} × ${fmtNum(m.unidadesPorCaja)}`]);
         if (m.proveedor) partes.push(["Proveedor", esc(m.proveedor)]);
         if (m.documento) partes.push(["Documento", esc(m.documento)]);
         if (m.motivo) partes.push(["Motivo", esc(m.motivo)]);
@@ -175,18 +180,39 @@
       return partes;
     }
 
+    // Filtro por orden de compra: las opciones salen de las OC que aparecen
+    // en los movimientos de la obra activa (se rearma con cada cambio, sin
+    // perder la que estaba elegida). Se compara sin mayúsculas/espacios
+    // para que "oc-1002" y "OC-1002 " cuenten como la misma.
+    const normOC = (v) => String(v || "").trim().toUpperCase();
+    function actualizarOpcionesOC() {
+      const elegida = filtroOC.value;
+      const conteo = new Map();
+      for (const m of movimientos) {
+        const n = normOC(m.ordenCompraNumero);
+        if (n) conteo.set(n, (conteo.get(n) || 0) + 1);
+      }
+      const ocs = [...conteo.keys()].sort((a, b) => b.localeCompare(a, "es", { numeric: true }));
+      if (elegida && !conteo.has(elegida)) ocs.unshift(elegida); // no la borra de golpe si deja de aparecer
+      filtroOC.innerHTML = `<option value="">Todas las órdenes de compra</option>` +
+        ocs.map((n) => `<option value="${esc(n)}">${esc(n)}${conteo.has(n) ? ` (${conteo.get(n)})` : ""}</option>`).join("");
+      filtroOC.value = elegida;
+    }
+
     function render() {
       const q = buscar.value.trim().toLowerCase();
       const tipo = filtroTipo.value;
       const cat = filtroCat.value;
       const fecha = filtroFecha.value;
       const soloSinOC = filtroSinOC.checked;
+      const oc = filtroOC.value;
       const vista = movimientos.filter((m) =>
         (!tipo || m.tipo === tipo) &&
         (!cat || m.categoria === cat) &&
         (!fecha || (m.fecha?.toDate?.() && fechaISO(m.fecha.toDate()) === fecha)) &&
         (!soloSinOC || (m.tipo === "entrada" && !m.ordenCompraNumero)) &&
-        (!q || [m.materialProducto, m.personaRetira, m.proveedor, m.supervisor, m.responsable, m.numeroVale, m.solicitadoPor]
+        (!oc || normOC(m.ordenCompraNumero) === oc) &&
+        (!q || [m.ordenCompraNumero, m.materialProducto, m.personaRetira, m.proveedor, m.supervisor, m.responsable, m.numeroVale, m.solicitadoPor]
           .some((v) => (v || "").toLowerCase().includes(q))));
 
       const entradas = movimientos.filter((m) => m.tipo === "entrada");
@@ -241,7 +267,15 @@
     filtroTipo.addEventListener("change", render);
     filtroCat.addEventListener("change", render);
     filtroFecha.addEventListener("change", render);
-    filtroSinOC.addEventListener("change", render);
+    // "Solo entradas sin OC" y una OC puntual se excluyen entre sí.
+    filtroSinOC.addEventListener("change", () => {
+      if (filtroSinOC.checked) filtroOC.value = "";
+      render();
+    });
+    filtroOC.addEventListener("change", () => {
+      if (filtroOC.value) filtroSinOC.checked = false;
+      render();
+    });
 
     // Las tarjetas también filtran: un clic aplica el filtro (o lo quita si
     // ya estaba aplicado), igual que el select/checkbox equivalente.
@@ -255,6 +289,7 @@
     });
     statSinOcCard.addEventListener("click", () => {
       filtroSinOC.checked = true;
+      filtroOC.value = "";
       render();
     });
 
@@ -280,7 +315,7 @@
 
     escucharConObraActiva(
       escucharMovimientos,
-      (items) => { movimientos = items; render(); },
+      (items) => { movimientos = items; actualizarOpcionesOC(); render(); },
       (err) => {
         tbody.innerHTML = `<tr><td colspan="8" class="empty">Error al cargar: ${esc(err.message)}</td></tr>`;
       },
