@@ -43,12 +43,21 @@ service cloud.firestore {
     match /movimientos_materiales/{id} {
       allow read: if true;
       // Los movimientos son un registro histórico: se crean, no se editan ni
-      // borran. Única excepción: bodega puede agregarle después las fotos de
-      // la guía a un ingreso que quedó sin ellas (ver guias.html) -- solo el
-      // campo "facturas", nada más del movimiento.
+      // borran. Excepciones (solo bodega):
+      //  - agregarle después las fotos de la guía a un ingreso que quedó
+      //    sin ellas (ver guias.html) -- solo el campo "facturas";
+      //  - corregir el N.º de orden de compra de un ingreso (y, si viene de
+      //    un PM, a qué orden de ese PM pertenece) -- ver historial.html /
+      //    corregirOrdenCompra --, dejando anotado quién y cuándo.
       allow create: if bodega();
-      allow update: if bodega()
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["facturas"]);
+      allow update: if bodega() && (
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(["facturas"])
+        || (resource.data.tipo == "entrada"
+            && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(["ordenCompraNumero", "documento", "ordenCompraId", "ocCorregidaPor", "ocCorregidaEn"])
+            && request.resource.data.ocCorregidaPor == request.auth.token.email
+            && request.resource.data.ocCorregidaEn == request.time)
+      );
       allow delete: if false;
     }
 

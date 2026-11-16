@@ -314,7 +314,7 @@
       CATEGORIAS, etiquetaCategoria, nivelStock,
       TIPOS_HERRAMIENTA, etiquetaTipoHerramienta,
       escucharMateriales, registrarEntrada, registrarSalida, eliminarMaterial, marcarSinReposicion,
-      subirFacturasEntrada, registrarTraslado, escucharMovimientosDeMaterial, facturasDe,
+      subirFacturasEntrada, registrarTraslado, escucharMovimientosDeMaterial, facturasDe, ocDe,
     } from "./js/materiales.js";
     import { escucharPedidos, escucharOrdenes, anotarOrdenDeCompra, cantidadRecibidaDe } from "./js/compras.js";
     import { escucharFletes, etiquetaTipoFlete } from "./js/fletes.js";
@@ -872,8 +872,7 @@
       if (mv.tipo === "entrada") {
         if (mv.unidadesPorCaja) p.push(["Llegó en", `${fmtNum(mv.cajas)} caja${mv.cajas === 1 ? "" : "s"} × ${fmtNum(mv.unidadesPorCaja)}`]);
         if (mv.proveedor) p.push(["Proveedor", esc(mv.proveedor)]);
-        p.push(["Orden de compra", mv.ordenCompraNumero ? esc(mv.ordenCompraNumero) : `<span class="badge badge-warn">Sin OC</span>`]);
-        if (mv.documento && mv.documento !== mv.ordenCompraNumero) p.push(["Documento", esc(mv.documento)]);
+        p.push(["Orden de compra", ocDe(mv) ? esc(ocDe(mv)) : `<span class="badge badge-warn">Sin OC</span>`]);
         if (mv.motivo) p.push(["Motivo", esc(mv.motivo)]);
         if (mv.observacionRecepcion) p.push(["Obs. recepción", esc(mv.observacionRecepcion)]);
         if (mv.fleteEmpresa) p.push(["Flete", esc(mv.fleteEmpresa)]);
@@ -2169,11 +2168,11 @@
                 cajas: porCaja ? cantidadFila : null,
                 unidadesPorCaja: porCaja || null,
                 proveedor,
-                documento: ordenAnotada ? "" : numeroOc, // con PM ya queda como ordenCompraNumero
+                documento: "", // el N.º de OC escrito arriba va en ordenCompraNumero (antes quedaba acá, ver ocDe en js/materiales.js)
                 motivo,
                 ubicacion,
                 ordenCompraId: ordenAnotada?.id || null,
-                ordenCompraNumero: ordenAnotada?.numero || "",
+                ordenCompraNumero: ordenAnotada?.numero || numeroOc,
                 pmItemId: itemPM?.id || null,
                 fleteId,
                 fleteEmpresa,

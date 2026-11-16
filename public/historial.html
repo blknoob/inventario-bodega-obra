@@ -10,6 +10,7 @@
   <header id="topbar"></header>
 
   <div class="wrap">
+    <div id="flash" class="alert hidden"></div>
     <div class="page-head">
       <h1>Historial</h1>
      
@@ -75,9 +76,33 @@
     </div>
   </div>
 
+  <!-- ── Modal: corregir el N.º de orden de compra de un ingreso ───────── -->
+  <dialog id="dlg-oc" style="margin:auto;">
+    <div class="modal-head">
+      <h3 id="oc-titulo">Editar orden de compra</h3>
+      <button type="button" class="modal-close" data-close>&times;</button>
+    </div>
+    <form id="form-oc">
+      <div id="err-oc" class="alert alert-error hidden"></div>
+      <p class="text-sm muted" id="oc-resumen" style="margin-top:-6px; margin-bottom:12px;"></p>
+      <div class="field">
+        <label for="oc-numero">N.º de orden de compra</label>
+        <input type="text" id="oc-numero" maxlength="40" autocomplete="off" placeholder="Vacío = sin OC" />
+      </div>
+      <label class="text-sm hidden" id="oc-hermanos-bloque" style="display:flex; align-items:center; gap:6px; margin-bottom:10px;">
+        <input type="checkbox" id="oc-hermanos" style="width:auto;" checked />
+        <span id="oc-hermanos-texto"></span>
+      </label>
+      <div class="modal-foot">
+        <button type="button" class="btn btn-ghost" data-close>Cancelar</button>
+        <button type="submit" class="btn btn-primary" id="btn-guardar-oc">Guardar</button>
+      </div>
+    </form>
+  </dialog>
+
   <script type="module">
-    import { montarTopbar, ubicarDesplegable } from "./js/ui.js";
-    import { CATEGORIAS, etiquetaCategoria, escucharMovimientos, facturasDe } from "./js/materiales.js";
+    import { montarTopbar, ubicarDesplegable, flash } from "./js/ui.js";
+    import { CATEGORIAS, etiquetaCategoria, escucharMovimientos, facturasDe, ocDe, corregirOrdenCompra } from "./js/materiales.js";
     import { escucharConObraActiva } from "./js/obra.js";
 
     montarTopbar("historial");
@@ -148,7 +173,7 @@
      *  responsable) queda en el modal para no desordenar la lista. */
     function resumenDetalle(m) {
       if (m.tipo === "entrada") {
-        return m.ordenCompraNumero ? `OC: ${esc(m.ordenCompraNumero)}` : `<span class="badge badge-warn">Sin OC</span>`;
+        return ocDe(m) ? `OC: ${esc(ocDe(m))}` : `<span class="badge badge-warn">Sin OC</span>`;
       }
       return `Retira: ${esc(m.personaRetira || "—")}`;
     }
@@ -157,10 +182,12 @@
     function detalleItems(m) {
       const partes = [];
       if (m.tipo === "entrada") {
-        partes.push(["N.º de orden de compra", m.ordenCompraNumero ? esc(m.ordenCompraNumero) : `<span class="badge badge-warn">Sin OC</span>`]);
+        partes.push(["N.º de orden de compra",
+          (ocDe(m) ? esc(ocDe(m)) : `<span class="badge badge-warn">Sin OC</span>`) +
+          ` <button type="button" class="btn btn-ghost btn-xs only-bodega" data-editar-oc="${m.id}">${ocDe(m) ? "Editar" : "Agregar"}</button>`]);
+        if (m.ocCorregidaPor) partes.push(["OC corregida por", `${esc(m.ocCorregidaPor)} <span class="muted">${fmtFecha(m.ocCorregidaEn)}</span>`]);
         if (m.unidadesPorCaja) partes.push(["Llegó en", `${fmtNum(m.cajas)} caja${m.cajas === 1 ? "" : "s"} × ${fmtNum(m.unidadesPorCaja)}`]);
         if (m.proveedor) partes.push(["Proveedor", esc(m.proveedor)]);
-        if (m.documento) partes.push(["Documento", esc(m.documento)]);
         if (m.motivo) partes.push(["Motivo", esc(m.motivo)]);
         if (m.observacionRecepcion) partes.push(["Observación de recepción", esc(m.observacionRecepcion)]);
         const facturas = facturasDe(m);
@@ -189,7 +216,7 @@
       const elegida = filtroOC.value;
       const conteo = new Map();
       for (const m of movimientos) {
-        const n = normOC(m.ordenCompraNumero);
+        const n = normOC(ocDe(m));
         if (n) conteo.set(n, (conteo.get(n) || 0) + 1);
       }
       const ocs = [...conteo.keys()].sort((a, b) => b.localeCompare(a, "es", { numeric: true }));
@@ -210,9 +237,9 @@
         (!tipo || m.tipo === tipo) &&
         (!cat || m.categoria === cat) &&
         (!fecha || (m.fecha?.toDate?.() && fechaISO(m.fecha.toDate()) === fecha)) &&
-        (!soloSinOC || (m.tipo === "entrada" && !m.ordenCompraNumero)) &&
-        (!oc || normOC(m.ordenCompraNumero) === oc) &&
-        (!q || [m.ordenCompraNumero, m.materialProducto, m.personaRetira, m.proveedor, m.supervisor, m.responsable, m.numeroVale, m.solicitadoPor]
+        (!soloSinOC || (m.tipo === "entrada" && !ocDe(m))) &&
+        (!oc || normOC(ocDe(m)) === oc) &&
+        (!q || [ocDe(m), m.materialProducto, m.personaRetira, m.proveedor, m.supervisor, m.responsable, m.numeroVale, m.solicitadoPor]
           .some((v) => (v || "").toLowerCase().includes(q))));
 
       const entradas = movimientos.filter((m) => m.tipo === "entrada");
@@ -220,7 +247,7 @@
       document.getElementById("stat-salidas").textContent =
         movimientos.filter((m) => m.tipo === "salida").length;
       document.getElementById("stat-sin-oc").textContent =
-        entradas.filter((m) => !m.ordenCompraNumero).length;
+        entradas.filter((m) => !ocDe(m)).length;
 
       statEntradasCard.classList.toggle("active", tipo === "entrada");
       statSalidasCard.classList.toggle("active", tipo === "salida");
@@ -324,6 +351,72 @@
     document.querySelector(".table-wrap").addEventListener("scroll", reubicarAbierto, { passive: true });
     document.addEventListener("click", (e) => {
       if (!e.target.closest(".detalle-celda")) cerrarPaneles(null);
+    });
+
+    // ── Editar / agregar N.º de orden de compra (solo bodega). Si el ingreso
+    // viene de un PM, lo recibido se mueve a la orden correcta de ese PM
+    // (ver corregirOrdenCompra en js/materiales.js). Se ofrece aplicar el cambio también a los
+    // otros productos del MISMO ingreso (registrados juntos: comparten las
+    // fotos de la guía, o -- sin fotos -- misma OC, proveedor y momento).
+    const dlgOc = document.getElementById("dlg-oc");
+    const formOc = document.getElementById("form-oc");
+    const errOc = document.getElementById("err-oc");
+    const ocNumero = document.getElementById("oc-numero");
+    const ocHermanos = document.getElementById("oc-hermanos");
+    const ocHermanosBloque = document.getElementById("oc-hermanos-bloque");
+    let ocMovimiento = null;
+    let ocOtros = [];
+    dlgOc.querySelectorAll("[data-close]").forEach((b) => b.addEventListener("click", () => dlgOc.close()));
+
+    function mismoIngreso(a, b) {
+      if (a.id === b.id || b.tipo !== "entrada") return false;
+      const fa = facturasDe(a).map((f) => f.path || f.url).sort().join("|");
+      const fb = facturasDe(b).map((f) => f.path || f.url).sort().join("|");
+      if (fa || fb) return fa === fb;
+      const ta = a.fecha?.toDate?.()?.getTime() || 0;
+      const tb = b.fecha?.toDate?.()?.getTime() || 0;
+      return ocDe(a) === ocDe(b) && (a.proveedor || "") === (b.proveedor || "") && Math.abs(ta - tb) < 5 * 60 * 1000;
+    }
+
+    tbody.addEventListener("click", (e) => {
+      const id = e.target.getAttribute?.("data-editar-oc");
+      if (!id) return;
+      const m = movimientos.find((x) => x.id === id);
+      if (!m) return;
+      cerrarPaneles(null);
+      ocMovimiento = m;
+      ocOtros = movimientos.filter((x) => mismoIngreso(m, x));
+      document.getElementById("oc-resumen").textContent =
+        `${m.materialProducto} — ingreso del ${fmtFecha(m.fecha)}${m.proveedor ? ` · ${m.proveedor}` : ""}`;
+      ocNumero.value = ocDe(m);
+      document.getElementById("oc-titulo").textContent = ocDe(m) ? "Editar orden de compra" : "Agregar orden de compra";
+      ocHermanosBloque.classList.toggle("hidden", !ocOtros.length);
+      ocHermanos.checked = true;
+      document.getElementById("oc-hermanos-texto").textContent = ocOtros.length
+        ? `Aplicar también a ${ocOtros.length === 1 ? "el otro producto" : `los otros ${ocOtros.length} productos`} de este mismo ingreso (${ocOtros.map((x) => x.materialProducto).join(", ")})`
+        : "";
+      errOc.classList.add("hidden");
+      dlgOc.showModal();
+      ocNumero.select();
+    });
+
+    formOc.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      if (!ocMovimiento) return;
+      const btn = document.getElementById("btn-guardar-oc");
+      btn.disabled = true; btn.textContent = "Guardando…";
+      errOc.classList.add("hidden");
+      try {
+        const lote = [ocMovimiento, ...(ocHermanos.checked ? ocOtros : [])];
+        await corregirOrdenCompra(lote, ocNumero.value);
+        dlgOc.close();
+        flash(lote.length === 1 ? "Orden de compra guardada." : `Orden de compra guardada en ${lote.length} productos.`);
+      } catch (err) {
+        errOc.textContent = err.message;
+        errOc.classList.remove("hidden");
+      } finally {
+        btn.disabled = false; btn.textContent = "Guardar";
+      }
     });
 
     escucharConObraActiva(

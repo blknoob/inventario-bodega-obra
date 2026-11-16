@@ -6,6 +6,8 @@ import {
   collection,
   doc,
   deleteDoc,
+  getDoc,
+  getDocs,
   onSnapshot,
   orderBy,
   query,
@@ -124,6 +126,134 @@ export async function subirFacturasEntrada(archivos, carpetaBase = "entradas") {
 export function facturasDe(movimiento) {
   if (movimiento.facturas?.length) return movimiento.facturas;
   return movimiento.factura ? [movimiento.factura] : [];
+}
+
+/**
+ * N.º de orden de compra de un ingreso. Los registrados sin elegir un PM
+ * (antes de corregirlo) guardaban el número escrito en "N.º Orden de
+ * Compra" en `documento`, no en `ordenCompraNumero` -- por eso se leen
+ * los dos.
+ */
+export function ocDe(movimiento) {
+  return String(movimiento?.ordenCompraNumero || movimiento?.documento || "").trim();
+}
+
+/**
+ * Corrige (o agrega) el N.º de orden de compra de ingresos ya registrados
+ * -- p. ej. se escribió mal, o llegó con OC y se registró sin ella.
+ *
+ * Si el ingreso NO viene de un PM, basta con cambiar el número.
+ *
+ * Si viene de un PM (ordenCompraId), lo recibido quedó descontado del PM
+ * dentro de una orden de compra (la "sin número" del pedido, si no se
+ * escribió OC): hay que MOVERLO a la orden con el número correcto -- la
+ * que ya exista para ese mismo PM, o una nueva --, para que el PM siga
+ * cuadrado y en Seguimiento de PMs se vea bajo la OC real. La orden
+ * "sin número" que quede vacía se borra (la había creado sola la app).
+ * Todo en una sola transacción. Queda anotado quién y cuándo lo corrigió.
+ */
+export async function corregirOrdenCompra(movimientos, numero) {
+  if (MODO_DEMO) bloquearEnDemo();
+  const nuevo = String(numero || "").trim();
+  if (movimientos.some((m) => m.tipo !== "entrada")) throw new Error("Solo se puede corregir la OC de un ingreso.");
+  const email = usuarioActual()?.email ?? null;
+  const norm = (v) => String(v || "").trim().toLowerCase();
+  const redondear = (n) => Math.round(n * 1000) / 1000;
+  // En la orden lo recibido va en la unidad del PM (cajas, si llegó en cajas).
+  const cantidadPM = (m) => Number(m.unidadesPorCaja ? m.cajas : m.cantidad) || 0;
+
+  // Fuera de la transacción (ahí no se puede consultar): a qué PM
+  // pertenece cada orden actual, y cuál es la orden de destino de ese PM.
+  const idsOrigen = [...new Set(movimientos.map((m) => m.ordenCompraId).filter(Boolean))];
+  const origenes = new Map(); // id -> datos
+  for (const id of idsOrigen) {
+    const snap = await getDoc(doc(db, "ordenes_compra", id));
+    if (snap.exists()) origenes.set(id, snap.data());
+  }
+  const destinoPorPm = new Map(); // pmId -> { ref, existe, proveedor }
+  for (const o of origenes.values()) {
+    if (destinoPorPm.has(o.pmId)) continue;
+    const snap = await getDocs(query(collection(db, "ordenes_compra"), where("pmId", "==", o.pmId)));
+    const hallada = snap.docs.find((d) => norm(d.data().numero) === norm(nuevo));
+    destinoPorPm.set(o.pmId, hallada
+      ? { ref: hallada.ref, existe: true }
+      : { ref: doc(collection(db, "ordenes_compra")), existe: false, proveedor: o.proveedor || "" });
+  }
+
+  await runTransaction(db, async (tx) => {
+    // Lecturas primero.
+    const ordenes = new Map(); // id -> { ref, data, nueva }
+    for (const id of origenes.keys()) {
+      const ref = doc(db, "ordenes_compra", id);
+      const snap = await tx.get(ref);
+      if (snap.exists()) ordenes.set(id, { ref, data: { ...snap.data(), itemsCubiertos: [...(snap.data().itemsCubiertos || [])] } });
+    }
+    for (const [pmId, d] of destinoPorPm) {
+      if (ordenes.has(d.ref.id)) continue;
+      const snap = d.existe ? await tx.get(d.ref) : null;
+      ordenes.set(d.ref.id, snap?.exists()
+        ? { ref: d.ref, data: { ...snap.data(), itemsCubiertos: [...(snap.data().itemsCubiertos || [])] } }
+        : { ref: d.ref, nueva: true, data: {
+            pmId, numero: nuevo, proveedor: d.proveedor, itemsCubiertos: [], archivo: null,
+            recibida: false, recibidaEn: null, creadoPor: email, creadoEn: serverTimestamp(),
+          } });
+    }
+
+    const tocadas = new Set();
+    for (const m of movimientos) {
+      let destinoId = null;
+      const origen = m.ordenCompraId ? ordenes.get(m.ordenCompraId) : null;
+      if (origen && m.pmItemId) {
+        const destino = ordenes.get(destinoPorPm.get(origen.data.pmId).ref.id);
+        destinoId = destino.ref.id;
+        if (destinoId !== m.ordenCompraId) {
+          const cant = cantidadPM(m);
+          const iOrigen = origen.data.itemsCubiertos.findIndex((it) => it.pmItemId === m.pmItemId);
+          const itemOrigen = iOrigen >= 0 ? origen.data.itemsCubiertos[iOrigen] : null;
+          if (itemOrigen) {
+            const queda = redondear((Number(itemOrigen.recibido) || 0) - cant);
+            // En la orden "sin número" (la creó sola la app al recibir) el
+            // ítem solo estaba por lo recibido: si queda en 0, se quita.
+            // En una orden con número se deja (en 0): pudo anotarse a
+            // propósito en Seguimiento de PMs con lo que cubre esa OC.
+            const sinNumero = !String(origen.data.numero || "").trim();
+            if (queda > 0 || !sinNumero) origen.data.itemsCubiertos[iOrigen] = { ...itemOrigen, recibido: Math.max(0, queda) };
+            else origen.data.itemsCubiertos.splice(iOrigen, 1);
+          }
+          const iDestino = destino.data.itemsCubiertos.findIndex((it) => it.pmItemId === m.pmItemId);
+          if (iDestino >= 0) {
+            const it = destino.data.itemsCubiertos[iDestino];
+            destino.data.itemsCubiertos[iDestino] = { ...it, recibido: redondear((Number(it.recibido) || 0) + cant) };
+          } else {
+            destino.data.itemsCubiertos.push({
+              pmItemId: m.pmItemId,
+              glosa: itemOrigen?.glosa || m.materialProducto,
+              cantidad: Number(itemOrigen?.cantidad) || cant,
+              recibido: cant,
+            });
+          }
+          tocadas.add(m.ordenCompraId);
+          tocadas.add(destinoId);
+        }
+      }
+      tx.update(doc(db, "movimientos_materiales", m.id), {
+        // Con una orden de destino ya existente, se usa su número tal cual
+        // está escrito ahí (p. ej. "OC-7" aunque se haya tecleado "oc-7").
+        ordenCompraNumero: destinoId ? String(ordenes.get(destinoId).data.numero || "").trim() : nuevo,
+        documento: "",
+        ...(destinoId ? { ordenCompraId: destinoId } : {}),
+        ocCorregidaPor: email,
+        ocCorregidaEn: serverTimestamp(),
+      });
+    }
+
+    for (const id of tocadas) {
+      const o = ordenes.get(id);
+      if (o.nueva) tx.set(o.ref, o.data);
+      else if (!o.data.itemsCubiertos.length && !String(o.data.numero || "").trim() && !o.data.archivo) tx.delete(o.ref);
+      else tx.update(o.ref, { itemsCubiertos: o.data.itemsCubiertos });
+    }
+  });
 }
 
 /**
