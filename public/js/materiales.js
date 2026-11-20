@@ -603,6 +603,17 @@ export async function marcarSinReposicion(materialId, sinReposicion) {
   await updateDoc(doc(db, "materiales", materialId), { sinReposicion: !!sinReposicion });
 }
 
+/** Cambia el stock mínimo (alerta de stock bajo) de un producto. 0 = sin mínimo. */
+export async function actualizarStockMinimo(materialId, stockMinimo) {
+  if (MODO_DEMO) bloquearEnDemo();
+  const valor = Number(stockMinimo);
+  if (stockMinimo === "" || !(valor >= 0)) throw new Error("Indica un stock mínimo de 0 o más.");
+  await updateDoc(doc(db, "materiales", materialId), {
+    stockMinimo: Math.round(valor * 1000) / 1000,
+    actualizadoEn: serverTimestamp(),
+  });
+}
+
 /**
  * Escucha en tiempo real el historial de movimientos de una obra (entradas y
  * salidas), más recientes primero. Devuelve la función para desuscribirse.

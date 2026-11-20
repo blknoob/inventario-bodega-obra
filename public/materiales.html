@@ -308,12 +308,33 @@
     <div class="detalle-producto" id="detalle-cuerpo"></div>
   </dialog>
 
+  <!-- ── Modal: editar el stock mínimo de un producto ─────────────────── -->
+  <dialog id="dlg-minimo" style="margin:auto;">
+    <div class="modal-head">
+      <h3>Editar stock mínimo</h3>
+      <button type="button" class="modal-close" data-close>&times;</button>
+    </div>
+    <form id="form-minimo">
+      <div id="err-minimo" class="alert alert-error hidden"></div>
+      <p class="text-sm muted" id="minimo-resumen" style="margin-top:-6px; margin-bottom:12px;"></p>
+      <div class="field">
+        <label for="minimo-valor">Stock mínimo (alerta) <span class="muted" id="minimo-unidad"></span></label>
+        <input type="number" id="minimo-valor" min="0" step="any" required />
+        <p class="text-sm muted" style="margin-top:6px;">Cuando el stock llegue a este número o baje, aparece en la alerta de stock bajo. Con 0 solo avisa cuando se agota.</p>
+      </div>
+      <div class="modal-foot">
+        <button type="button" class="btn btn-ghost" data-close>Cancelar</button>
+        <button type="submit" class="btn btn-primary" id="btn-guardar-minimo">Guardar</button>
+      </div>
+    </form>
+  </dialog>
+
   <script type="module">
     import { montarTopbar, flash, ubicarDesplegable } from "./js/ui.js";
     import {
       CATEGORIAS, etiquetaCategoria, nivelStock,
       TIPOS_HERRAMIENTA, etiquetaTipoHerramienta,
-      escucharMateriales, registrarEntrada, registrarSalida, eliminarMaterial, marcarSinReposicion,
+      escucharMateriales, registrarEntrada, registrarSalida, eliminarMaterial, marcarSinReposicion, actualizarStockMinimo,
       subirFacturasEntrada, registrarTraslado, escucharMovimientosDeMaterial, facturasDe, ocDe,
     } from "./js/materiales.js";
     import { escucharPedidos, escucharOrdenes, anotarOrdenDeCompra, cantidadRecibidaDe } from "./js/compras.js";
@@ -400,15 +421,13 @@
       return `<option value="" ${valorElegido ? "" : "selected"} disabled hidden>Elegir un tipo</option>${opciones}`;
     }
 
-    // El EPP es lo único que se obliga a traer un mínimo mayor que cero
-    // (sin eso, "nivelStock()" nunca lo marca como "bajo" y la alerta de
-    // stock bajo nunca aparece). En Consumibles el mínimo queda opcional
-    // y puede quedar en 0 -- simplemente no dispara la alerta de "bajo"
-    // (sigue avisando cuando llega a 0 unidades, eso no depende del mínimo).
-    const CATEGORIAS_CON_ALERTA = ["epp"];
-    function validarStockMinimo(categoria, stockMinimo) {
-      if (CATEGORIAS_CON_ALERTA.includes(categoria) && !(Number(stockMinimo) > 0)) {
-        throw new Error("indica un stock mínimo mayor que 0 para poder mostrar la alerta de stock bajo.");
+    // El stock mínimo es opcional en todas las categorías (también EPP) y
+    // puede quedar en 0: así no dispara la alerta de "bajo" (sigue
+    // avisando cuando llega a 0 unidades, eso no depende del mínimo). Se
+    // puede cambiar después con "Editar mínimo" (ver más abajo).
+    function validarStockMinimo(_categoria, stockMinimo) {
+      if (stockMinimo !== "" && stockMinimo != null && !(Number(stockMinimo) >= 0)) {
+        throw new Error("el stock mínimo no puede ser negativo.");
       }
     }
     document.getElementById("stat-total-label").textContent = modoAlertas
@@ -918,6 +937,7 @@
           ${filas(paresMovimiento(ingreso).map(([a, b]) => [a === "Guía" ? "Factura/guía" : a, b]))}`;
       }
       const otros = [];
+      otros.push(["Stock mínimo", `${m.stockMinimo ? `${fmtNum(m.stockMinimo)} ${esc(m.unidad)}` : `<span class="muted">Sin mínimo</span>`} <button type="button" class="btn btn-ghost btn-xs only-bodega" data-editar-minimo="${m.id}">Editar</button>`]);
       if (m.descripcion) otros.push(["Descripción", esc(m.descripcion)]);
       if (m.unidadesPorCaja) otros.push(["Por caja", `${fmtNum(m.unidadesPorCaja)} ${esc(m.unidad)}`]);
       if (otros.length) html += `<div style="margin-top:10px; padding-top:8px; border-top:1px solid var(--line);">${filas(otros)}</div>`;
@@ -970,7 +990,8 @@
       const clase = { ok: "stock-ok", bajo: "stock-bajo", cero: "stock-cero" }[nivel];
       const ficha = [
         ["Ítem", m.item ? `#${esc(m.item)}` : "—"],
-        ["Stock", `<strong class="${clase}">${fmtNum(m.stock)}</strong> ${esc(m.unidad)}${m.stockMinimo ? ` <span class="muted">(mín. ${fmtNum(m.stockMinimo)})</span>` : ""}${m.sinReposicion ? ` <span class="muted">· no se repone</span>` : ""}`],
+        ["Stock", `<strong class="${clase}">${fmtNum(m.stock)}</strong> ${esc(m.unidad)}${m.sinReposicion ? ` <span class="muted">· no se repone</span>` : ""}`],
+        ["Stock mínimo", `${m.stockMinimo ? `${fmtNum(m.stockMinimo)} ${esc(m.unidad)}` : `<span class="muted">Sin mínimo</span>`} <button type="button" class="btn btn-ghost btn-xs only-bodega" data-editar-minimo="${m.id}">Editar</button>`],
         ["Categoría", esc(etiquetaCategoria(m.categoria))],
         ...(m.categoria === "herramienta" ? [["Tipo", m.tipoHerramienta ? esc(etiquetaTipoHerramienta(m.tipoHerramienta)) : "—"]] : []),
         ["Descripción", esc(m.descripcion) || "—"],
@@ -1044,6 +1065,46 @@
       dejarDeEscucharDetalle();
       dejarDeEscucharDetalle = () => {};
       detalleId = null;
+    });
+
+    // ── Editar stock mínimo (solo bodega): desde el desplegable "Detalle"
+    // de la fila o desde el modal con la ficha del producto.
+    const dlgMinimo = document.getElementById("dlg-minimo");
+    cerrarAlClickAfuera(dlgMinimo);
+    const formMinimo = document.getElementById("form-minimo");
+    const errMinimo = document.getElementById("err-minimo");
+    const minimoValor = document.getElementById("minimo-valor");
+    let minimoId = null;
+    document.addEventListener("click", (e) => {
+      const id = e.target.closest?.("[data-editar-minimo]")?.getAttribute("data-editar-minimo");
+      if (!id) return;
+      const m = materialesTodos.find((x) => x.id === id);
+      if (!m) return;
+      cerrarPanel();
+      minimoId = id;
+      document.getElementById("minimo-resumen").textContent = `${m.producto} — stock actual: ${fmtNum(m.stock)} ${m.unidad || ""}`;
+      document.getElementById("minimo-unidad").textContent = m.unidad ? `(en ${m.unidad})` : "";
+      minimoValor.value = Number(m.stockMinimo) || 0;
+      errMinimo.classList.add("hidden");
+      dlgMinimo.showModal();
+      minimoValor.select();
+    });
+    formMinimo.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      if (!minimoId) return;
+      const btn = document.getElementById("btn-guardar-minimo");
+      btn.disabled = true; btn.textContent = "Guardando…";
+      errMinimo.classList.add("hidden");
+      try {
+        await actualizarStockMinimo(minimoId, minimoValor.value);
+        dlgMinimo.close();
+        flash("Stock mínimo actualizado.");
+      } catch (err) {
+        errMinimo.textContent = err.message;
+        errMinimo.classList.remove("hidden");
+      } finally {
+        btn.disabled = false; btn.textContent = "Guardar";
+      }
     });
 
     // ── Eliminar material ───────────────────────────────────────────────
@@ -1261,7 +1322,7 @@
                 <input type="text" class="im-medida" maxlength="40" placeholder="Ej: 1/2 plg, 25 kg…" value="${esc(item.medida || "")}" />
               </div>
               <div class="field">
-                <label>Stock mínimo (alerta) <span class="muted">— obligatorio en EPP</span></label>
+                <label>Stock mínimo (alerta) <span class="muted">(opcional)</span></label>
                 <input type="number" class="im-minimo" min="0" step="any" value="${item.stockMinimo ?? 0}" />
               </div>
               <div class="field">
@@ -1645,7 +1706,7 @@
                 <select class="ie-categoria">${optsCategoriaNuevo(item.categoriaElegida)}</select>
               </div>
               <div class="field">
-                <label>Stock mínimo (alerta)${item.enCajas ? " en unidades" : ""} <span class="muted">— obligatorio en EPP</span></label>
+                <label>Stock mínimo (alerta)${item.enCajas ? " en unidades" : ""} <span class="muted">(opcional)</span></label>
                 <input type="number" class="ie-minimo" min="0" step="any" value="${item.stockMinimo ?? 0}" />
               </div>
             </div>` : ""}
